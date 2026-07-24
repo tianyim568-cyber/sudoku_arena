@@ -1,0 +1,150 @@
+/**
+ * ScoringService — idempotent score operations.
+ *
+ * All score mutations go through repository `addTeamPoints` / `addPlayerPoints`
+ * which use upsert semantics (INSERT ... ON CONFLICT UPDATE).
+ * This service adds domain logic on top: time bonuses, difficulty points, etc.
+ */
+
+class ScoringService {
+  /**
+   * @param {import('../db/repositories/ScoreRepository')} scoreRepo
+   */
+  constructor(scoreRepo) {
+    this.scoreRepo = scoreRepo;
+  }
+
+  // ─── Core score mutations ─────────────────────────────────────
+
+  /**
+   * Add points to a team's round score (idempotent upsert).
+   * @returns {number} updated total
+   */
+  async addTeamPoints(tournamentId, roundId, teamId, points) {
+    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, points);
+    const score = await this.scoreRepo.findTeamScore(tournamentId, roundId, teamId);
+    return score?.total_points || 0;
+  }
+
+  /**
+   * Add points to a player's round score (idempotent upsert).
+   * @returns {number} updated total
+   */
+  async addPlayerPoints(tournamentId, roundId, playerId, teamId, points) {
+    await this.scoreRepo.addPlayerPoints(tournamentId, roundId, playerId, teamId, points);
+    const score = await this.scoreRepo.findPlayerScore(tournamentId, roundId, playerId);
+    return score?.total_points || 0;
+  }
+
+  // ─── Queries ──────────────────────────────────────────────────
+
+  async findTeamScore(tournamentId, roundId, teamId) {
+    return await this.scoreRepo.findTeamScore(tournamentId, roundId, teamId);
+  }
+
+  async findPlayerScore(tournamentId, roundId, playerId) {
+    return await this.scoreRepo.findPlayerScore(tournamentId, roundId, playerId);
+  }
+
+  async findTeamScoresByTournament(tournamentId) {
+    return await this.scoreRepo.findTeamScoresByTournament(tournamentId);
+  }
+
+  async findPlayerScoresByTournament(tournamentId, playerId) {
+    return await this.scoreRepo.findPlayerScoresByTournament(tournamentId, playerId);
+  }
+
+  // ─── Round 1 time bonus ───────────────────────────────────────
+
+  /**
+   * Round 1 time bonus: +3 points per full minute remaining.
+   * Applied only when all puzzles in the round are completed.
+   * @param {string} tournamentId
+   * @param {number} roundId
+   * @param {number} teamId
+   * @param {number} remainingSeconds
+   * @param {number} solvedCount
+   * @param {number} totalPuzzles
+   * @returns {number} bonus points applied (0 if none)
+   */
+  async applyRound1TimeBonus(tournamentId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
+    if (solvedCount < totalPuzzles || totalPuzzles === 0 || remainingSeconds <= 0) return 0;
+
+    const bonusMinutes = Math.floor(remainingSeconds / 60);
+    const timeBonus = bonusMinutes * 3;
+    if (timeBonus <= 0) return 0;
+
+    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, timeBonus);
+    return timeBonus;
+  }
+
+  // ─── Round 2 difficulty points ────────────────────────────────
+
+  /**
+   * Round 2 points based on puzzle difficulty.
+   * Easy=8, Medium=16, Hard=20
+   * @param {string} difficulty
+   * @returns {number}
+   */
+  getRound2DifficultyPoints(difficulty) {
+    const map = { EASY: 8, MEDIUM: 16, HARD: 20 };
+    return map[difficulty] || 16;
+  }
+
+  /**
+   * Round 2 completion bonus: +3 pts/min remaining when all puzzles solved.
+   * @param {string} tournamentId
+   * @param {number} roundId
+   * @param {number} teamId
+   * @param {number} remainingSeconds
+   * @param {number} solvedCount
+   * @param {number} totalPuzzles
+   * @returns {number} bonus points applied (0 if none)
+   */
+  async applyRound2CompletionBonus(tournamentId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
+    if (solvedCount < totalPuzzles || totalPuzzles === 0 || remainingSeconds <= 0) return 0;
+
+    const bonusMinutes = Math.floor(remainingSeconds / 60);
+    const completionBonus = bonusMinutes * 3;
+    if (completionBonus <= 0) return 0;
+
+    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, completionBonus);
+    return completionBonus;
+  }
+
+  // ─── Round 3 difficulty points ─────────────────────────────────
+
+  /**
+   * Round 3 points based on puzzle difficulty.
+   * Easy=10, Medium=20, Hard=45
+   * @param {string} difficulty
+   * @returns {number}
+   */
+  getRound3DifficultyPoints(difficulty) {
+    const map = { EASY: 10, MEDIUM: 20, HARD: 45 };
+    return map[difficulty] || 10;
+  }
+
+  /**
+   * Round 3 completion bonus: +5 pts/min remaining when all puzzles solved.
+   * @param {string} tournamentId
+   * @param {number} roundId
+   * @param {number} teamId
+   * @param {number} remainingSeconds
+   * @param {number} solvedCount
+   * @param {number} totalPuzzles
+   * @returns {number} bonus points applied (0 if none)
+   */
+  async applyRound3CompletionBonus(tournamentId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
+    if (solvedCount < totalPuzzles || totalPuzzles === 0 || remainingSeconds <= 0) return 0;
+
+    const bonusMinutes = Math.floor(remainingSeconds / 60);
+    const completionBonus = bonusMinutes * 5;
+    if (completionBonus <= 0) return 0;
+
+    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, completionBonus);
+    return completionBonus;
+  }
+}
+
+module.exports = ScoringService;
