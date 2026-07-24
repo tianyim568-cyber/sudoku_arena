@@ -13,9 +13,9 @@ function createGameRouter(repos, orchestrator) {
   }
 
   // Start tournament
-  router.post('/tournaments/:id/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), (req, res) => {
+  router.post('/tournaments/:id/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(orchestrator.startTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.startTournament(parseInt(req.params.id)));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
@@ -63,9 +63,9 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // End tournament
-  router.post('/tournaments/:id/end', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), (req, res) => {
+  router.post('/tournaments/:id/end', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(orchestrator.endTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.endTournament(parseInt(req.params.id)));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });

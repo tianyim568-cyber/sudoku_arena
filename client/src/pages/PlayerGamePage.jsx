@@ -10,6 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useTimer } from '../hooks/useTimer';
+import { submitCellFill, submitAnswer } from '../api/socket';
 import { api } from '../api';
 import TimerDisplay from '../components/TimerDisplay';
 import Round1View from './Round1View';
@@ -277,10 +278,8 @@ export default function PlayerGamePage() {
       return;
     }
     if (currentRound.roundType === 'ROUND3_COLLABORATE') {
-      const { submitCellFill } = require('../api/socket');
       submitCellFill(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col, value);
     } else if (currentRound.roundType === 'ROUND1_NINE_ONE') {
-      const { submitAnswer } = require('../api/socket');
       submitAnswer(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, 'SINGLE_CELL', { row, col, value });
     }
   }, [activePuzzle, currentRound, tournamentId, showMessage]);
@@ -291,7 +290,6 @@ export default function PlayerGamePage() {
       showMessage('这道题已经完成了！');
       return;
     }
-    const { submitAnswer } = require('../api/socket');
     submitAnswer(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, 'FULL_GRID', { grid });
   }, [activePuzzle, currentRound, tournamentId, showMessage]);
 

@@ -347,7 +347,7 @@ class GameOrchestrator {
 
     // Round 1 time bonus
     if (round.round_type === 'ROUND1_NINE_ONE') {
-      const bonusEmissions = this.round1.applyTimeBonuses(tournamentId, roundId, remaining);
+      const bonusEmissions = await this.round1.applyTimeBonuses(tournamentId, roundId, remaining);
       emissions.push(...bonusEmissions);
     }
 
@@ -386,16 +386,14 @@ class GameOrchestrator {
     const t = await this.repos.tournaments.findById(tournamentId);
     if (!t || t.status === 'FINISHED') throw new TournamentError('比赛状态不允许结束');
 
-    const emissions = [];
-
-    // End any active rounds
+    // Business rule: all rounds must be FINISHED before tournament can end
     const activeRounds = await this.repos.rounds.findByTournamentNotStatus(tournamentId, 'FINISHED');
-    for (const r of activeRounds) {
-      try { await this.endRound(tournamentId, r.id); } catch (e) { /* ignore */ }
+    if (activeRounds && activeRounds.length > 0) {
+      throw new TournamentError('所有轮次必须完成后才能结束比赛');
     }
 
+    const emissions = [];
     await this.repos.tournaments.updateStatus(tournamentId, 'FINISHED');
-
     emissions.push({ target: 'tournament', targetId: tournamentId, event: 'TOURNAMENT_FINISHED', payload: { tournamentId } });
     return { result: { tournamentId, status: 'FINISHED' }, emissions };
   }

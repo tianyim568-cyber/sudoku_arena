@@ -32,7 +32,7 @@ class Round1Engine extends RoundEngine {
 
     // Use PuzzleAssignmentService for per-team non-overlapping puzzle sets
     const teamPuzzleMap = this.puzzleAssignment
-      ? this.puzzleAssignment.assignPerTeamPuzzles(tournamentId, roundId, teams, puzzles)
+      ? await this.puzzleAssignment.assignPerTeamPuzzles(tournamentId, roundId, teams, puzzles)
       : null;
 
     for (const player of players) {

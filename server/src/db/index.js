@@ -20,9 +20,9 @@ const PlayerStateRepository = require('./repositories/PlayerStateRepository');
 const TeamPuzzleSetRepository = require('./repositories/TeamPuzzleSetRepository');
 
 function createRepositoryFactory(dbConnection) {
-  const { run, all, get, saveDB } = dbConnection;
+  const { run, all, get, saveDB, transaction } = dbConnection;
 
-  const db = { run, all, get };
+  const db = { run, all, get, transaction };
 
   return {
     users: new UserRepository(db),

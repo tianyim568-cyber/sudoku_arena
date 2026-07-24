@@ -100,7 +100,7 @@ export function useGameSocket(tournamentId) {
           });
           setRound3State({
             puzzles: [], currentPuzzleId: null,
-            cells: {}, suggestions: {}, playerFocuses: {},
+            cells: {}, suggestions: {}, suggestionVotes: {}, playerFocuses: {},
             teamScore: 0, solvedCount: 0, totalPuzzles: 10
           });
           break;
