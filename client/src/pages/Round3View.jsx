@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import SudokuGrid from '../components/SudokuGrid';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const DIFFICULTY_STYLES = {
   EASY: { badge: 'bg-green-700/50 text-green-300', dot: 'bg-green-500' },
@@ -34,6 +35,7 @@ export default function Round3View({
   onFullGridSubmit,
   onFocusUpdate,
 }) {
+  const { t } = useLanguage();
   const [collabLog, setCollabLog] = useState([]);
 
   const puzzles = round3State?.puzzles || [];
@@ -135,15 +137,15 @@ export default function Round3View({
       <div className="w-72 flex-shrink-0 space-y-4">
         {/* Round Info */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-indigo-300 mb-2">第三轮：协作攻坚</h3>
-          <p className="text-xs text-gray-400 mb-3">提出建议让队友接受，协力完成所有题目！</p>
+          <h3 className="text-sm font-semibold text-indigo-300 mb-2">{t('round3.roundTitle')}</h3>
+          <p className="text-xs text-gray-400 mb-3">{t('round3.roundDesc')}</p>
           <div className="flex items-center gap-3">
             <div className="bg-gray-700 rounded px-3 py-1.5">
-              <span className="text-xs text-gray-400 block">队伍得分</span>
+              <span className="text-xs text-gray-400 block">{t('round3.teamScore')}</span>
               <span className="text-yellow-400 font-bold">{teamScore}</span>
             </div>
             <div className="bg-gray-700 rounded px-3 py-1.5">
-              <span className="text-xs text-gray-400 block">已解答</span>
+              <span className="text-xs text-gray-400 block">{t('round3.solved')}</span>
               <span className="text-white font-bold">{solvedCount}<span className="text-gray-500 text-xs">/{totalPuzzles}</span></span>
             </div>
           </div>
@@ -151,7 +153,7 @@ export default function Round3View({
 
         {/* Team Players */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">队伍</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round3.team')}</h3>
           <div className="space-y-2">
             {playerList.map((p, i) => {
               const isMe = p.id === user?.userId;
@@ -160,7 +162,7 @@ export default function Round3View({
                   <span className={`w-3 h-3 rounded-full ${PLAYER_COLORS[i % PLAYER_COLORS.length]}`} />
                   <span className={`text-sm flex-1 ${isMe ? 'text-white font-medium' : 'text-gray-300'}`}>
                     {p.name}
-                    {isMe && <span className="text-[10px] text-indigo-300 ml-1">(你)</span>}
+                    {isMe && <span className="text-[10px] text-indigo-300 ml-1">{t('round3.you')}</span>}
                   </span>
                   {p.focus && (
                     <span className="text-[10px] text-gray-500">
@@ -175,7 +177,7 @@ export default function Round3View({
 
         {/* Puzzle Progress */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">题目列表</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round3.puzzleList')}</h3>
           <div className="space-y-1.5">
             {puzzles.map((p, i) => {
               const isActive = activePuzzle?.puzzleId === p.puzzleId;
@@ -215,17 +217,17 @@ export default function Round3View({
           <div>
             <div className="mb-3 flex items-center gap-3">
               <span className="text-gray-400 text-sm">
-                题目 {activePuzzle.orderInRound || puzzles.findIndex(p => p.puzzleId === activePuzzle.puzzleId) + 1}
+                {t('round3.puzzleN', { n: activePuzzle.orderInRound || puzzles.findIndex(p => p.puzzleId === activePuzzle.puzzleId) + 1 })}
               </span>
               <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                 DIFFICULTY_STYLES[activePuzzle.difficulty]?.badge || DIFFICULTY_STYLES.MEDIUM.badge
               }`}>
                 {activePuzzle.difficulty || 'MEDIUM'}
               </span>
-              <span className="text-gray-500 text-xs">{activePuzzle.points} 分</span>
+              <span className="text-gray-500 text-xs">{t('round3.pointsShort', { n: activePuzzle.points })}</span>
               {activePuzzle.isCompleted && (
                 <span className="bg-green-800/50 text-green-300 px-2 py-0.5 rounded text-xs">
-                  已完成 &#10003;
+                  {t('round3.completedBadge')} &#10003;
                 </span>
               )}
             </div>
@@ -247,7 +249,7 @@ export default function Round3View({
           </div>
         ) : (
           <div className="text-center py-20">
-            <p className="text-gray-400 text-lg">选择一道题目开始</p>
+            <p className="text-gray-400 text-lg">{t('round3.selectPuzzle')}</p>
           </div>
         )}
       </div>
@@ -256,9 +258,9 @@ export default function Round3View({
       <div className="w-72 flex-shrink-0 space-y-4">
         {/* Pending Suggestions — Accept/Reject */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">待审建议</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round3.pendingSuggestions')}</h3>
           {Object.keys(suggestions).length === 0 ? (
-            <p className="text-xs text-gray-500">暂无待审建议</p>
+            <p className="text-xs text-gray-500">{t('round3.noPendingSuggestions')}</p>
           ) : (
             <div className="space-y-2">
               {Object.entries(suggestions).map(([key, sug]) => {
@@ -294,27 +296,27 @@ export default function Round3View({
                           onClick={() => onAcceptProposal?.(Number(r), Number(c))}
                           className="flex-1 px-2 py-1 bg-green-700 hover:bg-green-600 text-white text-xs rounded font-medium transition-colors"
                         >
-                          同意
+                          {t('round3.accept')}
                         </button>
                         <button
                           onClick={() => onRejectProposal?.(Number(r), Number(c))}
                           className="flex-1 px-2 py-1 bg-red-700 hover:bg-red-600 text-white text-xs rounded font-medium transition-colors"
                         >
-                          拒绝
+                          {t('round3.reject')}
                         </button>
                       </div>
                     )}
                     {!isOwnSuggestion && hasVoted && (
-                      <p className="text-[10px] text-green-400 mt-1">你已同意</p>
+                      <p className="text-[10px] text-green-400 mt-1">{t('round3.youAccepted')}</p>
                     )}
                     {isOwnSuggestion && (
                       <div className="flex items-center gap-2 mt-1">
-                        <p className="text-[10px] text-gray-500 flex-1">等待审批...</p>
+                        <p className="text-[10px] text-gray-500 flex-1">{t('round3.waitingApproval')}</p>
                         <button
                           onClick={() => onWithdrawProposal?.(Number(r), Number(c))}
                           className="px-2 py-0.5 bg-gray-600 hover:bg-gray-500 text-gray-300 text-[10px] rounded transition-colors"
                         >
-                          撤回
+                          {t('round3.withdraw')}
                         </button>
                       </div>
                     )}
@@ -327,9 +329,9 @@ export default function Round3View({
 
         {/* Collaboration Log */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">动态</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round3.activity')}</h3>
           {collabLog.length === 0 ? (
-            <p className="text-xs text-gray-500">暂无动态</p>
+            <p className="text-xs text-gray-500">{t('round3.noActivity')}</p>
           ) : (
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {collabLog.map((entry) => (
@@ -338,9 +340,9 @@ export default function Round3View({
                 }`}>
                   <span className="font-medium">{entry.playerName}</span>
                   {entry.type === 'proposal' ? (
-                    <span> 建议在 R{Number(entry.row) + 1}C{Number(entry.col) + 1} 填入 <span className="font-bold">{entry.value}</span></span>
+                    <span> {t('round3.proposedText', { cell: `R${Number(entry.row) + 1}C${Number(entry.col) + 1}` })} <span className="font-bold">{entry.value}</span></span>
                   ) : (
-                    <span> 在 R{Number(entry.row) + 1}C{Number(entry.col) + 1} 填入了 <span className="font-bold">{entry.value}</span></span>
+                    <span> {t('round3.filledText', { cell: `R${Number(entry.row) + 1}C${Number(entry.col) + 1}` })} <span className="font-bold">{entry.value}</span></span>
                   )}
                 </div>
               ))}

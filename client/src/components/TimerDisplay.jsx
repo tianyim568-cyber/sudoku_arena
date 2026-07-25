@@ -4,7 +4,10 @@
  * Renders a visual progress bar that changes color as time runs out,
  * plus a formatted time string. Shows PAUSED indicator when paused.
  */
+import { useLanguage } from '../i18n/LanguageContext';
+
 export default function TimerDisplay({ remainingSeconds, totalSeconds, formattedTime, isPaused }) {
+  const { t } = useLanguage();
   const percent = totalSeconds ? (remainingSeconds / totalSeconds) * 100 : 0;
   const color = percent > 50 ? '#4caf50' : percent > 20 ? '#ff9800' : '#f44336';
 
@@ -27,7 +30,7 @@ export default function TimerDisplay({ remainingSeconds, totalSeconds, formatted
           color: percent > 50 ? '#fff' : '#333'
         }}
       >
-        {formattedTime}{isPaused ? ' (已暂停)' : ''}
+        {formattedTime}{isPaused ? t('timer.paused') : ''}
       </span>
     </div>
   );

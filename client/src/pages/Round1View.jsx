@@ -5,6 +5,7 @@
  */
 import { useMemo } from 'react';
 import SudokuGrid from '../components/SudokuGrid';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Round1View({
   puzzles,
@@ -16,6 +17,7 @@ export default function Round1View({
   onCellSubmit,
   onFullGridSubmit,
 }) {
+  const { t } = useLanguage();
   const jocPuzzles = useMemo(() => puzzles.filter(p => !p.isFinal), [puzzles]);
   const finalPuzzle = useMemo(() => puzzles.find(p => p.isFinal), [puzzles]);
   const solvedCount = useMemo(() => puzzles.filter(p => p.isCompleted).length, [puzzles]);
@@ -56,7 +58,7 @@ export default function Round1View({
       <div className="w-72 flex-shrink-0 space-y-4">
         {/* Clue Board */}
         <div className="bg-purple-900/30 border border-purple-700/30 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-purple-300 mb-3">线索板</h3>
+          <h3 className="text-sm font-semibold text-purple-300 mb-3">{t('round1.clueBoard')}</h3>
           <div className="grid grid-cols-3 gap-2">
             {clueSlots.map((slot, i) => (
               <div key={i} className={`w-16 h-16 flex flex-col items-center justify-center rounded-lg font-bold text-lg transition-all ${
@@ -72,7 +74,7 @@ export default function Round1View({
             ))}
           </div>
           <p className="text-xs text-purple-200/60 mt-2 text-center">
-            {clueSlots.filter(s => s.isRevealed).length}/9 线索已揭示
+            {t('round1.cluesRevealed', { n: clueSlots.filter(s => s.isRevealed).length })}
           </p>
           {/* Revealed letters form a word hint */}
           {clueSlots.filter(s => s.isRevealed).length > 0 && (
@@ -86,24 +88,24 @@ export default function Round1View({
 
         {/* Score Panel */}
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">队伍得分</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round1.teamScore')}</h3>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">已解题目</span>
+              <span className="text-gray-400">{t('round1.solvedPuzzles')}</span>
               <span className="text-white font-medium">{solvedCount}/10</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">题目得分</span>
+              <span className="text-gray-400">{t('round1.puzzleScore')}</span>
               <span className="text-white font-medium">{teamScore}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">时间奖励</span>
+              <span className="text-gray-400">{t('round1.timeBonus')}</span>
               <span className={solvedCount >= 10 ? 'text-green-400 font-medium' : 'text-gray-500'}>
-                {solvedCount >= 10 ? `+${Math.floor((timerRemaining || 0) / 60) * 3} 待结算` : '--'}
+                {solvedCount >= 10 ? `+${Math.floor((timerRemaining || 0) / 60) * 3} ${t('round1.pending')}` : '--'}
               </span>
             </div>
             <div className="border-t border-gray-700 pt-2 flex justify-between text-sm">
-              <span className="text-gray-300 font-medium">当前总分</span>
+              <span className="text-gray-300 font-medium">{t('round1.currentTotal')}</span>
               <span className="text-yellow-400 font-bold text-lg">{teamScore}</span>
             </div>
           </div>
@@ -122,14 +124,14 @@ export default function Round1View({
               <span className="text-gray-500 text-lg">&#128274;</span>
             )}
             <h3 className={`text-sm font-semibold ${isFinalUnlocked ? 'text-green-300' : 'text-gray-400'}`}>
-              终极题目
+              {t('round1.finalPuzzle')}
             </h3>
           </div>
           {isFinalUnlocked ? (
-            <p className="text-xs text-green-200/70">已解锁！解答终极棋盘可获得额外奖励。</p>
+            <p className="text-xs text-green-200/70">{t('round1.finalUnlocked')}</p>
           ) : (
             <p className="text-xs text-gray-500">
-              解答全部9道JOC题目即可解锁。({jocSolvedCount}/9)
+              {t('round1.finalLockedHint', { n: jocSolvedCount })}
             </p>
           )}
         </div>
@@ -141,29 +143,29 @@ export default function Round1View({
           activePuzzle.isLocked ? (
             <div className="flex flex-col items-center justify-center py-20">
               <span className="text-5xl mb-4">&#128274;</span>
-              <p className="text-gray-400 text-lg font-medium">终极题目已锁定</p>
-              <p className="text-gray-500 text-sm mt-2">解答全部9道JOC题目即可解锁</p>
-              <p className="text-gray-600 text-sm mt-1">{jocSolvedCount}/9 已完成</p>
+              <p className="text-gray-400 text-lg font-medium">{t('round1.finalLockedTitle')}</p>
+              <p className="text-gray-500 text-sm mt-2">{t('round1.finalLockedSub')}</p>
+              <p className="text-gray-600 text-sm mt-1">{t('round1.finalLockedCount', { n: jocSolvedCount })}</p>
             </div>
           ) : (
             <div>
               <div className="mb-3 flex items-center gap-3">
                 <span className="text-gray-400 text-sm">
-                  题目 {activePuzzle.orderInRound || puzzles.indexOf(activePuzzle) + 1}
+                  {t('round1.puzzleN', { n: activePuzzle.orderInRound || puzzles.indexOf(activePuzzle) + 1 })}
                 </span>
                 {activePuzzle.letter && (
                   <span className="bg-purple-700/50 text-purple-300 px-2 py-0.5 rounded text-xs">
-                    字母：{activePuzzle.letter}
+                    {t('round1.letterBadge', { letter: activePuzzle.letter })}
                   </span>
                 )}
                 {activePuzzle.isFinal && (
                   <span className="bg-green-700/50 text-green-300 px-2 py-0.5 rounded text-xs">
-                    终极题目
+                    {t('round1.finalBadge')}
                   </span>
                 )}
                 {activePuzzle.isCompleted && (
                   <span className="bg-green-800/50 text-green-300 px-2 py-0.5 rounded text-xs">
-                    已完成 &#10003;
+                    {t('round1.completedBadge')} &#10003;
                   </span>
                 )}
               </div>
@@ -178,7 +180,7 @@ export default function Round1View({
           )
         ) : (
           <div className="text-center py-20">
-            <p className="text-gray-400 text-lg">选择一道题目开始</p>
+            <p className="text-gray-400 text-lg">{t('round1.selectPuzzle')}</p>
           </div>
         )}
       </div>
@@ -186,7 +188,7 @@ export default function Round1View({
       {/* Right Panel: Puzzle List */}
       <div className="w-64 flex-shrink-0 space-y-4">
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">题目列表</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round1.puzzleList')}</h3>
           <div className="space-y-1.5">
             {puzzles.map((p, i) => {
               const isActive = activePuzzle?.puzzleId === p.puzzleId;
@@ -213,7 +215,7 @@ export default function Round1View({
                     <span className="text-gray-500 text-xs w-4">{i + 1}</span>
                   )}
                   <span className="flex-1 truncate">
-                    {p.isFinal ? '终极' : `P${i + 1}`}
+                    {p.isFinal ? t('round1.finalShort') : `P${i + 1}`}
                   </span>
                   {p.letter && !isSolved && (
                     <span className="bg-purple-700/50 text-purple-300 px-1.5 py-0.5 rounded text-[10px]">
@@ -233,10 +235,9 @@ export default function Round1View({
         </div>
 
         <div className="bg-yellow-900/30 border border-yellow-700/30 rounded-lg p-4">
-          <h3 className="text-sm font-semibold text-yellow-300 mb-1">第一轮：九宫一填</h3>
+          <h3 className="text-sm font-semibold text-yellow-300 mb-1">{t('round1.roundTitle')}</h3>
           <p className="text-xs text-yellow-200/70">
-            找出每道JOC题目中唯一的空格并提交其数值。
-            每次正确答案会揭示一个字母线索。解答全部9道即可解锁终极题目！
+            {t('round1.roundDesc')}
           </p>
         </div>
       </div>

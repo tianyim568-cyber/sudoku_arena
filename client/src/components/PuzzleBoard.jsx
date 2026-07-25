@@ -4,7 +4,10 @@
  * Renders a 4x4 grid showing the status of all team puzzles.
  * Click a puzzle to view it (if it's the player's assigned puzzle).
  */
+import { useLanguage } from '../i18n/LanguageContext';
+
 export default function PuzzleBoard({ puzzles, solvedCount, totalPuzzles, assignedPuzzleId, onSelectPuzzle }) {
+  const { t } = useLanguage();
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
       {puzzles.map((p, idx) => {
@@ -33,7 +36,7 @@ export default function PuzzleBoard({ puzzles, solvedCount, totalPuzzles, assign
               {p.difficulty || 'MED'}
             </div>
             <div style={{ fontSize: '10px', color: '#666' }}>
-              {p.points}分
+              {t('round2.points', { n: p.points })}
             </div>
             {p.isCompleted && (
               <div style={{ fontSize: '16px', position: 'absolute', top: '2px', right: '4px' }}>&#10003;</div>
@@ -42,7 +45,7 @@ export default function PuzzleBoard({ puzzles, solvedCount, totalPuzzles, assign
         );
       })}
       <div style={{ gridColumn: '1 / -1', textAlign: 'center', fontSize: '13px', color: '#666', marginTop: '4px' }}>
-        已解答：{solvedCount}/{totalPuzzles}
+        {t('round2.solvedProgress', { n: solvedCount, total: totalPuzzles })}
       </div>
     </div>
   );
