@@ -1,6 +1,6 @@
-const Database = require('./server/node_modules/sql.js');
-const fs = require('fs');
-const path = require('path');
+// Load server env, then reuse the server's PostgreSQL connection helpers.
+require('./server/node_modules/dotenv').config({ path: __dirname + '/server/.env' });
+const { createPostgresConnection, closeConnection } = require('./server/src/db/connection');
 const http = require('http');
 
 function request(method, urlPath, body, token) {
@@ -98,23 +98,19 @@ async function main() {
   r = await request('POST', `/api/tournaments/${tournamentId}/rounds/${roundIds[0]}/start`, null, adminToken);
   console.log('11. Start Round 1:', r.code === 200 ? 'OK' : `FAILED: ${r.message}`);
 
-  // 12. Read puzzle solutions directly from DB
-  const SQL = await Database();
-  const dbPath = path.join(__dirname, 'server', 'data', 'sudoku.db');
-  const fileBuffer = fs.readFileSync(dbPath);
-  const db = new SQL.Database(fileBuffer);
-
-  const puzzleResult = db.exec('SELECT id, puzzle_type, letter, initial_grid, solution FROM puzzles WHERE round_id = ? ORDER BY order_in_round', [roundIds[0]]);
-  const cols = puzzleResult[0].columns;
-  const puzzleRows = puzzleResult[0].values;
-  db.close();
+  // 12. Read puzzle solutions directly from DB (PostgreSQL)
+  const { all } = await createPostgresConnection();
+  const puzzleRows = await all(
+    'SELECT id, puzzle_type, letter, initial_grid, solution FROM puzzles WHERE round_id = ? ORDER BY order_in_round',
+    [roundIds[0]]
+  );
 
   const puzzleData = puzzleRows.map(row => ({
-    id: row[0],
-    type: row[1],
-    letter: row[2],
-    initialGrid: JSON.parse(row[3]),
-    solution: JSON.parse(row[4])
+    id: row.id,
+    type: row.puzzle_type,
+    letter: row.letter,
+    initialGrid: typeof row.initial_grid === 'string' ? JSON.parse(row.initial_grid) : row.initial_grid,
+    solution: typeof row.solution === 'string' ? JSON.parse(row.solution) : row.solution
   }));
 
   console.log(`\n12. Loaded ${puzzleData.length} puzzles from DB`);
@@ -189,6 +185,11 @@ async function main() {
   console.log('    Expected teamScore: 200 (9*20 + 20)');
 
   console.log('\n=== Verification Complete ===');
+  await closeConnection();
 }
 
-main().catch(e => console.error('Error:', e));
+main().catch(async (e) => {
+  console.error('Error:', e);
+  try { await closeConnection(); } catch (_) {}
+  process.exit(1);
+});
