@@ -8,7 +8,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': 'http://localhost:3001',
-      '/socket.io': 'http://localhost:3001'
+      // ws:true forwards the WebSocket upgrade to Socket.IO (dev only; prod uses nginx).
+      '/socket.io': {
+        target: 'http://localhost:3001',
+        ws: true,
+        changeOrigin: true,
+      }
     }
   }
 })
