@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
+import { translateServerMessage } from '../i18n/serverMessages';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useTimer } from '../hooks/useTimer';
@@ -22,7 +23,7 @@ import Round3View from './Round3View';
 export default function PlayerGamePage() {
   const { tournamentId } = useParams();
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const navigate = useNavigate();
   const [tournament, setTournament] = useState(null);
   const [currentRound, setCurrentRound] = useState(null);
@@ -199,14 +200,14 @@ export default function PlayerGamePage() {
         } else if (latest.payload.isCorrect) {
           showMessage(t('game.correct', { pts: latest.payload.pointsEarned }), 'success');
         } else {
-          showMessage(latest.payload.message || t('game.wrongAnswer'), 'error');
+          showMessage(translateServerMessage(latest.payload.message, lang) || t('game.wrongAnswer'), 'error');
         }
         break;
       case 'CELL_FILL_ACK':
         showMessage(t('game.filled'), 'warning');
         break;
       case 'CELL_CONFLICT':
-        showMessage(t('game.cellConflict', { msg: latest.payload.message }), 'error');
+        showMessage(t('game.cellConflict', { msg: translateServerMessage(latest.payload.message, lang) }), 'error');
         break;
       case 'ROUND1_PUZZLE_SOLVED': {
         const { totalRound1Score } = latest.payload;
@@ -251,7 +252,7 @@ export default function PlayerGamePage() {
       default:
         break;
     }
-  }, [events, showMessage, t]);
+  }, [events, showMessage, t, lang]);
 
   // Mark puzzle as completed locally when round1Progress shows it solved
   useEffect(() => {

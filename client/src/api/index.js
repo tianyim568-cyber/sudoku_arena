@@ -1,3 +1,5 @@
+import { translateServerMessage } from '../i18n/serverMessages';
+
 const API_BASE = '/api';
 
 let token = localStorage.getItem('token');
@@ -18,7 +20,13 @@ async function request(method, path, body) {
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, opts);
-  return res.json();
+  const json = await res.json();
+  // Translate server-originated (Chinese) messages to the current language.
+  if (json && typeof json.message === 'string') {
+    const lang = localStorage.getItem('sa_lang') === 'en' ? 'en' : 'zh';
+    json.message = translateServerMessage(json.message, lang);
+  }
+  return json;
 }
 
 export const api = {
