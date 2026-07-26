@@ -253,6 +253,7 @@ export default {
     solved: 'Solved',
     team: 'Team',
     you: '(you)',
+    offline: 'offline',
     puzzleList: 'Puzzle list',
     puzzleN: 'Puzzle {n}',
     pointsShort: '{n} pts',

@@ -254,6 +254,7 @@ export default {
     solved: '已解答',
     team: '队伍',
     you: '(你)',
+    offline: '离线',
     puzzleList: '题目列表',
     puzzleN: '题目 {n}',
     pointsShort: '{n} 分',

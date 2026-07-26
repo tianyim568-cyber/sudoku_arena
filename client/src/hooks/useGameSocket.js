@@ -483,6 +483,7 @@ export function useGameSocket(tournamentId) {
       suggestions: data.suggestions || prev.suggestions,
       suggestionVotes: data.suggestionVotes || prev.suggestionVotes,
       playerFocuses: data.playerFocuses || prev.playerFocuses,
+      teamMembers: data.teamMembers || prev.teamMembers,
       teamScore: data.teamScore ?? prev.teamScore,
       solvedCount: data.solvedCount ?? prev.solvedCount,
       totalPuzzles: data.totalPuzzles || prev.totalPuzzles,
