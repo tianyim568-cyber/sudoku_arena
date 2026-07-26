@@ -57,9 +57,22 @@ export function useGameSocket(tournamentId) {
       setEvents(prev => [...prev.slice(-50), event]);
 
       switch (event.type) {
-        case 'PUZZLE_ASSIGN':
-          setPuzzles(prev => [...prev, ...event.payload.puzzles]);
+        case 'PUZZLE_ASSIGN': {
+          const assigned = event.payload.puzzles || [];
+          setPuzzles(prev => [...prev, ...assigned]);
+          // Round 3 reads its puzzle list from round3State.puzzles. The server
+          // only emits PUZZLE_ASSIGN on round start (not ROUND3_STATE_SYNC), so
+          // seed round3State here too — otherwise the R3 puzzle list stays empty
+          // until a page reload (REST fallback). Only seed when still empty.
+          setRound3State(prev => (prev.puzzles && prev.puzzles.length > 0)
+            ? prev
+            : {
+                ...prev,
+                puzzles: assigned,
+                currentPuzzleId: prev.currentPuzzleId || (assigned[0] && assigned[0].puzzleId) || null,
+              });
           break;
+        }
         case 'TIMER_TICK':
           setTimerMeta(prev => ({
             turnEndsAt: event.payload.turnEndsAt || prev.turnEndsAt,

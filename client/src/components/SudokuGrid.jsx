@@ -144,8 +144,8 @@ export default function SudokuGrid({
                     </span>
                   )}
 
-                  {/* Accept/reject buttons for suggestions from other players */}
-                  {suggestion && suggestion.playerId !== currentUserId && cell === 0 && (
+                  {/* Accept/reject buttons for suggestions from OTHER players only */}
+                  {suggestion && String(suggestion.playerId) !== String(currentUserId) && cell === 0 && (
                     <div className="absolute -top-1 -right-1 flex gap-0.5 z-10">
                       <button
                         onClick={(e) => { e.stopPropagation(); onAcceptProposal?.(ri, ci); }}
