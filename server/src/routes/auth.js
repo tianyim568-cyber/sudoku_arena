@@ -6,10 +6,10 @@ const { generateToken, authMiddleware } = require('../middleware/auth');
 function createAuthRouter(repos) {
   const router = express.Router();
 
-  // Rate limit login attempts: 5 requests per 15 minutes per IP
+  // Rate limit login attempts: 30 requests per 15 minutes per IP
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 30,
     message: { code: 429, message: '登录尝试过于频繁，请15分钟后再试', data: null },
     standardHeaders: true,
     legacyHeaders: false
