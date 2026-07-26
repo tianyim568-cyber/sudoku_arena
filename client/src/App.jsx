@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { useLanguage } from './i18n/LanguageContext';
 import LoginPage from './pages/LoginPage';
 import TournamentListPage from './pages/TournamentListPage';
 import TournamentDetailPage from './pages/TournamentDetailPage';
@@ -9,7 +10,8 @@ import PuzzleBankPage from './pages/PuzzleBankPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen">加载中...</div>;
+  const { t } = useLanguage();
+  if (loading) return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
   if (!user) return <Navigate to="/login" />;
   return children;
 }

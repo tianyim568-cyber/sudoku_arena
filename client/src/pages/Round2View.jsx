@@ -6,6 +6,7 @@
  */
 import { useMemo, useState, useEffect, useRef } from 'react';
 import SudokuGrid from '../components/SudokuGrid';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Round2View({
   round2State,
@@ -15,6 +16,7 @@ export default function Round2View({
   onFullGridSubmit,
   rotationWarning,
 }) {
+  const { t } = useLanguage();
   // Countdown within the 5-second warning window
   const [warningSeconds, setWarningSeconds] = useState(5);
   const countdownRef = useRef(null);
@@ -62,7 +64,7 @@ export default function Round2View({
             <svg className="w-6 h-6 flex-shrink-0 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span>轮转倒计时 {warningSeconds}秒！</span>
+            <span>{t('round2.rotationCountdown', { n: warningSeconds })}</span>
             <span className="ml-2 bg-red-800 rounded-full w-8 h-8 flex items-center justify-center text-2xl tabular-nums">{warningSeconds}</span>
           </div>
         </div>
@@ -72,16 +74,16 @@ export default function Round2View({
       <div className="bg-gray-800 border border-gray-700/50 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="text-lg font-semibold text-indigo-300">第二轮：接力轮转</span>
+            <span className="text-lg font-semibold text-indigo-300">{t('round2.roundTitle')}</span>
           </div>
           <div className="flex items-center gap-3">
             {/* Team Score */}
             <div className="bg-gray-700 rounded-lg px-4 py-2">
-              <span className="text-xs text-gray-400 block">队伍得分</span>
+              <span className="text-xs text-gray-400 block">{t('round2.teamScore')}</span>
               <span className="text-yellow-400 font-bold text-lg">{round2State.teamScore}<span className="text-gray-500 text-sm">/200</span></span>
             </div>
             <div className="bg-gray-700 rounded-lg px-4 py-2">
-              <span className="text-xs text-gray-400 block">已解答</span>
+              <span className="text-xs text-gray-400 block">{t('round2.solved')}</span>
               <span className="text-white font-bold text-lg">{round2State.solvedCount}<span className="text-gray-500 text-sm">/{round2State.totalPuzzles}</span></span>
             </div>
           </div>
@@ -96,7 +98,7 @@ export default function Round2View({
               }`}>
                 <span className={`w-2 h-2 rounded-full ${isMe ? 'bg-green-400' : 'bg-gray-500'}`} />
                 {round2State.playerNames[pid] || `P${i + 1}`}
-                {isMe && <span className="text-[10px]">(你)</span>}
+                {isMe && <span className="text-[10px]">{t('round2.you')}</span>}
               </div>
             );
           })}
@@ -107,7 +109,7 @@ export default function Round2View({
         {/* Left: Puzzle Board (4x4 grid showing status of all 16 puzzles) */}
         <div className="w-80 flex-shrink-0">
           <div className="bg-gray-800 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-gray-300 mb-3">题目面板</h3>
+            <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round2.puzzleBoard')}</h3>
             <div className="grid grid-cols-4 gap-2">
               {round2State.puzzles.map((p, i) => {
                 const isCurrentPuzzle = r2ActivePuzzle?.puzzleId === p.puzzleId;
@@ -138,7 +140,7 @@ export default function Round2View({
                     {/* Puzzle number */}
                     <span className="font-bold text-sm">{i + 1}</span>
                     {/* Points */}
-                    <span className="text-[10px] text-gray-500">{p.points}分</span>
+                    <span className="text-[10px] text-gray-500">{t('round2.points', { n: p.points })}</span>
                     {/* Status indicator */}
                     {p.isCompleted && <span className="text-green-400 text-sm mt-0.5">&#10003;</span>}
                     {isCurrentPuzzle && !p.isCompleted && <span className="text-indigo-400 text-[10px]">&#9654;</span>}
@@ -148,18 +150,18 @@ export default function Round2View({
             </div>
             {/* Legend */}
             <div className="flex items-center gap-3 mt-3 text-[10px] text-gray-500">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-600/40"></span>简单</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-yellow-600/40"></span>中等</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-600/40"></span>困难</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-indigo-500"></span>当前</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-green-600/40"></span>{t('common.difficulty.EASY')}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-yellow-600/40"></span>{t('common.difficulty.MEDIUM')}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-600/40"></span>{t('common.difficulty.HARD')}</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-indigo-500"></span>{t('round2.current')}</span>
             </div>
           </div>
 
           {/* Completion bonus indicator */}
           {round2State.allSolved && round2State.completionBonus > 0 && (
             <div className="mt-3 bg-yellow-900/30 border border-yellow-600/40 rounded-lg p-3 text-center">
-              <span className="text-yellow-400 font-bold">全部解答完成！</span>
-              <p className="text-yellow-300 text-sm mt-1">完成奖励：+{round2State.completionBonus} 分</p>
+              <span className="text-yellow-400 font-bold">{t('round2.allSolved')}</span>
+              <p className="text-yellow-300 text-sm mt-1">{t('round2.completionBonus', { bonus: round2State.completionBonus })}</p>
             </div>
           )}
         </div>
@@ -170,7 +172,7 @@ export default function Round2View({
             <div>
               <div className="mb-3 flex items-center gap-3">
                 <span className="text-gray-400 text-sm">
-                  你的题目
+                  {t('round2.yourPuzzle')}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                   r2ActivePuzzle.difficulty === 'EASY' ? 'bg-green-700/50 text-green-300' :
@@ -180,7 +182,7 @@ export default function Round2View({
                 }`}>
                   {r2ActivePuzzle.difficulty || 'STANDARD'}
                 </span>
-                <span className="text-gray-500 text-xs">{r2ActivePuzzle.points} 分</span>
+                <span className="text-gray-500 text-xs">{t('round2.pointsShort', { n: r2ActivePuzzle.points })}</span>
               </div>
               <SudokuGrid
                 initialGrid={r2ActivePuzzle.initialGrid}
@@ -195,9 +197,9 @@ export default function Round2View({
             <div className="flex flex-col items-center justify-center py-20">
               <span className="text-5xl mb-4 text-gray-600">&#128209;</span>
               <p className="text-gray-400 text-lg font-medium">
-                等待分配题目...
+                {t('round2.waitingAssign')}
               </p>
-              <p className="text-gray-500 text-sm mt-2">所有题目要么已被队友解答，要么正在处理中</p>
+              <p className="text-gray-500 text-sm mt-2">{t('round2.waitingAssignSub')}</p>
             </div>
           )}
         </div>

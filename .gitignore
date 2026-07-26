@@ -51,3 +51,6 @@ Thumbs.db
 
 
 *.tar.gz
+
+# Personal working folder (not shared)
+Louise/

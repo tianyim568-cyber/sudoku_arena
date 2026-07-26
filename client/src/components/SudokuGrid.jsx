@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function SudokuGrid({
   initialGrid, currentGrid, roundType,
@@ -7,6 +8,7 @@ export default function SudokuGrid({
   collaborationMode, suggestions, playerFocuses,
   onProposeCell, onAcceptProposal, onRejectProposal, currentUserId
 }) {
+  const { t } = useLanguage();
   const [grid, setGrid] = useState(() => (currentGrid || initialGrid || []).map(row => [...row]));
   const [selectedCell, setSelectedCell] = useState(null); // {row, col}
 
@@ -74,7 +76,7 @@ export default function SudokuGrid({
   };
 
   if (!grid || grid.length === 0) {
-    return <div className="text-gray-400">未加载题目</div>;
+    return <div className="text-gray-400">{t('grid.notLoaded')}</div>;
   }
 
   const difficultyColors = {
@@ -219,7 +221,7 @@ export default function SudokuGrid({
                 onClick={handleSubmitFullGrid}
                 className="mt-3 px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors"
               >
-                提交整个棋盘
+                {t('grid.submitFullGrid')}
               </button>
             </div>
           )}
@@ -231,15 +233,15 @@ export default function SudokuGrid({
         <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 border-2 border-dashed border-yellow-500/60 rounded-sm"></span>
-            建议
+            {t('grid.suggestion')}
           </span>
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 bg-green-900/40 rounded-sm"></span>
-            已确认填入
+            {t('grid.confirmedFilled')}
           </span>
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            选手关注
+            {t('grid.playerFocus')}
           </span>
         </div>
       )}

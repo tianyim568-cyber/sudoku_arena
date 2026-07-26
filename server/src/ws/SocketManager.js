@@ -14,7 +14,6 @@
  *   - Hold any game logic
  */
 
-const { JWT_SECRET } = require('../middleware/auth');
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 
@@ -66,7 +65,7 @@ class SocketManager {
       const token = socket.handshake.auth.token;
       if (!token) return next(new Error('Authentication required'));
       try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, config.JWT_SECRET);
         socket.user = decoded;
         next();
       } catch (e) {

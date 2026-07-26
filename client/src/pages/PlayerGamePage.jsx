@@ -8,6 +8,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../i18n/LanguageContext';
+import { translateServerMessage } from '../i18n/serverMessages';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useTimer } from '../hooks/useTimer';
 import { submitCellFill, submitAnswer } from '../api/socket';
@@ -20,11 +23,13 @@ import Round3View from './Round3View';
 export default function PlayerGamePage() {
   const { tournamentId } = useParams();
   const { user } = useAuth();
+  const { t, lang } = useLanguage();
   const navigate = useNavigate();
   const [tournament, setTournament] = useState(null);
   const [currentRound, setCurrentRound] = useState(null);
   const [activePuzzle, setActivePuzzle] = useState(null);
-  const [message, setMessage] = useState('');
+  // Message banner: { text, type } where type ∈ 'success' | 'warning' | 'error' | 'info'
+  const [message, setMessage] = useState(null);
   const messageTimerRef = useRef(null);
 
   // Local state for puzzles (populated by REST + socket)
@@ -62,10 +67,10 @@ export default function PlayerGamePage() {
   const isRound2 = currentRound?.roundType === 'ROUND2_RELAY';
   const isRound3 = currentRound?.roundType === 'ROUND3_COLLABORATE';
 
-  const showMessage = useCallback((text) => {
-    setMessage(text);
+  const showMessage = useCallback((text, type = 'info') => {
+    setMessage({ text, type });
     if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
-    messageTimerRef.current = setTimeout(() => setMessage(''), 3000);
+    messageTimerRef.current = setTimeout(() => setMessage(null), 3000);
   }, []);
 
   // Load tournament info
@@ -183,26 +188,26 @@ export default function PlayerGamePage() {
         setCurrentRound(latest.payload);
         setActivePuzzle(null);
         setTeamScore(0);
-        showMessage(`第 ${latest.payload.roundNumber} 轮：${latest.payload.roundName} 已开始！`);
+        showMessage(t('game.roundStarted', { n: latest.payload.roundNumber, name: latest.payload.roundName }), 'info');
         break;
       case 'ROUND_FINISHED':
-        showMessage('轮次结束！');
+        showMessage(t('game.roundFinished'), 'info');
         setCurrentRound(null);
         break;
       case 'ANSWER_RESULT':
         if (latest.payload.alreadySolved) {
-          showMessage('这道题已被你的队伍解答！');
+          showMessage(t('game.alreadySolvedByTeam'), 'warning');
         } else if (latest.payload.isCorrect) {
-          showMessage(`正确！+${latest.payload.pointsEarned} 分`);
+          showMessage(t('game.correct', { pts: latest.payload.pointsEarned }), 'success');
         } else {
-          showMessage(latest.payload.message || '答案错误，请重试');
+          showMessage(translateServerMessage(latest.payload.message, lang) || t('game.wrongAnswer'), 'error');
         }
         break;
       case 'CELL_FILL_ACK':
-        showMessage('已填入');
+        showMessage(t('game.filled'), 'warning');
         break;
       case 'CELL_CONFLICT':
-        showMessage(`格子冲突：${latest.payload.message}`);
+        showMessage(t('game.cellConflict', { msg: translateServerMessage(latest.payload.message, lang) }), 'error');
         break;
       case 'ROUND1_PUZZLE_SOLVED': {
         const { totalRound1Score } = latest.payload;
@@ -216,7 +221,7 @@ export default function PlayerGamePage() {
         const { teamScore: r2Score, completionBonus } = latest.payload;
         if (r2Score !== undefined) setTeamScore(r2Score);
         if (completionBonus > 0) {
-          showMessage(`全部解答完成！完成奖励：+${completionBonus} 分`);
+          showMessage(t('game.allSolvedBonus', { bonus: completionBonus }), 'success');
         }
         break;
       }
@@ -247,7 +252,7 @@ export default function PlayerGamePage() {
       default:
         break;
     }
-  }, [events, showMessage]);
+  }, [events, showMessage, t, lang]);
 
   // Mark puzzle as completed locally when round1Progress shows it solved
   useEffect(() => {
@@ -270,11 +275,11 @@ export default function PlayerGamePage() {
   const handleCellSubmit = useCallback((row, col, value) => {
     if (!activePuzzle || !currentRound) return;
     if (activePuzzle.isLocked) {
-      showMessage('这道题已锁定！');
+      showMessage(t('game.puzzleLocked'), 'warning');
       return;
     }
     if (activePuzzle.isCompleted) {
-      showMessage('这道题已经完成了！');
+      showMessage(t('game.puzzleCompleted'), 'warning');
       return;
     }
     if (currentRound.roundType === 'ROUND3_COLLABORATE') {
@@ -282,16 +287,16 @@ export default function PlayerGamePage() {
     } else if (currentRound.roundType === 'ROUND1_NINE_ONE') {
       submitAnswer(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, 'SINGLE_CELL', { row, col, value });
     }
-  }, [activePuzzle, currentRound, tournamentId, showMessage]);
+  }, [activePuzzle, currentRound, tournamentId, showMessage, t]);
 
   const handleFullGridSubmit = useCallback((grid) => {
     if (!activePuzzle || !currentRound) return;
     if (activePuzzle.isCompleted) {
-      showMessage('这道题已经完成了！');
+      showMessage(t('game.puzzleCompleted'), 'warning');
       return;
     }
     submitAnswer(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, 'FULL_GRID', { grid });
-  }, [activePuzzle, currentRound, tournamentId, showMessage]);
+  }, [activePuzzle, currentRound, tournamentId, showMessage, t]);
 
   // Round 2: cell change handler (sends real-time updates for own puzzle)
   const handleR2CellChange = useCallback((row, col, value) => {
@@ -336,9 +341,9 @@ export default function PlayerGamePage() {
       <div className="bg-gray-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white text-sm">
-            &larr; 返回
+            &larr; {t('game.back')}
           </button>
-          <h1 className="text-lg font-bold">{tournament?.name || '比赛'}</h1>
+          <h1 className="text-lg font-bold">{tournament?.name || t('game.defaultTournamentName')}</h1>
           {currentRound && (
             <span className="text-sm text-gray-400">
               {currentRound.roundName || `Round ${currentRound.roundNumber}`}
@@ -357,17 +362,18 @@ export default function PlayerGamePage() {
             </div>
           )}
           <span className="text-sm text-gray-400">{user?.displayName}</span>
+          <LanguageSwitcher />
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto p-6">
         {message && (
           <div className={`mb-4 px-4 py-2 rounded-lg text-center ${
-            message.includes('正确') || message.includes('奖励') ? 'bg-green-900/50 text-green-300' :
-            message.includes('已') ? 'bg-yellow-900/50 text-yellow-300' :
-            message.includes('错误') || message.includes('冲突') || message.includes('未分配') ? 'bg-red-900/50 text-red-300' :
+            message.type === 'success' ? 'bg-green-900/50 text-green-300' :
+            message.type === 'warning' ? 'bg-yellow-900/50 text-yellow-300' :
+            message.type === 'error' ? 'bg-red-900/50 text-red-300' :
             'bg-blue-900/50 text-blue-300'
-          }`}>{message}</div>
+          }`}>{message.text}</div>
         )}
 
         {isRound2 && currentRound ? (
@@ -407,8 +413,8 @@ export default function PlayerGamePage() {
           />
         ) : (
           <div className="text-center py-20">
-            <p className="text-gray-400 text-lg">等待轮次开始...</p>
-            <p className="text-gray-500 text-sm mt-2">裁判准备好后将开始轮次</p>
+            <p className="text-gray-400 text-lg">{t('game.waitingRound')}</p>
+            <p className="text-gray-500 text-sm mt-2">{t('game.waitingRoundHint')}</p>
           </div>
         )}
       </div>

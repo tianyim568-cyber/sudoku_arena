@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../i18n/LanguageContext';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
 
 export default function JudgeControlPage() {
   const { tournamentId } = useParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [tournament, setTournament] = useState(null);
   const [roomStatus, setRoomStatus] = useState(null);
@@ -42,14 +45,14 @@ export default function JudgeControlPage() {
         case 'endRound': res = await api.endRound(tournamentId, args[0]); break;
       }
       if (res.code === 200) {
-        setMessage(`操作：${action} - 成功`);
+        setMessage(t('judge.actionSuccess', { action }));
         load();
         loadRoomStatus();
       } else {
-        setMessage(`错误：${res.message}`);
+        setMessage(t('judge.actionError', { msg: res.message }));
       }
     } catch (e) {
-      setMessage(`错误：${e.message}`);
+      setMessage(t('judge.actionError', { msg: e.message }));
     }
   };
 
@@ -60,24 +63,27 @@ export default function JudgeControlPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (!tournament) return <div className="flex items-center justify-center h-screen">加载中...</div>;
+  if (!tournament) return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-gray-800 text-white px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white">&larr; 返回</button>
+            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white">&larr; {t('judge.back')}</button>
             <div>
               <h1 className="text-lg font-bold">{tournament.name}</h1>
-              <span className="text-sm text-gray-400">裁判控制台</span>
+              <span className="text-sm text-gray-400">{t('judge.console')}</span>
             </div>
           </div>
-          <span className={`px-3 py-1 rounded text-sm font-medium ${
-            tournament.status === 'PENDING' ? 'bg-yellow-600' :
-            tournament.status === 'IN_PROGRESS' ? 'bg-green-600' :
-            tournament.status === 'PAUSED' ? 'bg-orange-600' : 'bg-gray-600'
-          }`}>{tournament.status === 'PENDING' ? '未开始' : tournament.status === 'IN_PROGRESS' ? '进行中' : tournament.status === 'PAUSED' ? '已暂停' : '已结束'}</span>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            <span className={`px-3 py-1 rounded text-sm font-medium ${
+              tournament.status === 'PENDING' ? 'bg-yellow-600' :
+              tournament.status === 'IN_PROGRESS' ? 'bg-green-600' :
+              tournament.status === 'PAUSED' ? 'bg-orange-600' : 'bg-gray-600'
+            }`}>{t(`common.status.${tournament.status}`)}</span>
+          </div>
         </div>
       </header>
 
@@ -88,30 +94,30 @@ export default function JudgeControlPage() {
 
         {/* Tournament Controls */}
         <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">赛事控制</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('judge.tournamentControl')}</h2>
           <div className="flex flex-wrap gap-3">
             {tournament.status === 'PENDING' && (
               <button onClick={() => handleAction('start')}
                 className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors">
-                开始赛事
+                {t('judge.startTournament')}
               </button>
             )}
             {tournament.status === 'IN_PROGRESS' && (
               <>
                 <button onClick={() => handleAction('pause')}
                   className="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors">
-                  暂停
+                  {t('judge.pause')}
                 </button>
                 <button onClick={() => handleAction('end')}
                   className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">
-                  结束赛事
+                  {t('judge.endTournament')}
                 </button>
               </>
             )}
             {tournament.status === 'PAUSED' && (
               <button onClick={() => handleAction('resume')}
                 className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors">
-                恢复
+                {t('judge.resume')}
               </button>
             )}
           </div>
@@ -119,13 +125,13 @@ export default function JudgeControlPage() {
 
         {/* Round Controls */}
         <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">轮次控制</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('judge.roundControl')}</h2>
           <div className="space-y-3">
             {tournament.rounds?.map((r, i) => (
               <div key={r.id} className="border rounded-lg p-4 flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium">第 {r.round_number} 轮：{r.name}</h3>
-                  <p className="text-sm text-gray-500">{r.round_type} | {r.duration_seconds}秒 | 题目：{r.puzzles?.length || 0}道</p>
+                  <h3 className="font-medium">{t('judge.roundTitle', { n: r.round_number, name: r.name })}</h3>
+                  <p className="text-sm text-gray-500">{t('judge.roundMeta', { type: r.round_type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}</p>
                   {r.remaining_seconds != null && r.status === 'IN_PROGRESS' && (
                     <p className="text-lg font-mono mt-1 text-blue-600">{formatTime(r.remaining_seconds)}</p>
                   )}
@@ -136,17 +142,17 @@ export default function JudgeControlPage() {
                     r.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' :
                     r.status === 'PAUSED' ? 'bg-orange-100 text-orange-700' :
                     'bg-blue-100 text-blue-700'
-                  }`}>{r.status === 'NOT_STARTED' ? '未开始' : r.status === 'IN_PROGRESS' ? '进行中' : r.status === 'PAUSED' ? '已暂停' : '已结束'}</span>
+                  }`}>{t(`common.status.${r.status}`)}</span>
                   {tournament.status === 'IN_PROGRESS' && r.status === 'NOT_STARTED' && (
                     <button onClick={() => handleAction('startRound', r.id)}
                       className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm">
-                      开始轮次
+                      {t('judge.startRound')}
                     </button>
                   )}
                   {r.status === 'IN_PROGRESS' && (
                     <button onClick={() => handleAction('endRound', r.id)}
                       className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-sm">
-                      结束轮次
+                      {t('judge.endRound')}
                     </button>
                   )}
                 </div>
@@ -158,11 +164,11 @@ export default function JudgeControlPage() {
         {/* Room Status */}
         {roomStatus && (
           <section className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">房间状态</h2>
+            <h2 className="text-lg font-semibold mb-4">{t('judge.roomStatus')}</h2>
             {roomStatus.currentRound && (
               <p className="text-sm text-gray-600 mb-4">
-                当前轮次：<span className="font-medium">{roomStatus.currentRound.name}</span>
-                {' '}(剩余：{formatTime(roomStatus.currentRound.remaining_seconds)})
+                {t('judge.currentRound')}<span className="font-medium">{roomStatus.currentRound.name}</span>
+                {' '}({t('judge.remaining', { time: formatTime(roomStatus.currentRound.remaining_seconds) })})
               </p>
             )}
             <div className="grid grid-cols-2 gap-4">
@@ -185,24 +191,24 @@ export default function JudgeControlPage() {
 
         {/* Scores */}
         <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">队伍得分</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('judge.teamScores')}</h2>
           <button onClick={async () => {
             const res = await api.getTeamScores(tournamentId);
             if (res.code === 200) setRoomStatus(prev => ({ ...prev, scores: res.data }));
           }} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm mb-4">
-            刷新得分
+            {t('judge.refreshScores')}
           </button>
           {roomStatus?.scores && roomStatus.scores.length > 0 ? (
             <div className="space-y-2">
               {roomStatus.scores.map(s => (
                 <div key={s.id} className="flex items-center justify-between border-b pb-2">
                   <span className="font-medium">{s.team_name}</span>
-                  <span className="text-lg font-bold text-indigo-600">{s.total_points} 分</span>
+                  <span className="text-lg font-bold text-indigo-600">{t('judge.points', { n: s.total_points })}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm">暂无得分。选手在轮次中提交正确答案后会出现得分。</p>
+            <p className="text-gray-400 text-sm">{t('judge.noScores')}</p>
           )}
         </section>
       </main>

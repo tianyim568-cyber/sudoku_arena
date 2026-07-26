@@ -248,7 +248,7 @@ class PuzzleBankService {
         // We need enough puzzles for all teams: teamsCount * (9 JOC + 1 FINAL)
         return await this._importR1Puzzles(roundId, round.tournament_id, pool, teamsCount);
       } else if (type === 'ROUND2_RELAY') {
-        return await this._importR2Puzzles(roundId, round.tournament_id, pool, teamsCount);
+        return await this._importR2Puzzles(roundId, pool);
       } else if (type === 'ROUND3_COLLABORATE') {
         selectedPuzzles = this._selectR3Puzzles(pool);
       } else {
@@ -393,74 +393,61 @@ class PuzzleBankService {
     return selected;
   }
 
-  async _importR2Puzzles(roundId, tournamentId, pool, teamsCount) {
-    const teams = await this.repos.teams.findByTournament(tournamentId);
-    if (!teams.length) {
-      return { error: '请先创建队伍再导入Round 2题目', code: 40020 };
+  async _importR2Puzzles(roundId, pool) {
+    // Round 2 uses ONE shared set of 16 puzzles (8 EASY + 6 MEDIUM + 2 HARD)
+    // for ALL teams — every team is tested on the same questions. Puzzles are
+    // stored with team_id = null (shared); the engine already reads shared
+    // puzzles (`|| !p.team_id`, `team_id IS NULL`) and tracks progress per team.
+    // No teams need to exist before importing.
+    const r2Pool = [...pool].filter(p => p.roundType === 'ROUND2_RELAY').sort(() => Math.random() - 0.5);
+
+    let easyPuzzles = r2Pool.filter(p => p.difficulty === 'EASY').slice(0, 8);
+    let medPuzzles = r2Pool.filter(p => p.difficulty === 'MEDIUM').slice(0, 6);
+    let hardPuzzles = r2Pool.filter(p => p.difficulty === 'HARD').slice(0, 2);
+
+    const { SudokuGenerator } = require('../utils/sudokuGenerator');
+    const gen = new SudokuGenerator();
+
+    while (easyPuzzles.length < 8) {
+      const sol = gen.generateSolution();
+      easyPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'EASY', points: 8,
+        initialGrid: gen.generateRound2EasyPuzzle(sol), solution: sol });
+    }
+    while (medPuzzles.length < 6) {
+      const sol = gen.generateSolution();
+      medPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'MEDIUM', points: 16,
+        initialGrid: gen.generateRound2Puzzle(sol), solution: sol });
+    }
+    while (hardPuzzles.length < 2) {
+      const sol = gen.generateSolution();
+      hardPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'HARD', points: 20,
+        initialGrid: gen.generateRound2HardPuzzle(sol), solution: sol });
     }
 
-    // Shuffle the pool for random selection
-    const r2Pool = [...pool].filter(p => p.roundType === 'ROUND2_RELAY').sort(() => Math.random() - 0.5);
-    const teamGroups = {};
-    for (const p of r2Pool) {
-      const idx = p.teamIndex || 0;
-      if (!teamGroups[idx]) teamGroups[idx] = [];
-      teamGroups[idx].push(p);
-    }
+    const ordered = [...easyPuzzles, ...medPuzzles, ...hardPuzzles];
 
     let successCount = 0;
-    let teamIndex = 0;
-
-    for (const team of teams) {
-      let groupPuzzles = teamGroups[teamIndex] || [];
-      let easyPuzzles = groupPuzzles.filter(p => p.difficulty === 'EASY').slice(0, 8);
-      let medPuzzles = groupPuzzles.filter(p => p.difficulty === 'MEDIUM').slice(0, 6);
-      let hardPuzzles = groupPuzzles.filter(p => p.difficulty === 'HARD').slice(0, 2);
-
-      const { SudokuGenerator } = require('../utils/sudokuGenerator');
-      const gen = new SudokuGenerator();
-
-      while (easyPuzzles.length < 8) {
-        const sol = gen.generateSolution();
-        easyPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'EASY', points: 8,
-          initialGrid: gen.generateRound2EasyPuzzle(sol), solution: sol });
+    for (let i = 0; i < ordered.length; i++) {
+      const p = ordered[i];
+      try {
+        await this.repos.puzzles.create({
+          roundId: parseInt(roundId),
+          puzzleType: p.puzzleType,
+          orderInRound: i + 1,
+          initialGrid: JSON.stringify(p.initialGrid),
+          solution: JSON.stringify(p.solution),
+          points: p.points || 100,
+          letter: p.letter || null,
+          difficulty: p.difficulty,
+          teamId: null, // shared across all teams
+        });
+        successCount++;
+      } catch (e) {
+        console.error('Import puzzle error:', e.message);
       }
-      while (medPuzzles.length < 6) {
-        const sol = gen.generateSolution();
-        medPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'MEDIUM', points: 16,
-          initialGrid: gen.generateRound2Puzzle(sol), solution: sol });
-      }
-      while (hardPuzzles.length < 2) {
-        const sol = gen.generateSolution();
-        hardPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'HARD', points: 20,
-          initialGrid: gen.generateRound2HardPuzzle(sol), solution: sol });
-      }
-
-      const ordered = [...easyPuzzles, ...medPuzzles, ...hardPuzzles];
-
-      for (let i = 0; i < ordered.length; i++) {
-        const p = ordered[i];
-        try {
-          await this.repos.puzzles.create({
-            roundId: parseInt(roundId),
-            puzzleType: p.puzzleType,
-            orderInRound: i + 1,
-            initialGrid: JSON.stringify(p.initialGrid),
-            solution: JSON.stringify(p.solution),
-            points: p.points || 100,
-            letter: p.letter || null,
-            difficulty: p.difficulty,
-            teamId: team.id,
-          });
-          successCount++;
-        } catch (e) {
-          console.error('Import puzzle error:', e.message);
-        }
-      }
-      teamIndex++;
     }
 
-    return { imported: successCount, teams: teams.length, perTeam: 16 };
+    return { imported: successCount, shared: true, total: ordered.length };
   }
 
   // ─── Delete operations ─────────────────────────────────────────

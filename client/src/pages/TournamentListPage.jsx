@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useLanguage } from '../i18n/LanguageContext';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
 
 export default function TournamentListPage() {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [tournaments, setTournaments] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
@@ -25,13 +28,13 @@ export default function TournamentListPage() {
   const handleDelete = async (e, tournamentId, tournamentName) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm(`确定要删除 "${tournamentName}" 吗？此操作无法撤销。`)) return;
+    if (!confirm(t('tournamentList.confirmDelete', { name: tournamentName }))) return;
     const res = await api.deleteTournament(tournamentId);
     if (res.code === 200) {
-      msg(`"${tournamentName}" 已删除`);
+      msg(t('tournamentList.deleted', { name: tournamentName }));
       load();
     } else {
-      msg(res.message || '删除失败', 'error');
+      msg(res.message || t('tournamentList.deleteFailed'), 'error');
     }
   };
 
@@ -56,10 +59,10 @@ export default function TournamentListPage() {
   };
 
   const statusLabel = {
-    PENDING: '未开始',
-    IN_PROGRESS: '进行中',
-    PAUSED: '已暂停',
-    FINISHED: '已结束',
+    PENDING: t('common.status.PENDING'),
+    IN_PROGRESS: t('common.status.IN_PROGRESS'),
+    PAUSED: t('common.status.PAUSED'),
+    FINISHED: t('common.status.FINISHED'),
   };
 
   return (
@@ -68,18 +71,19 @@ export default function TournamentListPage() {
       <header className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white px-6 py-4 shadow-lg">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">数独竞技场</h1>
+            <h1 className="text-2xl font-bold">{t('tournamentList.appTitle')}</h1>
             <p className="text-purple-200 text-sm">{user?.displayName} ({user?.role})</p>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             {user?.role === 'ADMIN' && (
               <button onClick={() => navigate('/puzzle-bank')}
                 className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-colors">
-                题库
+                {t('tournamentList.puzzleBank')}
               </button>
             )}
             <button onClick={logout} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-colors">
-              退出登录
+              {t('tournamentList.logout')}
             </button>
           </div>
         </div>
@@ -94,51 +98,51 @@ export default function TournamentListPage() {
         )}
 
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">赛事列表</h2>
+          <h2 className="text-xl font-semibold text-gray-800">{t('tournamentList.listTitle')}</h2>
           {user?.role === 'ADMIN' && (
             <button onClick={() => setShowCreate(!showCreate)}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
-              + 新建赛事
+              {t('tournamentList.newTournament')}
             </button>
           )}
         </div>
 
         {showCreate && (
           <form onSubmit={handleCreate} className="bg-white rounded-xl shadow p-6 mb-6 space-y-4">
-            <input type="text" placeholder="赛事名称" value={name} onChange={e => setName(e.target.value)}
+            <input type="text" placeholder={t('tournamentList.namePlaceholder')} value={name} onChange={e => setName(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required />
-            <textarea placeholder="简介（可选）" value={description} onChange={e => setDescription(e.target.value)}
+            <textarea placeholder={t('tournamentList.descPlaceholder')} value={description} onChange={e => setDescription(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" rows={2} />
             <div className="flex gap-2">
-              <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm">创建</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">取消</button>
+              <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm">{t('tournamentList.create')}</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">{t('common.cancel')}</button>
             </div>
           </form>
         )}
 
         {tournaments.length === 0 ? (
           <div className="text-center py-20 text-gray-400">
-            <p className="text-lg">暂无赛事</p>
-            {user?.role === 'ADMIN' && <p className="text-sm mt-2">点击 "+ 新建赛事" 创建一个赛事</p>}
+            <p className="text-lg">{t('tournamentList.empty')}</p>
+            {user?.role === 'ADMIN' && <p className="text-sm mt-2">{t('tournamentList.emptyHint')}</p>}
           </div>
         ) : (
           <div className="grid gap-4">
-            {tournaments.map(t => (
-              <Link key={t.id} to={`/tournament/${t.id}`}
+            {tournaments.map(tour => (
+              <Link key={tour.id} to={`/tournament/${tour.id}`}
                 className="bg-white rounded-xl shadow hover:shadow-md transition-shadow p-6 flex items-center justify-between group">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{t.name}</h3>
-                  <p className="text-gray-500 text-sm mt-1">{t.description || '暂无简介'}</p>
+                  <h3 className="text-lg font-semibold text-gray-800">{tour.name}</h3>
+                  <p className="text-gray-500 text-sm mt-1">{tour.description || t('tournamentList.noDescription')}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor[t.status] || 'bg-gray-100 text-gray-600'}`}>
-                    {statusLabel[t.status] || t.status}
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor[tour.status] || 'bg-gray-100 text-gray-600'}`}>
+                    {statusLabel[tour.status] || tour.status}
                   </span>
-                  {user?.role === 'ADMIN' && (t.status === 'PENDING' || t.status === 'FINISHED') && (
-                    <button onClick={(e) => handleDelete(e, t.id, t.name)}
+                  {user?.role === 'ADMIN' && (tour.status === 'PENDING' || tour.status === 'FINISHED') && (
+                    <button onClick={(e) => handleDelete(e, tour.id, tour.name)}
                       className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-sm"
-                      title="删除赛事">
-                      删除
+                      title={t('tournamentList.deleteTitle')}>
+                      {t('tournamentList.delete')}
                     </button>
                   )}
                 </div>
