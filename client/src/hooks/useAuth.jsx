@@ -3,6 +3,13 @@ import { api, setToken as setApiToken } from '../api';
 
 const AuthContext = createContext(null);
 
+// The server returns the user with `id`; the game UI reads `user.userId`
+// everywhere. Normalize so `userId` is always available.
+function normalizeUser(u) {
+  if (!u) return u;
+  return { ...u, userId: u.userId != null ? u.userId : u.id };
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12,7 +19,7 @@ export function AuthProvider({ children }) {
     if (token) {
       setApiToken(token);
       api.getMe().then(res => {
-        if (res.code === 200) setUser(res.data);
+        if (res.code === 200) setUser(normalizeUser(res.data));
         else { localStorage.removeItem('token'); setApiToken(null); }
         setLoading(false);
       }).catch(() => setLoading(false));
@@ -25,7 +32,7 @@ export function AuthProvider({ children }) {
     const res = await api.login(username, password);
     if (res.code === 200) {
       setApiToken(res.data.token);
-      setUser(res.data.user);
+      setUser(normalizeUser(res.data.user));
       return true;
     }
     throw new Error(res.message);
