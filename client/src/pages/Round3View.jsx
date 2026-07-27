@@ -42,6 +42,7 @@ export default function Round3View({
   const suggestions = round3State?.suggestions || {};
   const suggestionVotes = round3State?.suggestionVotes || {};
   const playerFocuses = round3State?.playerFocuses || {};
+  const teamMembers = round3State?.teamMembers || [];
   const cells = round3State?.cells || {};
   const teamScore = round3State?.teamScore || 0;
   const solvedCount = round3State?.solvedCount || 0;
@@ -86,32 +87,38 @@ export default function Round3View({
     setCollabLog(entries.slice(0, 20));
   }, [suggestions, cells]);
 
-  // Player list — only online teammates (including current user)
+  // Player list — the FULL team roster (all members), with live online status.
   const playerList = useMemo(() => {
-    const players = new Map();
-    // Add all active (online) teammates
-    if (activeTeammates) {
-      Object.entries(activeTeammates).forEach(([pid, info]) => {
-        players.set(String(pid), { id: String(pid), name: info.playerName || `Player ${pid}`, focus: null, online: true });
+    const uid = user ? String(user.userId) : null;
+    const isOnline = (pid) =>
+      pid === uid ||
+      !!(activeTeammates && activeTeammates[pid]);
+
+    // Primary source: the full roster the server sends in round3State.teamMembers.
+    if (teamMembers.length > 0) {
+      return teamMembers.map(m => {
+        const pid = String(m.playerId);
+        return {
+          id: pid,
+          name: m.playerName || `Player ${pid}`,
+          online: m.online || isOnline(pid),
+          focus: playerFocuses[pid] || null,
+        };
       });
     }
-    // Enrich online players with their focus data
-    Object.entries(playerFocuses).forEach(([pid, focus]) => {
-      const spid = String(pid);
-      if (players.has(spid)) {
-        players.set(spid, { ...players.get(spid), focus });
-      }
-      // Offline players with focus data are NOT added — only online players shown
-    });
-    // Always include current user (normalize to string for consistent matching)
-    if (user) {
-      const uid = String(user.userId);
-      if (!players.has(uid)) {
-        players.set(uid, { id: uid, name: user.displayName || 'You', focus: null, online: true });
-      }
+
+    // Fallback (roster not loaded yet): online teammates + current user.
+    const players = new Map();
+    if (activeTeammates) {
+      Object.entries(activeTeammates).forEach(([pid, info]) => {
+        players.set(String(pid), { id: String(pid), name: info.playerName || `Player ${pid}`, focus: playerFocuses[String(pid)] || null, online: true });
+      });
+    }
+    if (user && !players.has(uid)) {
+      players.set(uid, { id: uid, name: user.displayName || 'You', focus: null, online: true });
     }
     return [...players.values()];
-  }, [activeTeammates, playerFocuses, user]);
+  }, [teamMembers, activeTeammates, playerFocuses, user]);
 
   // Build currentGrid for the active puzzle by merging initialGrid + cells
   const mergedGrid = useMemo(() => {
@@ -156,19 +163,21 @@ export default function Round3View({
           <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round3.team')}</h3>
           <div className="space-y-2">
             {playerList.map((p, i) => {
-              const isMe = p.id === user?.userId;
+              const isMe = String(p.id) === String(user?.userId);
               return (
-                <div key={p.id} className={`flex items-center gap-2 px-2 py-1.5 rounded ${isMe ? 'bg-indigo-900/30' : 'bg-gray-700/50'}`}>
-                  <span className={`w-3 h-3 rounded-full ${PLAYER_COLORS[i % PLAYER_COLORS.length]}`} />
+                <div key={p.id} className={`flex items-center gap-2 px-2 py-1.5 rounded ${isMe ? 'bg-indigo-900/30' : 'bg-gray-700/50'} ${p.online ? '' : 'opacity-50'}`}>
+                  <span className={`w-3 h-3 rounded-full ${p.online ? PLAYER_COLORS[i % PLAYER_COLORS.length] : 'bg-gray-500'}`} />
                   <span className={`text-sm flex-1 ${isMe ? 'text-white font-medium' : 'text-gray-300'}`}>
                     {p.name}
                     {isMe && <span className="text-[10px] text-indigo-300 ml-1">{t('round3.you')}</span>}
                   </span>
-                  {p.focus && (
+                  {p.focus ? (
                     <span className="text-[10px] text-gray-500">
                       R{p.focus.row + 1}C{p.focus.col + 1}
                     </span>
-                  )}
+                  ) : !p.online ? (
+                    <span className="text-[10px] text-gray-500">{t('round3.offline')}</span>
+                  ) : null}
                 </div>
               );
             })}
