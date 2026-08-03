@@ -134,22 +134,22 @@ export default function PuzzleBankPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-600">&larr; {t('puzzleBank.back')}</button>
+      <header className="bg-white shadow px-4 sm:px-6 py-3 sm:py-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-600 text-xs sm:text-sm">&larr; {t('puzzleBank.back')}</button>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">{t('puzzleBank.title')}</h1>
-              <p className="text-sm text-gray-500">{t('puzzleBank.available', { n: total })}</p>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-800">{t('puzzleBank.title')}</h1>
+              <p className="text-xs sm:text-sm text-gray-500">{t('puzzleBank.available', { n: total })}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSwitcher />
             {total > 0 && (
               <button
                 onClick={handleClearAll}
                 disabled={clearing}
-                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium text-sm disabled:opacity-50 transition-colors"
+                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium text-xs sm:text-sm disabled:opacity-50 transition-colors"
               >
                 {clearing ? t('puzzleBank.clearing') : t('puzzleBank.clearAll')}
               </button>
@@ -158,51 +158,51 @@ export default function PuzzleBankPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6 space-y-6">
+      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Bulk Generate */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-2">{t('puzzleBank.bulkGenTitle')}</h2>
-          <p className="text-sm text-gray-500 mb-4">
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-2">{t('puzzleBank.bulkGenTitle')}</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
             {t('puzzleBank.bulkGenDesc')}
           </p>
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t('puzzleBank.teamCount')}</label>
+          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 sm:gap-4">
+            <div className="flex-1 w-full sm:w-auto">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">{t('puzzleBank.teamCount')}</label>
               <input type="number" min="1" value={bulkTeamsCount}
                 onChange={e => setBulkTeamsCount(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-sm" />
+                className="w-full px-3 py-2 border rounded-lg text-xs sm:text-sm" />
             </div>
-            <div className="text-sm text-gray-600 py-2">
+            <div className="text-xs sm:text-sm text-gray-600 py-2">
               <p>R1: {bulkTeamsCount} x 10 = {bulkTeamsCount * 10} (9 JOC + 1 FINAL)</p>
               <p>R2: {bulkTeamsCount} x 16 = {bulkTeamsCount * 16} (8E+6M+2H)</p>
               <p>R3: 10 (5E+3M+2H)</p>
             </div>
             <button onClick={handleBulkGenerate} disabled={bulkGenerating}
-              className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium disabled:opacity-50 whitespace-nowrap">
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium disabled:opacity-50 whitespace-nowrap text-sm sm:text-base">
               {bulkGenerating ? t('puzzleBank.bulkGenerating') : t('puzzleBank.bulkGenBtn')}
             </button>
           </div>
         </section>
 
         {/* Per-Round Generate */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-2">{t('puzzleBank.perRoundTitle')}</h2>
-          <p className="text-sm text-gray-500 mb-4">
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-2">{t('puzzleBank.perRoundTitle')}</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
             {t('puzzleBank.perRoundDesc')}
           </p>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <button onClick={() => handleGenerate('ROUND1_NINE_ONE', 1)} disabled={generating}
-              className="px-4 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm">
+              className="px-3 sm:px-4 py-2.5 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium disabled:opacity-50 text-xs sm:text-sm">
               {t('puzzleBank.r1Btn')}<br/>
               <span className="text-green-200 text-xs">{t('puzzleBank.r1BtnSub')}</span>
             </button>
             <button onClick={() => handleGenerate('ROUND2_RELAY', 1)} disabled={generating}
-              className="px-4 py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm">
+              className="px-3 sm:px-4 py-2.5 sm:py-3 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg font-medium disabled:opacity-50 text-xs sm:text-sm">
               {t('puzzleBank.r2Btn')}<br/>
               <span className="text-yellow-200 text-xs">8E + 6M + 2H</span>
             </button>
             <button onClick={() => handleGenerate('ROUND3_COLLABORATE', 1)} disabled={generating}
-              className="px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm">
+              className="px-3 sm:px-4 py-2.5 sm:py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium disabled:opacity-50 text-xs sm:text-sm">
               {t('puzzleBank.r3Btn')}<br/>
               <span className="text-red-200 text-xs">5E + 3M + 2H</span>
             </button>
@@ -210,12 +210,12 @@ export default function PuzzleBankPage() {
         </section>
 
         {/* Import to Round */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('puzzleBank.importTitle')}</h2>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">{t('puzzleBank.roundLabel')}</span>
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('puzzleBank.importTitle')}</h2>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+            <span className="text-xs sm:text-sm text-gray-600">{t('puzzleBank.roundLabel')}</span>
             <select value={selectedRound} onChange={e => setSelectedRound(e.target.value)}
-              className="px-3 py-2 border rounded-lg text-sm flex-1">
+              className="px-3 py-2 border rounded-lg text-xs sm:text-sm flex-1 w-full sm:w-auto">
               <option value="">{t('puzzleBank.selectRound')}</option>
               {rounds.map(r => (
                 <option key={r.id} value={r.id}>
@@ -224,23 +224,23 @@ export default function PuzzleBankPage() {
               ))}
             </select>
             <button onClick={handleImport} disabled={importing || !selectedRound}
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50">
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm sm:text-base">
               {importing ? t('puzzleBank.importing') : t('puzzleBank.importBtn')}
             </button>
           </div>
         </section>
 
         {/* Filters */}
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           <select value={filter.roundType} onChange={e => setFilter({...filter, roundType: e.target.value})}
-            className="px-3 py-2 border rounded-lg text-sm bg-white">
+            className="px-3 py-2 border rounded-lg text-xs sm:text-sm bg-white flex-1 sm:flex-initial min-w-0">
             <option value="">{t('puzzleBank.allRoundTypes')}</option>
             <option value="ROUND1_NINE_ONE">{t('common.roundName.ROUND1_NINE_ONE')}</option>
             <option value="ROUND2_RELAY">{t('common.roundName.ROUND2_RELAY')}</option>
             <option value="ROUND3_COLLABORATE">{t('common.roundName.ROUND3_COLLABORATE')}</option>
           </select>
           <select value={filter.difficulty} onChange={e => setFilter({...filter, difficulty: e.target.value})}
-            className="px-3 py-2 border rounded-lg text-sm bg-white">
+            className="px-3 py-2 border rounded-lg text-xs sm:text-sm bg-white flex-1 sm:flex-initial min-w-0">
             <option value="">{t('puzzleBank.allDifficulties')}</option>
             <option value="EASY">{t('common.difficulty.EASY')}</option>
             <option value="MEDIUM">{t('common.difficulty.MEDIUM')}</option>
@@ -250,85 +250,87 @@ export default function PuzzleBankPage() {
 
         {/* Puzzle list */}
         <div className="bg-white rounded-xl shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colType')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colDifficulty')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colEmptyCells')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colPuzzleType')}</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colPoints')}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colPreview')}</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {puzzles.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-mono font-medium">{p.id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{roundTypeLabel[p.roundType] || p.roundType}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${difficultyColor[p.difficulty] || ''}`}>
-                      {p.difficulty}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.initialGrid.flat().filter(v=>v===0).length}</td>
-                  <td className="px-4 py-3 text-sm">{p.puzzleType || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{p.points}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => handlePreview(p.id)}
-                      className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200">
-                      {t('puzzleBank.view')}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      disabled={deleting === p.id}
-                      className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 disabled:opacity-50 transition-colors"
-                    >
-                      {deleting === p.id ? t('puzzleBank.deleting') : t('puzzleBank.delete')}
-                    </button>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colType')}</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colDifficulty')}</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">{t('puzzleBank.colEmptyCells')}</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">{t('puzzleBank.colPuzzleType')}</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colPoints')}</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colPreview')}</th>
+                  <th className="px-3 sm:px-4 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('puzzleBank.colActions')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {puzzles.map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-mono font-medium">{p.id}</td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600">{roundTypeLabel[p.roundType] || p.roundType}</td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${difficultyColor[p.difficulty] || ''}`}>
+                        {p.difficulty}
+                      </span>
+                    </td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{p.initialGrid.flat().filter(v=>v===0).length}</td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm hidden md:table-cell">{p.puzzleType || '-'}</td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600">{p.points}</td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">
+                      <button onClick={() => handlePreview(p.id)}
+                        className="px-2 sm:px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-xs hover:bg-indigo-200">
+                        {t('puzzleBank.view')}
+                      </button>
+                    </td>
+                    <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        disabled={deleting === p.id}
+                        className="px-2 sm:px-3 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 disabled:opacity-50 transition-colors"
+                      >
+                        {deleting === p.id ? t('puzzleBank.deleting') : t('puzzleBank.delete')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Preview modal */}
         {preview && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setPreview(null)}>
-            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">{t('puzzleBank.previewTitle', { id: preview.id })}</h2>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4" onClick={() => setPreview(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 max-w-3xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <h2 className="text-base sm:text-lg font-bold">{t('puzzleBank.previewTitle', { id: preview.id })}</h2>
                 <button onClick={() => setPreview(null)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-500 mb-2">{t('puzzleBank.initialBoard')}</h3>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-2">{t('puzzleBank.initialBoard')}</h3>
                   <SudokuPreview grid={preview.initialGrid} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-500 mb-2">{t('puzzleBank.answer')}</h3>
+                  <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-2">{t('puzzleBank.answer')}</h3>
                   <SudokuPreview grid={preview.solution} highlight />
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-4 gap-3 text-sm">
-                <div className="bg-gray-50 rounded-lg p-3">
+              <div className="mt-3 sm:mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs sm:text-sm">
+                <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                   <p className="text-gray-500">{t('puzzleBank.colType')}</p>
                   <p className="font-medium">{roundTypeLabel[preview.roundType] || preview.roundType}</p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3">
+                <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                   <p className="text-gray-500">{t('puzzleBank.colDifficulty')}</p>
                   <p className="font-medium">{preview.difficulty}</p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3">
+                <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                   <p className="text-gray-500">{t('puzzleBank.colEmptyCells')}</p>
                   <p className="font-medium">{preview.emptyCellCount}</p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3">
+                <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                   <p className="text-gray-500">{t('puzzleBank.colPuzzleType')}</p>
                   <p className="font-medium">{preview.puzzleType || '-'}</p>
                 </div>
@@ -344,7 +346,7 @@ export default function PuzzleBankPage() {
 function SudokuPreview({ grid, highlight }) {
   if (!grid || grid.length === 0) return null;
   return (
-    <div className="inline-block border-2 border-gray-300 rounded">
+    <div className="inline-block border-2 border-gray-300 rounded overflow-x-auto max-w-full">
       {grid.map((row, ri) => (
         <div key={ri} className="flex">
           {row.map((cell, ci) => {
@@ -353,7 +355,7 @@ function SudokuPreview({ grid, highlight }) {
               ci % 3 === 2 && ci < 8 ? 'border-r-2 border-r-gray-400' : '',
             ].join(' ');
             return (
-              <div key={ci} className={`w-8 h-8 flex items-center justify-center text-sm border border-gray-200 ${borderClasses} ${
+              <div key={ci} className={`w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center text-xs sm:text-sm border border-gray-200 ${borderClasses} ${
                 cell === 0 ? 'bg-gray-100 text-gray-300' : highlight ? 'bg-blue-50 font-medium' : ''
               }`}>
                 {cell !== 0 ? cell : ''}

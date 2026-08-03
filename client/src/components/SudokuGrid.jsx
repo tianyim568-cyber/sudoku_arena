@@ -103,7 +103,7 @@ export default function SudokuGrid({
       )}
 
       {/* Grid */}
-      <div className="inline-block border-2 border-gray-600 bg-gray-700">
+      <div className="inline-block border-2 border-gray-600 bg-gray-700 overflow-x-auto max-w-full">
         {grid.map((row, ri) => (
           <div key={ri} className="flex">
             {row.map((cell, ci) => {
@@ -125,7 +125,7 @@ export default function SudokuGrid({
                 <div
                   key={ci}
                   onClick={() => handleCellClick(ri, ci)}
-                  className={`relative w-12 h-12 flex items-center justify-center text-lg font-medium border border-gray-600 transition-colors ${boxBorder} ${
+                  className={`relative w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center text-sm sm:text-base md:text-lg font-medium border border-gray-600 transition-colors ${boxBorder} ${
                     readOnly ? 'cursor-default' : 'cursor-pointer'
                   } ${
                     isInitial ? 'bg-gray-800 text-white cursor-default' :
@@ -186,12 +186,12 @@ export default function SudokuGrid({
         <div className="mt-4">
           {roundType === 'ROUND1_NINE_ONE' ? (
             // Round 1 JOC: auto-submit on tap, no clear/submit buttons
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {Array.from({ length: 9 }, (_, i) => i + 1).map(num => (
                 <button
                   key={num}
                   onClick={() => handleNumberInput(num)}
-                  className="w-14 h-14 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg font-bold text-xl transition-colors"
+                  className="w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-indigo-700 hover:bg-indigo-600 text-white rounded-lg font-bold text-lg sm:text-xl transition-colors"
                 >
                   {num}
                 </button>
@@ -200,26 +200,26 @@ export default function SudokuGrid({
           ) : (
             // Round 1 FINAL / Round 2 / Round 3: fill + submit full grid
             <div>
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {Array.from({ length: 9 }, (_, i) => i + 1).map(num => (
                   <button
                     key={num}
                     onClick={() => handleNumberInput(num)}
-                    className="w-12 h-12 bg-gray-700 hover:bg-indigo-600 text-white rounded-lg font-bold text-lg transition-colors"
+                    className="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 bg-gray-700 hover:bg-indigo-600 text-white rounded-lg font-bold text-base sm:text-lg transition-colors"
                   >
                     {num}
                   </button>
                 ))}
                 <button
                   onClick={handleClear}
-                  className="w-12 h-12 bg-red-800 hover:bg-red-700 text-white rounded-lg font-bold text-sm transition-colors"
+                  className="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 bg-red-800 hover:bg-red-700 text-white rounded-lg font-bold text-xs sm:text-sm transition-colors"
                 >
                   X
                 </button>
               </div>
               <button
                 onClick={handleSubmitFullGrid}
-                className="mt-3 px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors"
+                className="mt-3 px-4 py-2 sm:px-6 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm sm:text-base font-medium transition-colors"
               >
                 {t('grid.submitFullGrid')}
               </button>
@@ -230,7 +230,7 @@ export default function SudokuGrid({
 
       {/* Collaboration legend */}
       {collaborationMode && (
-        <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
+        <div className="mt-3 flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 border-2 border-dashed border-yellow-500/60 rounded-sm"></span>
             {t('grid.suggestion')}

@@ -139,9 +139,9 @@ export default function Round3View({
   };
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col lg:flex-row gap-4">
       {/* Left Panel: Team Info + Puzzle Progress */}
-      <div className="w-72 flex-shrink-0 space-y-4">
+      <div className="w-full lg:w-72 lg:flex-shrink-0 space-y-4 order-2 lg:order-1">
         {/* Round Info */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-indigo-300 mb-2">{t('round3.roundTitle')}</h3>
@@ -221,11 +221,11 @@ export default function Round3View({
       </div>
 
       {/* Center: Active Puzzle Grid with Collaboration Mode */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 order-1 lg:order-2">
         {activePuzzle ? (
           <div>
-            <div className="mb-3 flex items-center gap-3">
-              <span className="text-gray-400 text-sm">
+            <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="text-gray-400 text-xs sm:text-sm">
                 {t('round3.puzzleN', { n: activePuzzle.orderInRound || puzzles.findIndex(p => p.puzzleId === activePuzzle.puzzleId) + 1 })}
               </span>
               <span className={`px-2 py-0.5 rounded text-xs font-bold ${
@@ -257,14 +257,14 @@ export default function Round3View({
             />
           </div>
         ) : (
-          <div className="text-center py-20">
-            <p className="text-gray-400 text-lg">{t('round3.selectPuzzle')}</p>
+          <div className="text-center py-12 sm:py-20">
+            <p className="text-gray-400 text-base sm:text-lg">{t('round3.selectPuzzle')}</p>
           </div>
         )}
       </div>
 
       {/* Right Panel: Collaboration Log + Suggestions Queue */}
-      <div className="w-72 flex-shrink-0 space-y-4">
+      <div className="w-full lg:w-72 lg:flex-shrink-0 space-y-4 order-3">
         {/* Pending Suggestions — Accept/Reject */}
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round3.pendingSuggestions')}</h3>

@@ -36,50 +36,50 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8 w-full max-w-md border border-white/20">
+      <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md border border-white/20">
         <div className="flex justify-end mb-2">
           <LanguageSwitcher />
         </div>
-        <h1 className="text-3xl font-bold text-white text-center mb-2">{t('login.title')}</h1>
-        <p className="text-purple-200 text-center mb-8">{t('login.subtitle')}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">{t('login.title')}</h1>
+        <p className="text-purple-200 text-center mb-6 sm:mb-8 text-sm sm:text-base">{t('login.subtitle')}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <input
               type="text" placeholder={t('login.username')} value={username}
               onChange={e => setUsername(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400 text-sm sm:text-base"
             />
           </div>
           <div>
             <input
               type="password" placeholder={t('login.password')} value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-400 text-sm sm:text-base"
             />
           </div>
-          {error && <p className="text-red-300 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-300 text-xs sm:text-sm text-center">{error}</p>}
           <button
             type="submit"
-            className="w-full py-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-colors"
+            className="w-full py-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-colors text-sm sm:text-base"
           >
             {t('login.submit')}
           </button>
         </form>
 
         <div className="mt-6 border-t border-white/20 pt-4">
-          <p className="text-purple-300 text-sm text-center mb-3">{t('login.quickLogin')}</p>
+          <p className="text-purple-300 text-xs sm:text-sm text-center mb-3">{t('login.quickLogin')}</p>
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => quickLogin('admin', 'admin123')}
-              className="py-2 px-3 rounded bg-amber-600/80 hover:bg-amber-500 text-white text-xs font-medium transition-colors">
+              className="py-2 px-2 sm:px-3 rounded bg-amber-600/80 hover:bg-amber-500 text-white text-xs font-medium transition-colors">
               {t('login.admin')}
             </button>
             <button onClick={() => quickLogin('judge', 'judge123')}
-              className="py-2 px-3 rounded bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-medium transition-colors">
+              className="py-2 px-2 sm:px-3 rounded bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-medium transition-colors">
               {t('login.judge')}
             </button>
             <button onClick={() => quickLogin('player1', 'player123')}
-              className="py-2 px-3 rounded bg-green-600/80 hover:bg-green-500 text-white text-xs font-medium transition-colors">
+              className="py-2 px-2 sm:px-3 rounded bg-green-600/80 hover:bg-green-500 text-white text-xs font-medium transition-colors">
               {t('login.player1')}
             </button>
           </div>

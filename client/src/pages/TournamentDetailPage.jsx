@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
+import ParticipantImport from '../components/ParticipantImport';
 
 export default function TournamentDetailPage() {
   const { id } = useParams();
@@ -20,16 +21,24 @@ export default function TournamentDetailPage() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [generatingRoundId, setGeneratingRoundId] = useState(null);
   const [quickSetting, setQuickSetting] = useState(false);
+  const [showParticipantImport, setShowParticipantImport] = useState(false);
+  const [participants, setParticipants] = useState([]);
 
   const load = async () => {
     const res = await api.getTournament(id);
     if (res.code === 200) setTournament(res.data);
   };
 
+  const loadParticipants = async () => {
+    const res = await api.listParticipants(id);
+    if (res.code === 200) setParticipants(res.data || []);
+  };
+
   useEffect(() => {
     load();
     if (user?.role === 'ADMIN') {
       api.listUsers().then(res => { if (res.code === 200) setUsers(res.data); });
+      loadParticipants();
     }
   }, [id]);
 
@@ -67,6 +76,17 @@ export default function TournamentDetailPage() {
     const res = await api.assignJudge(id, judge.id);
     if (res.code === 200) { msg(t('tournamentDetail.judgeAssigned')); load(); }
     else msg(res.message || t('tournamentDetail.assignJudgeFailed'), 'error');
+  };
+
+  const handleDeleteParticipants = async () => {
+    if (!window.confirm(t('tournamentDetail.confirmDeleteParticipants'))) return;
+    const res = await api.deleteParticipants(id);
+    if (res.code === 200) {
+      msg(t('tournamentDetail.deleteSuccess') + ': ' + t('tournamentDetail.deletedCount') + ' ' + (res.data?.deleted || 0));
+      loadParticipants();
+    } else {
+      msg(res.message || 'Delete failed', 'error');
+    }
   };
 
   const handleGenerateAndImport = async (roundId, roundType) => {
@@ -204,7 +224,7 @@ export default function TournamentDetailPage() {
   const hasJudge = (tournament?.judges?.length || 0) >= 1;
   const allReady = has3Rounds && allRoundsHavePuzzles && hasTeam && hasJudge;
 
-  if (!tournament) return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
+  if (!tournament) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
 
   const Check = ({ ok }) => (
     <span className={`inline-block w-5 h-5 rounded-full text-center text-white text-xs leading-5 ${ok ? 'bg-green-500' : 'bg-red-400'}`}>
@@ -214,12 +234,12 @@ export default function TournamentDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-600">&larr; {t('tournamentDetail.back')}</button>
+      <header className="bg-white shadow px-4 sm:px-6 py-4">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-gray-600 text-sm sm:text-base">&larr; {t('tournamentDetail.back')}</button>
             <div>
-              <h1 className="text-xl font-bold text-gray-800">{tournament.name}</h1>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-800">{tournament.name}</h1>
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                 tournament.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
                 tournament.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' :
@@ -228,23 +248,23 @@ export default function TournamentDetailPage() {
               }`}>{t(`common.status.${tournament.status}`)}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <LanguageSwitcher />
             {isAdmin && tournament.status === 'PENDING' && !allReady && (
               <button onClick={handleQuickSetup} disabled={quickSetting}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-500 disabled:opacity-50">
+                className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-500 disabled:opacity-50">
                 {quickSetting ? t('tournamentDetail.quickSettingUp') : t('tournamentDetail.quickSetup')}
               </button>
             )}
             {(isJudge || isAdmin) && (
               <button onClick={() => navigate(`/judge/${id}`)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-500">
+                className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg text-xs sm:text-sm hover:bg-blue-500">
                 {t('tournamentDetail.judgeConsole')}
               </button>
             )}
             {isPlayer && tournament.status === 'IN_PROGRESS' && (
               <button onClick={() => navigate(`/play/${id}`)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-500">
+                className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg text-xs sm:text-sm hover:bg-green-500">
                 {t('tournamentDetail.enterGame')}
               </button>
             )}
@@ -252,10 +272,10 @@ export default function TournamentDetailPage() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-6 space-y-6">
+      <main className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
         {/* Status Message */}
         {statusMsg && (
-          <div className={`px-4 py-3 rounded-lg text-sm ${
+          <div className={`px-4 py-3 rounded-lg text-xs sm:text-sm ${
             statusMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
             'bg-green-50 text-green-700 border border-green-200'
           }`}>{statusMsg.text}</div>
@@ -263,19 +283,19 @@ export default function TournamentDetailPage() {
 
         {/* Readiness Checklist (only when PENDING) */}
         {tournament.status === 'PENDING' && (
-          <section className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-lg font-semibold mb-3">{t('tournamentDetail.readinessTitle')}</h2>
-            <div className="grid grid-cols-2 gap-2 text-sm">
+          <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-semibold mb-3">{t('tournamentDetail.readinessTitle')}</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
               <div className="flex items-center gap-2"><Check ok={has3Rounds} /> {t('tournamentDetail.check3Rounds')}</div>
               <div className="flex items-center gap-2"><Check ok={allRoundsHavePuzzles} /> {t('tournamentDetail.checkPuzzles')}</div>
               <div className="flex items-center gap-2"><Check ok={hasTeam} /> {t('tournamentDetail.checkTeam')}</div>
               <div className="flex items-center gap-2"><Check ok={hasJudge} /> {t('tournamentDetail.checkJudge')}</div>
             </div>
             {allReady && (
-              <div className="mt-4 pt-4 border-t flex items-center gap-3">
-                <p className="text-green-600 font-medium text-sm">{t('tournamentDetail.allReady')}</p>
+              <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <p className="text-green-600 font-medium text-xs sm:text-sm">{t('tournamentDetail.allReady')}</p>
                 <button onClick={handleStartTournament}
-                  className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm font-medium">
+                  className="px-4 sm:px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs sm:text-sm font-medium">
                   {t('tournamentDetail.startTournament')}
                 </button>
               </div>
@@ -284,12 +304,12 @@ export default function TournamentDetailPage() {
         )}
 
         {/* Rounds Section */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">{t('tournamentDetail.roundsTitle')} ({tournament.rounds?.length || 0}/3)</h2>
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+            <h2 className="text-base sm:text-lg font-semibold">{t('tournamentDetail.roundsTitle')} ({tournament.rounds?.length || 0}/3)</h2>
             {isAdmin && tournament.status === 'PENDING' && tournament.rounds?.length < 3 && (
               <button onClick={() => setShowAddRound(!showAddRound)}
-                className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-500">
+                className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500">
                 {t('tournamentDetail.addRound')}
               </button>
             )}
@@ -299,30 +319,30 @@ export default function TournamentDetailPage() {
             <form onSubmit={handleCreateRound} className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
               <input type="text" placeholder={t('tournamentDetail.roundNamePlaceholder')} value={roundForm.name}
                 onChange={e => setRoundForm({ ...roundForm, name: e.target.value })}
-                className="w-full px-3 py-2 border rounded text-sm" required />
+                className="w-full px-3 py-2 border rounded text-xs sm:text-sm" required />
               <select value={roundForm.roundType} onChange={e => setRoundForm({ ...roundForm, roundType: e.target.value })}
-                className="w-full px-3 py-2 border rounded text-sm">
+                className="w-full px-3 py-2 border rounded text-xs sm:text-sm">
                 <option value="ROUND1_NINE_ONE">{t('common.roundName.ROUND1_NINE_ONE')}</option>
                 <option value="ROUND2_RELAY">{t('common.roundName.ROUND2_RELAY')}</option>
                 <option value="ROUND3_COLLABORATE">{t('common.roundName.ROUND3_COLLABORATE')}</option>
               </select>
               <input type="number" placeholder={t('tournamentDetail.durationPlaceholder')} value={roundForm.durationSeconds}
                 onChange={e => setRoundForm({ ...roundForm, durationSeconds: parseInt(e.target.value) || 600 })}
-                className="w-full px-3 py-2 border rounded text-sm" />
-              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-sm">{t('tournamentDetail.addRoundSubmit')}</button>
+                className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm">{t('tournamentDetail.addRoundSubmit')}</button>
             </form>
           )}
 
           {tournament.rounds?.length === 0 ? (
-            <p className="text-gray-400 text-sm">{t('tournamentDetail.noRounds')}</p>
+            <p className="text-gray-400 text-xs sm:text-sm">{t('tournamentDetail.noRounds')}</p>
           ) : (
             <div className="space-y-3">
               {tournament.rounds?.map((r, i) => (
-                <div key={r.id} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
+                <div key={r.id} className="border rounded-lg p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <div>
-                      <span className="text-sm text-gray-500">{t('tournamentDetail.roundNumber', { n: r.round_number })}</span>
-                      <h3 className="font-medium">{r.name}</h3>
+                      <span className="text-xs sm:text-sm text-gray-500">{t('tournamentDetail.roundNumber', { n: r.round_number })}</span>
+                      <h3 className="font-medium text-sm sm:text-base">{r.name}</h3>
                       <p className="text-xs text-gray-400">
                         {t('tournamentDetail.roundMeta', { type: r.round_type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}
                       </p>
@@ -348,17 +368,17 @@ export default function TournamentDetailPage() {
         </section>
 
         {/* Teams Section */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">{t('tournamentDetail.teamsTitle')} ({tournament.teams?.length || 0})</h2>
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+            <h2 className="text-base sm:text-lg font-semibold">{t('tournamentDetail.teamsTitle')} ({tournament.teams?.length || 0})</h2>
             {isAdmin && tournament.status === 'PENDING' && (
               <div className="flex gap-2">
                 <button onClick={() => setShowAddTeam(!showAddTeam)}
-                  className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-500">
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500">
                   {t('tournamentDetail.addTeam')}
                 </button>
                 <button onClick={handleAssignJudge}
-                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-500">
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-500">
                   {t('tournamentDetail.assignJudge')}
                 </button>
               </div>
@@ -368,18 +388,18 @@ export default function TournamentDetailPage() {
           {showAddTeam && (
             <form onSubmit={handleCreateTeam} className="bg-gray-50 rounded-lg p-4 mb-4 flex gap-2">
               <input type="text" placeholder={t('tournamentDetail.teamNamePlaceholder')} value={teamName} onChange={e => setTeamName(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded text-sm" required />
-              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-sm">{t('tournamentDetail.addTeamSubmit')}</button>
+                className="flex-1 px-3 py-2 border rounded text-xs sm:text-sm" required />
+              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm">{t('tournamentDetail.addTeamSubmit')}</button>
             </form>
           )}
 
           {tournament.teams?.length === 0 ? (
-            <p className="text-gray-400 text-sm">{t('tournamentDetail.noTeams')}</p>
+            <p className="text-gray-400 text-xs sm:text-sm">{t('tournamentDetail.noTeams')}</p>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {tournament.teams?.map(team => (
-                <div key={team.id} className="border rounded-lg p-4">
-                  <h3 className="font-medium">{team.name}</h3>
+                <div key={team.id} className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium text-sm sm:text-base">{team.name}</h3>
                   <p className="text-xs text-gray-400 mb-2">{t('tournamentDetail.memberCount', { count: team.member_count || team.members?.length || 0 })}</p>
                   {team.members?.map(m => (
                     <span key={m.id} className="inline-block bg-gray-100 rounded px-2 py-0.5 text-xs mr-1 mb-1">
@@ -405,13 +425,89 @@ export default function TournamentDetailPage() {
           )}
         </section>
 
+        {/* Participants Section */}
+        {isAdmin && (
+          <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
+              <h2 className="text-base sm:text-lg font-semibold">
+                {t('tournamentDetail.participantsTitle')} ({participants.length})
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowParticipantImport(!showParticipantImport)}
+                  className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs sm:text-sm hover:bg-purple-500"
+                >
+                  {t('tournamentDetail.participantImport')}
+                </button>
+                {participants.length > 0 && (
+                  <button
+                    onClick={handleDeleteParticipants}
+                    className="px-3 py-1.5 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-500"
+                  >
+                    {t('tournamentDetail.deleteParticipants')}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {showParticipantImport && (
+              <div className="mb-4">
+                <ParticipantImport
+                  tournamentId={id}
+                  onImportComplete={() => {
+                    setShowParticipantImport(false);
+                    loadParticipants();
+                  }}
+                />
+              </div>
+            )}
+
+            {participants.length === 0 ? (
+              <p className="text-gray-400 text-xs sm:text-sm">{t('tournamentDetail.noParticipants')}</p>
+            ) : (
+              <div className="max-h-96 overflow-auto border border-gray-200 rounded">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-1 sm:px-2 py-1 text-left">#</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('tournamentDetail.province')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden md:table-cell">{t('tournamentDetail.city')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden md:table-cell">{t('tournamentDetail.district')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.school')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.studentName')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('tournamentDetail.age')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden lg:table-cell">{t('tournamentDetail.category')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.teamName')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participants.map((p, idx) => (
+                      <tr key={p.id} className="border-b hover:bg-gray-50">
+                        <td className="px-1 sm:px-2 py-1">{idx + 1}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden sm:table-cell">{p.province || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden md:table-cell">{p.city || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden md:table-cell">{p.district || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1">{p.school_name}</td>
+                        <td className="px-1 sm:px-2 py-1">{p.name}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden sm:table-cell">{p.age || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden lg:table-cell">{p.category || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1">{p.team_name || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Judges */}
         {tournament.judges?.length > 0 && (
-          <section className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">{t('tournamentDetail.judgesTitle')}</h2>
-            <div className="flex gap-2">
+          <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-semibold mb-4">{t('tournamentDetail.judgesTitle')}</h2>
+            <div className="flex flex-wrap gap-2">
               {tournament.judges.map(j => (
-                <span key={j.id} className="bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-sm">
+                <span key={j.id} className="bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-xs sm:text-sm">
                   {j.display_name || j.username}
                 </span>
               ))}

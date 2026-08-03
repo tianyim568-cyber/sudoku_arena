@@ -9,6 +9,7 @@ const { createUserRouter } = require('./routes/users');
 const { createTournamentRouter } = require('./routes/tournaments');
 const { createGameRouter } = require('./routes/game');
 const { createPuzzleBankRouter } = require('./routes/puzzleBank');
+const { createParticipantRouter } = require('./routes/participants');
 const EmissionBus = require('./ws/EmissionBus');
 const SocketManager = require('./ws/SocketManager');
 const GameOrchestrator = require('./engine/GameOrchestrator');
@@ -59,6 +60,7 @@ async function main() {
   const orchestrator = new GameOrchestrator(repos, state, bus);
   app.use('/api', createGameRouter(repos, orchestrator));
   app.use('/api', createPuzzleBankRouter(repos));
+  app.use('/api', createParticipantRouter(repos));
 
   // Setup WebSocket via SocketManager (replaces socketHandler)
   new SocketManager(io, repos, orchestrator, bus);

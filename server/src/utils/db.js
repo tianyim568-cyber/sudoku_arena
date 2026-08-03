@@ -173,6 +173,37 @@ async function _runSchema({ run }) {
     assigned_at TEXT DEFAULT NOW(),
     UNIQUE(round_id, team_id)
   )`);
+
+  // Participant import: schools, participants, tournament-participant links
+  await run(`CREATE TABLE IF NOT EXISTS schools (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    province TEXT,
+    city TEXT,
+    district TEXT,
+    created_at TEXT DEFAULT NOW(),
+    UNIQUE(name, province, city, district)
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS participants (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    name TEXT NOT NULL,
+    age INTEGER,
+    category TEXT,
+    school_id INTEGER REFERENCES schools(id),
+    created_at TEXT DEFAULT NOW()
+  )`);
+
+  await run(`CREATE TABLE IF NOT EXISTS tournament_participants (
+    id SERIAL PRIMARY KEY,
+    tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
+    participant_id INTEGER NOT NULL REFERENCES participants(id),
+    team_name TEXT,
+    team_id INTEGER REFERENCES teams(id),
+    imported_at TEXT DEFAULT NOW(),
+    UNIQUE(tournament_id, participant_id)
+  )`);
 }
 
 async function _seedUsers({ get, run }) {

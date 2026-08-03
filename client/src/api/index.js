@@ -29,6 +29,21 @@ async function request(method, path, body) {
   return json;
 }
 
+async function uploadFile(path, file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  // Do NOT set Content-Type — browser sets multipart boundary automatically
+  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
+  const json = await res.json();
+  if (json && typeof json.message === 'string') {
+    const lang = localStorage.getItem('sa_lang') === 'en' ? 'en' : 'zh';
+    json.message = translateServerMessage(json.message, lang);
+  }
+  return json;
+}
+
 export const api = {
   // Auth
   login: (username, password) => request('POST', '/auth/login', { username, password }),
@@ -84,6 +99,12 @@ export const api = {
 
   // Users
   listUsers: () => request('GET', '/users'),
+
+  // Participants (import)
+  uploadParticipants: (tournamentId, file) => uploadFile(`/tournaments/${tournamentId}/participants/upload`, file),
+  confirmParticipants: (tournamentId, rows) => request('POST', `/tournaments/${tournamentId}/participants/confirm`, { rows }),
+  listParticipants: (tournamentId) => request('GET', `/tournaments/${tournamentId}/participants`),
+  deleteParticipants: (tournamentId) => request('DELETE', `/tournaments/${tournamentId}/participants`),
 
   // Generic request (for endpoints not covered above)
   request,

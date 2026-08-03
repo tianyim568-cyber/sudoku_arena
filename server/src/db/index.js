@@ -18,6 +18,7 @@ const SubmissionRepository = require('./repositories/SubmissionRepository');
 const ScoreRepository = require('./repositories/ScoreRepository');
 const PlayerStateRepository = require('./repositories/PlayerStateRepository');
 const TeamPuzzleSetRepository = require('./repositories/TeamPuzzleSetRepository');
+const ParticipantRepository = require('./repositories/ParticipantRepository');
 
 function createRepositoryFactory(dbConnection) {
   const { run, all, get, saveDB, transaction } = dbConnection;
@@ -34,6 +35,7 @@ function createRepositoryFactory(dbConnection) {
     scores: new ScoreRepository(db),
     playerStates: new PlayerStateRepository(db),
     teamPuzzleSets: new TeamPuzzleSetRepository(db),
+    participants: new ParticipantRepository(db),
 
     // Expose saveDB as no-op for backward compatibility (PG auto-commits)
     saveDB: saveDB || (() => {}),

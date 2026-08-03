@@ -11,7 +11,7 @@ import PuzzleBankPage from './pages/PuzzleBankPage';
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
   const { t } = useLanguage();
-  if (loading) return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
+  if (loading) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
   if (!user) return <Navigate to="/login" />;
   return children;
 }

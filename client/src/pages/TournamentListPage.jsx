@@ -68,71 +68,71 @@ export default function TournamentListPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white px-6 py-4 shadow-lg">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+      <header className="bg-gradient-to-r from-indigo-700 to-purple-700 text-white px-4 sm:px-6 py-4 shadow-lg">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">{t('tournamentList.appTitle')}</h1>
-            <p className="text-purple-200 text-sm">{user?.displayName} ({user?.role})</p>
+            <h1 className="text-xl sm:text-2xl font-bold">{t('tournamentList.appTitle')}</h1>
+            <p className="text-purple-200 text-xs sm:text-sm">{user?.displayName} ({user?.role})</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <LanguageSwitcher />
             {user?.role === 'ADMIN' && (
               <button onClick={() => navigate('/puzzle-bank')}
-                className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-colors">
+                className="px-3 sm:px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs sm:text-sm transition-colors">
                 {t('tournamentList.puzzleBank')}
               </button>
             )}
-            <button onClick={logout} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-colors">
+            <button onClick={logout} className="px-3 sm:px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs sm:text-sm transition-colors">
               {t('tournamentList.logout')}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-6">
+      <main className="max-w-5xl mx-auto p-4 sm:p-6">
         {statusMsg && (
-          <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${
+          <div className={`mb-4 px-4 py-3 rounded-lg text-xs sm:text-sm ${
             statusMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
             'bg-green-50 text-green-700 border border-green-200'
           }`}>{statusMsg.text}</div>
         )}
 
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">{t('tournamentList.listTitle')}</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{t('tournamentList.listTitle')}</h2>
           {user?.role === 'ADMIN' && (
             <button onClick={() => setShowCreate(!showCreate)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+              className="px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors">
               {t('tournamentList.newTournament')}
             </button>
           )}
         </div>
 
         {showCreate && (
-          <form onSubmit={handleCreate} className="bg-white rounded-xl shadow p-6 mb-6 space-y-4">
+          <form onSubmit={handleCreate} className="bg-white rounded-xl shadow p-4 sm:p-6 mb-6 space-y-4">
             <input type="text" placeholder={t('tournamentList.namePlaceholder')} value={name} onChange={e => setName(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" required />
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm sm:text-base" required />
             <textarea placeholder={t('tournamentList.descPlaceholder')} value={description} onChange={e => setDescription(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400" rows={2} />
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm sm:text-base" rows={2} />
             <div className="flex gap-2">
-              <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm">{t('tournamentList.create')}</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">{t('common.cancel')}</button>
+              <button type="submit" className="px-4 sm:px-6 py-2 bg-indigo-600 text-white rounded-lg text-xs sm:text-sm">{t('tournamentList.create')}</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="px-4 sm:px-6 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs sm:text-sm">{t('common.cancel')}</button>
             </div>
           </form>
         )}
 
         {tournaments.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <p className="text-lg">{t('tournamentList.empty')}</p>
-            {user?.role === 'ADMIN' && <p className="text-sm mt-2">{t('tournamentList.emptyHint')}</p>}
+          <div className="text-center py-12 sm:py-20 text-gray-400">
+            <p className="text-base sm:text-lg">{t('tournamentList.empty')}</p>
+            {user?.role === 'ADMIN' && <p className="text-xs sm:text-sm mt-2">{t('tournamentList.emptyHint')}</p>}
           </div>
         ) : (
           <div className="grid gap-4">
             {tournaments.map(tour => (
               <Link key={tour.id} to={`/tournament/${tour.id}`}
-                className="bg-white rounded-xl shadow hover:shadow-md transition-shadow p-6 flex items-center justify-between group">
+                className="bg-white rounded-xl shadow hover:shadow-md transition-shadow p-4 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 group">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{tour.name}</h3>
-                  <p className="text-gray-500 text-sm mt-1">{tour.description || t('tournamentList.noDescription')}</p>
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">{tour.name}</h3>
+                  <p className="text-gray-500 text-xs sm:text-sm mt-1">{tour.description || t('tournamentList.noDescription')}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor[tour.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -140,7 +140,7 @@ export default function TournamentListPage() {
                   </span>
                   {user?.role === 'ADMIN' && (tour.status === 'PENDING' || tour.status === 'FINISHED') && (
                     <button onClick={(e) => handleDelete(e, tour.id, tour.name)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-sm"
+                      className="sm:opacity-0 sm:group-hover:opacity-100 transition-opacity px-2 py-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-xs sm:text-sm"
                       title={t('tournamentList.deleteTitle')}>
                       {t('tournamentList.delete')}
                     </button>

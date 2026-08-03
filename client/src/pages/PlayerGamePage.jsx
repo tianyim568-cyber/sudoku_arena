@@ -338,37 +338,39 @@ export default function PlayerGamePage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Top bar */}
-      <div className="bg-gray-800 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white text-sm">
-            &larr; {t('game.back')}
-          </button>
-          <h1 className="text-lg font-bold">{tournament?.name || t('game.defaultTournamentName')}</h1>
-          {currentRound && (
-            <span className="text-sm text-gray-400">
-              {currentRound.roundName || `Round ${currentRound.roundNumber}`}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-6">
-          {timerMeta.timerStatus !== 'UNKNOWN' && (
-            <div className="w-48">
-              <TimerDisplay
-                remainingSeconds={remainingSeconds}
-                totalSeconds={timerMeta.durationSeconds}
-                formattedTime={formattedTime}
-                isPaused={isPaused}
-              />
-            </div>
-          )}
-          <span className="text-sm text-gray-400">{user?.displayName}</span>
-          <LanguageSwitcher />
+      <div className="bg-gray-800 px-3 sm:px-6 py-2 sm:py-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white text-xs sm:text-sm">
+              &larr; {t('game.back')}
+            </button>
+            <h1 className="text-sm sm:text-lg font-bold">{tournament?.name || t('game.defaultTournamentName')}</h1>
+            {currentRound && (
+              <span className="text-xs sm:text-sm text-gray-400">
+                {currentRound.roundName || `Round ${currentRound.roundNumber}`}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 sm:gap-6 w-full sm:w-auto">
+            {timerMeta.timerStatus !== 'UNKNOWN' && (
+              <div className="w-32 sm:w-48">
+                <TimerDisplay
+                  remainingSeconds={remainingSeconds}
+                  totalSeconds={timerMeta.durationSeconds}
+                  formattedTime={formattedTime}
+                  isPaused={isPaused}
+                />
+              </div>
+            )}
+            <span className="text-xs sm:text-sm text-gray-400 hidden sm:inline">{user?.displayName}</span>
+            <LanguageSwitcher />
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-3 sm:p-6">
         {message && (
-          <div className={`mb-4 px-4 py-2 rounded-lg text-center ${
+          <div className={`mb-4 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm text-center ${
             message.type === 'success' ? 'bg-green-900/50 text-green-300' :
             message.type === 'warning' ? 'bg-yellow-900/50 text-yellow-300' :
             message.type === 'error' ? 'bg-red-900/50 text-red-300' :
@@ -412,9 +414,9 @@ export default function PlayerGamePage() {
             onFocusUpdate={handleR3FocusUpdate}
           />
         ) : (
-          <div className="text-center py-20">
-            <p className="text-gray-400 text-lg">{t('game.waitingRound')}</p>
-            <p className="text-gray-500 text-sm mt-2">{t('game.waitingRoundHint')}</p>
+          <div className="text-center py-12 sm:py-20">
+            <p className="text-gray-400 text-base sm:text-lg">{t('game.waitingRound')}</p>
+            <p className="text-gray-500 text-xs sm:text-sm mt-2">{t('game.waitingRoundHint')}</p>
           </div>
         )}
       </div>

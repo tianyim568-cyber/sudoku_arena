@@ -12,24 +12,13 @@ export default function TimerDisplay({ remainingSeconds, totalSeconds, formatted
   const color = percent > 50 ? '#4caf50' : percent > 20 ? '#ff9800' : '#f44336';
 
   return (
-    <div className="timer-display" style={{ position: 'relative', width: '100%', height: '32px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
+    <div className="relative w-full h-6 sm:h-8 bg-gray-200 rounded overflow-hidden">
       <div
-        className="timer-bar"
-        style={{
-          position: 'absolute', top: 0, left: 0, height: '100%',
-          width: `${percent}%`, backgroundColor: color,
-          transition: 'width 1s linear, background-color 0.5s'
-        }}
+        className="absolute top-0 left-0 h-full transition-all duration-1000"
+        style={{ width: `${percent}%`, backgroundColor: color }}
       />
-      <span
-        className="timer-text"
-        style={{
-          position: 'relative', zIndex: 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          height: '100%', fontWeight: 'bold', fontSize: '14px',
-          color: percent > 50 ? '#fff' : '#333'
-        }}
-      >
+      <span className="relative z-10 flex items-center justify-center h-full font-bold text-xs sm:text-sm"
+        style={{ color: percent > 50 ? '#fff' : '#333' }}>
         {formattedTime}{isPaused ? t('timer.paused') : ''}
       </span>
     </div>

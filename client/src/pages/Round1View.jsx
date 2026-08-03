@@ -53,9 +53,9 @@ export default function Round1View({
   }, [activePuzzle]);
 
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
       {/* Left Panel: Clue Board + Score + Final Puzzle Status */}
-      <div className="w-72 flex-shrink-0 space-y-4">
+      <div className="w-full lg:w-72 lg:flex-shrink-0 space-y-4 order-2 lg:order-1">
         {/* Clue Board */}
         <div className="bg-purple-900/30 border border-purple-700/30 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-purple-300 mb-3">{t('round1.clueBoard')}</h3>
@@ -138,19 +138,19 @@ export default function Round1View({
       </div>
 
       {/* Center: Active Puzzle Grid */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 order-1 lg:order-2">
         {activePuzzle ? (
           activePuzzle.isLocked ? (
-            <div className="flex flex-col items-center justify-center py-20">
-              <span className="text-5xl mb-4">&#128274;</span>
-              <p className="text-gray-400 text-lg font-medium">{t('round1.finalLockedTitle')}</p>
-              <p className="text-gray-500 text-sm mt-2">{t('round1.finalLockedSub')}</p>
-              <p className="text-gray-600 text-sm mt-1">{t('round1.finalLockedCount', { n: jocSolvedCount })}</p>
+            <div className="flex flex-col items-center justify-center py-12 sm:py-20">
+              <span className="text-4xl sm:text-5xl mb-4">&#128274;</span>
+              <p className="text-gray-400 text-base sm:text-lg font-medium">{t('round1.finalLockedTitle')}</p>
+              <p className="text-gray-500 text-xs sm:text-sm mt-2">{t('round1.finalLockedSub')}</p>
+              <p className="text-gray-600 text-xs sm:text-sm mt-1">{t('round1.finalLockedCount', { n: jocSolvedCount })}</p>
             </div>
           ) : (
             <div>
-              <div className="mb-3 flex items-center gap-3">
-                <span className="text-gray-400 text-sm">
+              <div className="mb-3 flex flex-wrap items-center gap-2 sm:gap-3">
+                <span className="text-gray-400 text-xs sm:text-sm">
                   {t('round1.puzzleN', { n: activePuzzle.orderInRound || puzzles.indexOf(activePuzzle) + 1 })}
                 </span>
                 {activePuzzle.letter && (
@@ -179,14 +179,14 @@ export default function Round1View({
             </div>
           )
         ) : (
-          <div className="text-center py-20">
-            <p className="text-gray-400 text-lg">{t('round1.selectPuzzle')}</p>
+          <div className="text-center py-12 sm:py-20">
+            <p className="text-gray-400 text-base sm:text-lg">{t('round1.selectPuzzle')}</p>
           </div>
         )}
       </div>
 
       {/* Right Panel: Puzzle List */}
-      <div className="w-64 flex-shrink-0 space-y-4">
+      <div className="w-full lg:w-64 lg:flex-shrink-0 space-y-4 order-3">
         <div className="bg-gray-800 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">{t('round1.puzzleList')}</h3>
           <div className="space-y-1.5">

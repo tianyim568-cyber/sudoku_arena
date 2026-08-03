@@ -56,6 +56,17 @@ const EN = {
   '轮次状态不允许结束': "The round's status does not allow ending",
   '比赛状态不允许结束': "The tournament's status does not allow ending",
   '所有轮次必须完成后才能结束比赛': 'All rounds must be finished before ending the tournament',
+
+  // Participant import
+  'Excel文件解析失败': 'Failed to parse Excel file',
+  'Excel文件格式错误，请检查表头': 'Invalid Excel format, please check the headers',
+  '没有有效的数据行': 'No valid data rows found',
+  '选手导入失败': 'Participant import failed',
+  '导入所有选手失败，已回滚全部操作': 'Failed to import all participants, all changes rolled back',
+  '选手导入成功': 'Participants successfully imported',
+  '请上传Excel文件': 'Please upload an Excel file',
+  '查询选手失败': 'Failed to query participants',
+  '删除选手失败': 'Failed to delete participants',
 };
 
 /**

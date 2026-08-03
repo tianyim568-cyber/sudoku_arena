@@ -63,22 +63,22 @@ export default function JudgeControlPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (!tournament) return <div className="flex items-center justify-center h-screen">{t('common.loading')}</div>;
+  if (!tournament) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-gray-800 text-white px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white">&larr; {t('judge.back')}</button>
+      <header className="bg-gray-800 text-white px-4 sm:px-6 py-3 sm:py-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white text-xs sm:text-sm">&larr; {t('judge.back')}</button>
             <div>
-              <h1 className="text-lg font-bold">{tournament.name}</h1>
-              <span className="text-sm text-gray-400">{t('judge.console')}</span>
+              <h1 className="text-base sm:text-lg font-bold">{tournament.name}</h1>
+              <span className="text-xs sm:text-sm text-gray-400">{t('judge.console')}</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSwitcher />
-            <span className={`px-3 py-1 rounded text-sm font-medium ${
+            <span className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium ${
               tournament.status === 'PENDING' ? 'bg-yellow-600' :
               tournament.status === 'IN_PROGRESS' ? 'bg-green-600' :
               tournament.status === 'PAUSED' ? 'bg-orange-600' : 'bg-gray-600'
@@ -87,36 +87,36 @@ export default function JudgeControlPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6 space-y-6">
+      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
         {message && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-blue-700 text-sm">{message}</div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 sm:px-4 py-2 text-blue-700 text-xs sm:text-sm">{message}</div>
         )}
 
         {/* Tournament Controls */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('judge.tournamentControl')}</h2>
-          <div className="flex flex-wrap gap-3">
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.tournamentControl')}</h2>
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {tournament.status === 'PENDING' && (
               <button onClick={() => handleAction('start')}
-                className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors">
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
                 {t('judge.startTournament')}
               </button>
             )}
             {tournament.status === 'IN_PROGRESS' && (
               <>
                 <button onClick={() => handleAction('pause')}
-                  className="px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors">
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
                   {t('judge.pause')}
                 </button>
                 <button onClick={() => handleAction('end')}
-                  className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors">
+                  className="px-4 sm:px-6 py-2 sm:py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
                   {t('judge.endTournament')}
                 </button>
               </>
             )}
             {tournament.status === 'PAUSED' && (
               <button onClick={() => handleAction('resume')}
-                className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors">
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
                 {t('judge.resume')}
               </button>
             )}
@@ -124,19 +124,19 @@ export default function JudgeControlPage() {
         </section>
 
         {/* Round Controls */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('judge.roundControl')}</h2>
-          <div className="space-y-3">
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.roundControl')}</h2>
+          <div className="space-y-2 sm:space-y-3">
             {tournament.rounds?.map((r, i) => (
-              <div key={r.id} className="border rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium">{t('judge.roundTitle', { n: r.round_number, name: r.name })}</h3>
-                  <p className="text-sm text-gray-500">{t('judge.roundMeta', { type: r.round_type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}</p>
+              <div key={r.id} className="border rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex-1">
+                  <h3 className="font-medium text-sm sm:text-base">{t('judge.roundTitle', { n: r.round_number, name: r.name })}</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">{t('judge.roundMeta', { type: r.round_type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}</p>
                   {r.remaining_seconds != null && r.status === 'IN_PROGRESS' && (
-                    <p className="text-lg font-mono mt-1 text-blue-600">{formatTime(r.remaining_seconds)}</p>
+                    <p className="text-base sm:text-lg font-mono mt-1 text-blue-600">{formatTime(r.remaining_seconds)}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                   <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                     r.status === 'NOT_STARTED' ? 'bg-gray-100 text-gray-600' :
                     r.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' :
@@ -145,13 +145,13 @@ export default function JudgeControlPage() {
                   }`}>{t(`common.status.${r.status}`)}</span>
                   {tournament.status === 'IN_PROGRESS' && r.status === 'NOT_STARTED' && (
                     <button onClick={() => handleAction('startRound', r.id)}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded text-sm">
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs sm:text-sm">
                       {t('judge.startRound')}
                     </button>
                   )}
                   {r.status === 'IN_PROGRESS' && (
                     <button onClick={() => handleAction('endRound', r.id)}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded text-sm">
+                      className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs sm:text-sm">
                       {t('judge.endRound')}
                     </button>
                   )}
@@ -163,21 +163,21 @@ export default function JudgeControlPage() {
 
         {/* Room Status */}
         {roomStatus && (
-          <section className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-lg font-semibold mb-4">{t('judge.roomStatus')}</h2>
+          <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+            <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.roomStatus')}</h2>
             {roomStatus.currentRound && (
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
                 {t('judge.currentRound')}<span className="font-medium">{roomStatus.currentRound.name}</span>
                 {' '}({t('judge.remaining', { time: formatTime(roomStatus.currentRound.remaining_seconds) })})
               </p>
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {roomStatus.teams?.map(team => (
-                <div key={team.id} className="border rounded-lg p-4">
-                  <h3 className="font-medium text-gray-800">{team.name}</h3>
+                <div key={team.id} className="border rounded-lg p-3 sm:p-4">
+                  <h3 className="font-medium text-gray-800 text-sm sm:text-base">{team.name}</h3>
                   <div className="mt-2 space-y-1">
                     {team.members?.map(m => (
-                      <div key={m.id} className="flex items-center gap-2 text-sm">
+                      <div key={m.id} className="flex items-center gap-2 text-xs sm:text-sm">
                         <span className="w-2 h-2 rounded-full bg-green-500" />
                         <span className="text-gray-600">{m.display_name || m.username}</span>
                       </div>
@@ -190,25 +190,25 @@ export default function JudgeControlPage() {
         )}
 
         {/* Scores */}
-        <section className="bg-white rounded-xl shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('judge.teamScores')}</h2>
+        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.teamScores')}</h2>
           <button onClick={async () => {
             const res = await api.getTeamScores(tournamentId);
             if (res.code === 200) setRoomStatus(prev => ({ ...prev, scores: res.data }));
-          }} className="px-4 py-2 bg-indigo-600 text-white rounded text-sm mb-4">
+          }} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm mb-3 sm:mb-4">
             {t('judge.refreshScores')}
           </button>
           {roomStatus?.scores && roomStatus.scores.length > 0 ? (
             <div className="space-y-2">
               {roomStatus.scores.map(s => (
                 <div key={s.id} className="flex items-center justify-between border-b pb-2">
-                  <span className="font-medium">{s.team_name}</span>
-                  <span className="text-lg font-bold text-indigo-600">{t('judge.points', { n: s.total_points })}</span>
+                  <span className="font-medium text-sm sm:text-base">{s.team_name}</span>
+                  <span className="text-base sm:text-lg font-bold text-indigo-600">{t('judge.points', { n: s.total_points })}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm">{t('judge.noScores')}</p>
+            <p className="text-gray-400 text-xs sm:text-sm">{t('judge.noScores')}</p>
           )}
         </section>
       </main>
