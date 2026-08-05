@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
 require('dotenv').config();
 const { initDB, getRepos } = require('./utils/db');
 const { createAuthRouter } = require('./routes/auth');
@@ -27,6 +28,15 @@ async function main() {
   const io = new Server(server, {
     cors: { origin: config.CORS_ORIGINS, methods: ['GET', 'POST'] }
   });
+
+  // Security headers on every response (clickjacking, MIME-sniffing, etc.).
+  // CSP is left off for now — it needs per-asset tuning for the Vite/React SPA
+  // and Socket.IO before we enable it during production hardening.
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    frameguard: { action: 'deny' },
+  }));
 
   app.use(cors({ origin: config.CORS_ORIGINS }));
   app.use(express.json({ limit: '10mb' }));
