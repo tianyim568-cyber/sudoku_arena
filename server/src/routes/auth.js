@@ -2,6 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { generateToken, authMiddleware } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const { loginSchema } = require('../validations/auth');
 
 function createAuthRouter(repos) {
   const router = express.Router();
@@ -15,11 +17,8 @@ function createAuthRouter(repos) {
     legacyHeaders: false
   });
 
-  router.post('/login', loginLimiter, async (req, res) => {
+  router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-      return res.json({ code: 40001, message: '用户名和密码不能为空', data: null });
-    }
     const user = await repos.users.findByUsername(username);
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.json({ code: 40001, message: '用户名或密码错误', data: null });

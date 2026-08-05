@@ -1,13 +1,14 @@
 const express = require('express');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const { createTournamentSchema } = require('../validations/tournaments');
 
 function createTournamentRouter(repos) {
   const router = express.Router();
 
   // Create tournament
-  router.post('/tournaments', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments', authMiddleware, roleMiddleware('ADMIN'), validate(createTournamentSchema), async (req, res) => {
     const { name, description, scheduledTime } = req.body;
-    if (!name) return res.json({ code: 40010, message: '比赛名称不能为空', data: null });
     const t = await repos.tournaments.create({ name, description: description || '', scheduledTime, createdBy: req.user.userId });
     res.json({ code: 200, message: 'success', data: t });
   });
