@@ -23,17 +23,6 @@ export default function LoginPage() {
     }
   };
 
-  const quickLogin = async (u, p) => {
-    setUsername(u);
-    setPassword(p);
-    try {
-      await login(u, p);
-      navigate('/');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
       <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md border border-white/20">
@@ -66,24 +55,6 @@ export default function LoginPage() {
             {t('login.submit')}
           </button>
         </form>
-
-        <div className="mt-6 border-t border-white/20 pt-4">
-          <p className="text-purple-300 text-xs sm:text-sm text-center mb-3">{t('login.quickLogin')}</p>
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => quickLogin('admin', 'admin123')}
-              className="py-2 px-2 sm:px-3 rounded bg-amber-600/80 hover:bg-amber-500 text-white text-xs font-medium transition-colors">
-              {t('login.admin')}
-            </button>
-            <button onClick={() => quickLogin('judge', 'judge123')}
-              className="py-2 px-2 sm:px-3 rounded bg-blue-600/80 hover:bg-blue-500 text-white text-xs font-medium transition-colors">
-              {t('login.judge')}
-            </button>
-            <button onClick={() => quickLogin('player1', 'player123')}
-              className="py-2 px-2 sm:px-3 rounded bg-green-600/80 hover:bg-green-500 text-white text-xs font-medium transition-colors">
-              {t('login.player1')}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
