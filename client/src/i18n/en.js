@@ -134,6 +134,13 @@ export default {
     deleteSuccess: 'Delete successful',
     deletedCount: 'Deleted participants',
     noParticipants: 'No participants',
+    exportCredentials: 'Export Credentials',
+    exporting: 'Exporting...',
+    exportSuccess: 'Export successful',
+    exportFailed: 'Export failed',
+    noExportData: 'No participant data to export',
+    account: 'Account',
+    passwordCol: 'Password',
   },
 
   puzzleBank: {

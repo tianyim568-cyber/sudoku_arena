@@ -89,6 +89,15 @@ export default function TournamentDetailPage() {
     }
   };
 
+  const handleExportParticipants = async () => {
+    try {
+      await api.exportParticipants(id);
+      msg(t('tournamentDetail.exportSuccess'));
+    } catch (err) {
+      msg(err.message || t('tournamentDetail.exportFailed'), 'error');
+    }
+  };
+
   const handleGenerateAndImport = async (roundId, roundType) => {
     setGeneratingRoundId(roundId);
     try {
@@ -440,12 +449,20 @@ export default function TournamentDetailPage() {
                   {t('tournamentDetail.participantImport')}
                 </button>
                 {participants.length > 0 && (
-                  <button
-                    onClick={handleDeleteParticipants}
-                    className="px-3 py-1.5 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-500"
-                  >
-                    {t('tournamentDetail.deleteParticipants')}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleExportParticipants}
+                      className="px-3 py-1.5 bg-green-600 text-white rounded text-xs sm:text-sm hover:bg-green-500"
+                    >
+                      {t('tournamentDetail.exportCredentials')}
+                    </button>
+                    <button
+                      onClick={handleDeleteParticipants}
+                      className="px-3 py-1.5 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-500"
+                    >
+                      {t('tournamentDetail.deleteParticipants')}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -478,6 +495,8 @@ export default function TournamentDetailPage() {
                       <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('tournamentDetail.age')}</th>
                       <th className="px-1 sm:px-2 py-1 text-left hidden lg:table-cell">{t('tournamentDetail.category')}</th>
                       <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.teamName')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden lg:table-cell">{t('tournamentDetail.account')}</th>
+                      <th className="px-1 sm:px-2 py-1 text-left hidden lg:table-cell">{t('tournamentDetail.passwordCol')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -492,6 +511,8 @@ export default function TournamentDetailPage() {
                         <td className="px-1 sm:px-2 py-1 hidden sm:table-cell">{p.age || '-'}</td>
                         <td className="px-1 sm:px-2 py-1 hidden lg:table-cell">{p.category || '-'}</td>
                         <td className="px-1 sm:px-2 py-1">{p.team_name || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden lg:table-cell font-mono">{p.account || '-'}</td>
+                        <td className="px-1 sm:px-2 py-1 hidden lg:table-cell font-mono">{p.password || '-'}</td>
                       </tr>
                     ))}
                   </tbody>

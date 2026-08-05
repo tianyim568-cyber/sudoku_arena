@@ -106,6 +106,42 @@ export const api = {
   listParticipants: (tournamentId) => request('GET', `/tournaments/${tournamentId}/participants`),
   deleteParticipants: (tournamentId) => request('DELETE', `/tournaments/${tournamentId}/participants`),
 
+  // Export participants with credentials
+  exportParticipants: async (tournamentId) => {
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/participants/export`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      throw new Error(json?.message || 'Export failed');
+    }
+
+    // Get filename from Content-Disposition header or use default
+    const contentDisposition = res.headers.get('Content-Disposition');
+    let filename = 'participants_credentials.xlsx';
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
+      if (match) filename = decodeURIComponent(match[1].replace(/"/g, ''));
+    }
+
+    // Create blob and trigger download
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    return { success: true, filename };
+  },
+
   // Generic request (for endpoints not covered above)
   request,
 };

@@ -67,6 +67,8 @@ const EN = {
   '请上传Excel文件': 'Please upload an Excel file',
   '查询选手失败': 'Failed to query participants',
   '删除选手失败': 'Failed to delete participants',
+  '导出选手信息失败': 'Failed to export participant information',
+  '没有可导出的选手数据': 'No participant data to export',
 };
 
 /**

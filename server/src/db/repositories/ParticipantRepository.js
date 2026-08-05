@@ -32,14 +32,28 @@ class ParticipantRepository {
 
   /**
    * Find an existing user by username, or create a PLAYER account.
+   * If `plainPassword` is supplied it will be hashed and stored; otherwise a
+   * default password is generated from the display name.
    * Returns the user record.
    */
-  async findOrCreateUser({ username, displayName }, tx) {
+  async findOrCreateUser({ username, displayName, plainPassword }, tx) {
     const d = tx || this.db;
     const existing = await d.get('SELECT * FROM users WHERE username = ?', [username]);
-    if (existing) return existing;
+    if (existing) {
+      // If a new password was supplied, update the existing user's hash
+      if (plainPassword) {
+        const matches = bcrypt.compareSync(plainPassword, existing.password);
+        if (!matches) {
+          const hash = bcrypt.hashSync(plainPassword, 10);
+          await d.run('UPDATE users SET password = ? WHERE id = ?', [hash, existing.id]);
+          return { ...existing, password: hash };
+        }
+      }
+      return existing;
+    }
 
-    const defaultPw = bcrypt.hashSync((displayName || username) + '123', 10);
+    const pw = plainPassword || (displayName || username) + '123';
+    const defaultPw = bcrypt.hashSync(pw, 10);
     await d.run(
       'INSERT INTO users (username, password, role, display_name) VALUES (?, ?, ?, ?)',
       [username, defaultPw, 'PLAYER', displayName || username]
@@ -95,13 +109,30 @@ class ParticipantRepository {
    */
   async findByTournament(tournamentId) {
     return this.db.all(
-      `SELECT tp.*, p.name, p.age, p.category, p.user_id,
+      `SELECT tp.*, p.name, p.age, p.category, p.user_id, p.account, p.password,
               s.name as school_name, s.province, s.city, s.district,
               u.username, u.display_name
        FROM tournament_participants tp
        JOIN participants p ON tp.participant_id = p.id
        LEFT JOIN schools s ON p.school_id = s.id
        LEFT JOIN users u ON p.user_id = u.id
+       WHERE tp.tournament_id = ?
+       ORDER BY tp.id`,
+      [tournamentId]
+    );
+  }
+
+  /**
+   * Get participant data for export (includes credentials).
+   * @param {number} tournamentId
+   * @returns {Promise<object[]>}
+   */
+  async getExportData(tournamentId) {
+    return this.db.all(
+      `SELECT p.id, p.account, p.password, p.name, p.category, s.name as school_name
+       FROM tournament_participants tp
+       JOIN participants p ON tp.participant_id = p.id
+       LEFT JOIN schools s ON p.school_id = s.id
        WHERE tp.tournament_id = ?
        ORDER BY tp.id`,
       [tournamentId]
@@ -124,13 +155,18 @@ class ParticipantRepository {
   /**
    * Bulk import — all-or-nothing, wrapped in a single transaction.
    * If any row fails, the entire batch is rolled back.
+   * Generates unique account credentials for each participant.
    *
    * @param {number} tournamentId
    * @param {object[]} rows - each: { province, city, district, school, name, age, category, teamName }
+   * @param {string} [year] - tournament creation year (default: current year)
    * @returns {{ imported: number }} on success
    * @throws on first failure (triggers ROLLBACK)
    */
-  async bulkImport(tournamentId, rows) {
+  async bulkImport(tournamentId, rows, year = null) {
+    // Use provided year or extract from tournament
+    const accountYear = year || new Date().getFullYear().toString();
+
     return this.db.transaction(async (tx) => {
       // Load existing usernames inside the transaction for an accurate snapshot
       const allUsers = await tx.all('SELECT username FROM users');
@@ -149,8 +185,11 @@ class ParticipantRepository {
         const username = this._generateUsername(row.school, row.name, existingUsernames);
         existingUsernames.add(username);
 
+        // Generate random password
+        const password = this._generatePassword();
+
         const user = await this.findOrCreateUser(
-          { username, displayName: row.name },
+          { username, displayName: row.name, plainPassword: password },
           tx
         );
 
@@ -164,6 +203,12 @@ class ParticipantRepository {
           },
           tx
         );
+
+        // Generate account: year + tournamentId + zero-padded participant number
+        const account = this._generateAccount(accountYear, tournamentId, i + 1, rows.length);
+
+        // Store plain text account and password in participants table
+        await this.updateCredentials(participant.id, account, password, tx);
 
         const link = await this.linkToTournament(
           { tournamentId, participantId: participant.id, teamName: row.teamName || null },
@@ -193,6 +238,64 @@ class ParticipantRepository {
     }
     return `${base}${suffix}`;
   }
+
+  /**
+   * Generate a random 6-character password with uppercase, lowercase, and digits.
+   * @returns {string}
+   */
+  _generatePassword() {
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const digits = '0123456789';
+    const all = uppercase + lowercase + digits;
+
+    let password = '';
+    // Ensure at least one of each type
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += digits[Math.floor(Math.random() * digits.length)];
+
+    // Fill remaining 3 characters randomly
+    for (let i = 0; i < 3; i++) {
+      password += all[Math.floor(Math.random() * all.length)];
+    }
+
+    // Shuffle the password
+    return password.split('').sort(() => Math.random() - 0.5).join('');
+  }
+
+  /**
+   * Generate account string: year + tournamentId + zero-padded participant number.
+   * The participant number is zero-padded to match the digit count of the total number of participants.
+   * E.g., 300 participants → 3-digit padding (001, 002, ..., 300)
+   *       10 participants  → 2-digit padding (01, 02, ..., 10)
+   * @param {string} year - tournament creation year
+   * @param {number} tournamentId
+   * @param {number} participantIndex - 1-based index of this participant in the import batch
+   * @param {number} totalCount - total number of participants being imported
+   * @returns {string}
+   */
+  _generateAccount(year, tournamentId, participantIndex, totalCount) {
+    const padWidth = String(totalCount).length;
+    const paddedIndex = String(participantIndex).padStart(padWidth, '0');
+    return `${year}${tournamentId}${paddedIndex}`;
+  }
+
+  /**
+   * Update participant credentials (account and password) in the participants table.
+   * @param {number} participantId
+   * @param {string} account
+   * @param {string} password - plain text
+   * @param {object} [tx] - optional transaction
+   */
+  async updateCredentials(participantId, account, password, tx) {
+    const d = tx || this.db;
+    await d.run(
+      'UPDATE participants SET account = ?, password = ? WHERE id = ?',
+      [account, password, participantId]
+    );
+  }
+
 }
 
 module.exports = ParticipantRepository;

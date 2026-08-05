@@ -7,23 +7,25 @@ const express = require('express');
 const multer = require('multer');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const ParticipantImportService = require('../services/ParticipantImportService');
+const ParticipantExportService = require('../services/ParticipantExportService');
 
 // Configure multer for memory storage (file in req.file.buffer)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
   fileFilter: (req, file, cb) => {
-    const allowed = ['.xlsx', '.xls'];
+    const allowed = ['.xlsx', '.xls', '.csv'];
     const ext = file.originalname.toLowerCase().match(/\.[^.]+$/)?.[0];
     if (allowed.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('仅支持 .xlsx 和 .xls 格式'), false);
+      cb(new Error('仅支持 .xlsx、.xls 和 .csv 格式'), false);
     }
   },
 });
 
 const importService = new ParticipantImportService();
+const exportService = new ParticipantExportService();
 
 function createParticipantRouter(repos) {
   const router = express.Router();
@@ -104,10 +106,13 @@ function createParticipantRouter(repos) {
           return res.json({ code: 40003, message: '没有有效的数据行', data: null });
         }
 
+        // Extract year from tournament creation date
+        const year = tournament.created_at ? new Date(tournament.created_at).getFullYear().toString() : new Date().getFullYear().toString();
+
         // Bulk import — all-or-nothing transaction
         let result;
         try {
-          result = await repos.participants.bulkImport(tournamentId, rows);
+          result = await repos.participants.bulkImport(tournamentId, rows, year);
         } catch (importErr) {
           console.error('Bulk import rolled back:', importErr.message);
           return res.json({ code: 50001, message: '导入所有选手失败，已回滚全部操作', data: null });
@@ -181,6 +186,44 @@ function createParticipantRouter(repos) {
       } catch (err) {
         console.error('Delete participants error:', err);
         res.json({ code: 50003, message: '删除选手失败', data: null });
+      }
+    }
+  );
+
+  // GET /api/tournaments/:id/participants/export
+  // Export participants with credentials as Excel file
+  router.get(
+    '/tournaments/:id/participants/export',
+    authMiddleware,
+    roleMiddleware('ADMIN'),
+    async (req, res) => {
+      try {
+        const tournamentId = parseInt(req.params.id);
+
+        // Check tournament exists
+        const tournament = await repos.tournaments.findById(tournamentId);
+        if (!tournament) {
+          return res.json({ code: 40404, message: '比赛不存在', data: null });
+        }
+
+        // Get export data
+        const rows = await repos.participants.getExportData(tournamentId);
+
+        if (rows.length === 0) {
+          return res.json({ code: 40004, message: '没有可导出的选手数据', data: null });
+        }
+
+        // Generate Excel buffer
+        const buffer = exportService.generateExportBuffer(rows);
+
+        // Set download headers
+        const filename = encodeURIComponent(`${tournament.name}_选手账号密码.xlsx`);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
+        res.send(buffer);
+      } catch (err) {
+        console.error('Export participants error:', err);
+        res.json({ code: 50004, message: '导出选手信息失败', data: null });
       }
     }
   );

@@ -135,6 +135,13 @@ export default {
     deleteSuccess: '删除成功',
     deletedCount: '已删除选手',
     noParticipants: '暂无选手',
+    exportCredentials: '导出账号密码',
+    exporting: '导出中...',
+    exportSuccess: '导出成功',
+    exportFailed: '导出失败',
+    noExportData: '没有可导出的选手数据',
+    account: '账号',
+    passwordCol: '密码',
   },
 
   puzzleBank: {

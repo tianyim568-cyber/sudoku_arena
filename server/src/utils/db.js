@@ -192,8 +192,18 @@ async function _runSchema({ run }) {
     age INTEGER,
     category TEXT,
     school_id INTEGER REFERENCES schools(id),
+    account TEXT,
+    password TEXT,
     created_at TEXT DEFAULT NOW()
   )`);
+
+  // Add account and password columns if they don't exist (for existing installs)
+  try {
+    await run(`ALTER TABLE participants ADD COLUMN IF NOT EXISTS account TEXT`);
+    await run(`ALTER TABLE participants ADD COLUMN IF NOT EXISTS password TEXT`);
+  } catch (e) {
+    // Ignore errors if columns already exist
+  }
 
   await run(`CREATE TABLE IF NOT EXISTS tournament_participants (
     id SERIAL PRIMARY KEY,
