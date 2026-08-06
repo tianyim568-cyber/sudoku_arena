@@ -13,4 +13,34 @@ const createRoundSchema = z.object({
   durationSeconds: z.coerce.number().int().positive(),
 });
 
-module.exports = { createTournamentSchema, createRoundSchema };
+// Zod schema for PUT /api/tournaments/:id (update tournament — partial)
+const updateTournamentSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  scheduledTime: z.string().nullish(),
+});
+
+// Zod schema for POST /api/tournaments/:id/teams (create team)
+const createTeamSchema = z.object({
+  name: z.string().min(1).max(100),
+});
+
+// Zod schema for POST /api/teams/:teamId/members (add team member)
+const addTeamMemberSchema = z.object({
+  playerId: z.coerce.number().int().positive(),
+  position: z.coerce.number().int().optional(),
+});
+
+// Zod schema for POST /api/tournaments/:id/judges (assign judge)
+const assignJudgeSchema = z.object({
+  judgeId: z.coerce.number().int().positive(),
+});
+
+module.exports = {
+  createTournamentSchema,
+  createRoundSchema,
+  updateTournamentSchema,
+  createTeamSchema,
+  addTeamMemberSchema,
+  assignJudgeSchema,
+};

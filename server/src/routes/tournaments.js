@@ -1,7 +1,14 @@
 const express = require('express');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
-const { createTournamentSchema, createRoundSchema } = require('../validations/tournaments');
+const {
+  createTournamentSchema,
+  createRoundSchema,
+  updateTournamentSchema,
+  createTeamSchema,
+  addTeamMemberSchema,
+  assignJudgeSchema,
+} = require('../validations/tournaments');
 
 function createTournamentRouter(repos) {
   const router = express.Router();
@@ -45,7 +52,7 @@ function createTournamentRouter(repos) {
   });
 
   // Update tournament
-  router.put('/tournaments/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.put('/tournaments/:id', authMiddleware, roleMiddleware('ADMIN'), validate(updateTournamentSchema), async (req, res) => {
     const t = await repos.tournaments.findById(req.params.id);
     if (!t) return res.json({ code: 40400, message: '比赛不存在', data: null });
     if (t.status !== 'PENDING') return res.json({ code: 40041, message: '比赛已开始，无法修改', data: null });
@@ -114,9 +121,8 @@ function createTournamentRouter(repos) {
   });
 
   // Create team
-  router.post('/tournaments/:id/teams', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments/:id/teams', authMiddleware, roleMiddleware('ADMIN'), validate(createTeamSchema), async (req, res) => {
     const { name } = req.body;
-    if (!name) return res.json({ code: 40030, message: '队伍名称不能为空', data: null });
     const t = await repos.teams.create({ tournamentId: parseInt(req.params.id), name });
     res.json({ code: 200, message: 'success', data: t });
   });
@@ -128,9 +134,8 @@ function createTournamentRouter(repos) {
   });
 
   // Add team member
-  router.post('/teams/:teamId/members', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/teams/:teamId/members', authMiddleware, roleMiddleware('ADMIN'), validate(addTeamMemberSchema), async (req, res) => {
     const { playerId, position } = req.body;
-    if (!playerId) return res.json({ code: 40030, message: '缺少选手ID', data: null });
     if (await repos.teams.memberExists(req.params.teamId, playerId)) {
       return res.json({ code: 40030, message: '选手已在该队伍中', data: null });
     }
@@ -143,9 +148,8 @@ function createTournamentRouter(repos) {
   });
 
   // Assign judge
-  router.post('/tournaments/:id/judges', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments/:id/judges', authMiddleware, roleMiddleware('ADMIN'), validate(assignJudgeSchema), async (req, res) => {
     const { judgeId } = req.body;
-    if (!judgeId) return res.json({ code: 40010, message: '缺少裁判ID', data: null });
     if (await repos.teams.judgeAlreadyAssigned(req.params.id, judgeId)) {
       return res.json({ code: 40010, message: '裁判已分配', data: null });
     }
