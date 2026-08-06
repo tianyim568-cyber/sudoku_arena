@@ -1,7 +1,7 @@
 const express = require('express');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
-const { createTournamentSchema } = require('../validations/tournaments');
+const { createTournamentSchema, createRoundSchema } = require('../validations/tournaments');
 
 function createTournamentRouter(repos) {
   const router = express.Router();
@@ -55,11 +55,8 @@ function createTournamentRouter(repos) {
   });
 
   // Create round
-  router.post('/tournaments/:id/rounds', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments/:id/rounds', authMiddleware, roleMiddleware('ADMIN'), validate(createRoundSchema), async (req, res) => {
     const { name, roundType, durationSeconds } = req.body;
-    if (!name || !roundType || !durationSeconds) {
-      return res.json({ code: 40010, message: '缺少必填字段', data: null });
-    }
     const existingCount = await repos.rounds.countByTournament(req.params.id);
     if (existingCount >= 3) {
       return res.json({ code: 40010, message: '轮次数量已达上限(3个)', data: null });
