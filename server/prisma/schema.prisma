@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model categories {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name           String           @unique @db.VarChar(50)
+  min_age        Int
+  max_age        Int
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  final_rankings final_rankings[]
+  players        players[]
+  puzzles        puzzles[]
+  round_puzzles  round_puzzles[]
+  round_rankings round_rankings[]
+}
+
+model competition_judges {
+  competition_id String       @db.Uuid
+  user_id        String       @db.Uuid
+  assigned_at    DateTime     @default(now()) @db.Timestamptz(6)
+  competitions   competitions @relation(fields: [competition_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([competition_id, user_id])
+}
+
+model competition_stages {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  competition_id String           @db.Uuid
+  type           String           @db.VarChar(50)
+  order_number   Int
+  status         String           @default("WAITING") @db.VarChar(50)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  competitions   competitions     @relation(fields: [competition_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  final_rankings final_rankings[]
+  rounds         rounds[]
+
+  @@unique([competition_id, order_number], map: "competition_stages_competition_order_unique")
+}
+
+model competitions {
+  id                   String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organization_id      String               @db.Uuid
+  name                 String               @db.VarChar(255)
+  description          String?
+  status               String               @default("DRAFT") @db.VarChar(50)
+  display_access_token String?              @db.VarChar(255)
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime             @default(now()) @db.Timestamptz(6)
+  competition_judges   competition_judges[]
+  competition_stages   competition_stages[]
+  organizations        organizations        @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  players              players[]
+  teams                teams[]
+
+  @@index([organization_id], map: "competitions_organization_id_index")
+}
+
+model final_rankings {
+  id                   String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  competition_stage_id String             @db.Uuid
+  category_id          String             @db.Uuid
+  entity_type          entity_type
+  entity_id            String             @db.Uuid
+  rank                 Int
+  score                Int                @default(0)
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  categories           categories         @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  competition_stages   competition_stages @relation(fields: [competition_stage_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([category_id], map: "final_rankings_category_id_index")
+  @@index([competition_stage_id], map: "final_rankings_competition_stage_id_index")
+}
+
+model organizations {
+  id           String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name         String         @db.VarChar(255)
+  status       String         @default("ACTIVE") @db.VarChar(50)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  competitions competitions[]
+  users        users[]
+}
+
+model pgmigrations {
+  id     Int      @id @default(autoincrement())
+  name   String
+  run_on DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model player_round_sessions {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  round_id       String           @db.Uuid
+  participant_id String           @db.Uuid
+  started_at     DateTime         @default(now()) @db.Timestamptz(6)
+  submitted_at   DateTime?        @db.Timestamptz(6)
+  status         String           @default("WAITING") @db.VarChar(50)
+  players        players          @relation(fields: [participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rounds         rounds           @relation(fields: [round_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  puzzle_answers puzzle_answers[]
+
+  @@unique([round_id, participant_id], map: "player_round_sessions_round_participant_unique")
+}
+
+model players {
+  id                    String                  @id(map: "participants_pkey") @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  competition_id        String                  @db.Uuid
+  user_id               String?                 @db.Uuid
+  name                  String                  @db.VarChar(255)
+  school                String?                 @db.VarChar(255)
+  province              String?                 @db.VarChar(100)
+  age                   Int?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  category_id           String?                 @db.Uuid
+  player_round_sessions player_round_sessions[]
+  categories            categories?             @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  competitions          competitions            @relation(fields: [competition_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                 users?                  @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  round_rankings        round_rankings[]
+  team_members          team_members[]
+
+  @@index([category_id], map: "players_category_id_index")
+  @@index([competition_id], map: "players_competition_id_index")
+}
+
+model puzzle_answers {
+  id                    String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  session_id            String                @db.Uuid
+  puzzle_id             String                @db.Uuid
+  current_grid          Json
+  correct_cells         Int                   @default(0)
+  total_empty_cells     Int                   @default(0)
+  progress_percentage   Decimal               @default(0) @db.Decimal(5, 2)
+  updated_at            DateTime              @default(now()) @db.Timestamptz(6)
+  puzzles               puzzles               @relation(fields: [puzzle_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  player_round_sessions player_round_sessions @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([session_id, puzzle_id], map: "puzzle_answers_session_puzzle_unique")
+}
+
+model puzzles {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type           String?          @db.VarChar(100)
+  initial_grid   Json
+  solution_grid  Json
+  difficulty     String?          @db.VarChar(50)
+  score          Int              @default(100)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  category_id    String?          @db.Uuid
+  puzzle_answers puzzle_answers[]
+  categories     categories?      @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  round_puzzles  round_puzzles[]
+
+  @@index([category_id], map: "puzzles_category_id_index")
+}
+
+model round_puzzles {
+  id           String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  round_id     String      @db.Uuid
+  puzzle_id    String      @db.Uuid
+  order_number Int
+  score        Int         @default(100)
+  category_id  String?     @db.Uuid
+  categories   categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  puzzles      puzzles     @relation(fields: [puzzle_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rounds       rounds      @relation(fields: [round_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([round_id, puzzle_id], map: "round_puzzles_round_puzzle_unique")
+  @@index([category_id], map: "round_puzzles_category_id_index")
+}
+
+model round_rankings {
+  id             String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  round_id       String      @db.Uuid
+  participant_id String?     @db.Uuid
+  team_id        String?     @db.Uuid
+  score          Int         @default(0)
+  rank           Int?
+  calculated_at  DateTime    @default(now()) @db.Timestamptz(6)
+  category_id    String?     @db.Uuid
+  categories     categories? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  players        players?    @relation(fields: [participant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rounds         rounds      @relation(fields: [round_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  teams          teams?      @relation(fields: [team_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([category_id], map: "round_rankings_category_id_index")
+  @@index([round_id], map: "round_rankings_round_id_index")
+}
+
+model rounds {
+  id                    String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  stage_id              String                  @db.Uuid
+  name                  String                  @db.VarChar(255)
+  type                  String                  @db.VarChar(50)
+  order_number          Int
+  duration_seconds      Int
+  waiting_seconds       Int                     @default(0)
+  status                String                  @default("WAITING") @db.VarChar(50)
+  started_at            DateTime?               @db.Timestamptz(6)
+  ended_at              DateTime?               @db.Timestamptz(6)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  player_round_sessions player_round_sessions[]
+  round_puzzles         round_puzzles[]
+  round_rankings        round_rankings[]
+  competition_stages    competition_stages      @relation(fields: [stage_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([stage_id], map: "rounds_stage_id_index")
+}
+
+model team_members {
+  team_id        String  @db.Uuid
+  participant_id String  @db.Uuid
+  players        players @relation(fields: [participant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  teams          teams   @relation(fields: [team_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([team_id, participant_id])
+}
+
+model teams {
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  competition_id String           @db.Uuid
+  name           String           @db.VarChar(255)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  round_rankings round_rankings[]
+  team_members   team_members[]
+  competitions   competitions     @relation(fields: [competition_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model users {
+  id                 String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organization_id    String?              @db.Uuid
+  username           String               @unique @db.VarChar(100)
+  password_hash      String               @db.VarChar(255)
+  role               String               @db.VarChar(50)
+  status             String               @default("ACTIVE") @db.VarChar(50)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  competition_judges competition_judges[]
+  players            players[]
+  organizations      organizations?       @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([organization_id], map: "users_organization_id_index")
+  @@index([role], map: "users_role_index")
+}
+
+enum entity_type {
+  PLAYER
+  TEAM
+}

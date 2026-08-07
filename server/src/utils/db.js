@@ -1,15 +1,18 @@
 /**
- * Database initialization — PostgreSQL version.
- * Delegates to db/connection.js for the actual connection,
- * and db/index.js for the repository factory.
+ * Database initialization — PostgreSQL + Prisma ORM.
+ * Delegates to db/connection.js for the raw PG connection (used by node-pg-migrate
+ * and tenantGuard for dynamic SQL), and db/index.js for the repository factory
+ * (now backed by Prisma Client).
  *
  * Schema management is handled by node-pg-migrate.
+ * ORM queries are handled by Prisma Client.
  * On startup, pending migrations are automatically applied.
  */
 
 const path = require('path');
 const { runner } = require('node-pg-migrate');
 const { createPostgresConnection } = require('../db/connection');
+const { getPrisma } = require('../db/prisma');
 const { createRepositoryFactory } = require('../db/index');
 
 let _helpers = null;
@@ -18,13 +21,25 @@ let _repos = null;
 async function initDB() {
   if (_helpers) return _helpers;
 
+  // 1. Create raw PG connection (used by node-pg-migrate and raw SQL queries)
   const connection = await createPostgresConnection();
 
-  // Automatically run pending migrations
+  // 2. Automatically run pending migrations via node-pg-migrate
   await _runMigrations(connection);
 
-  _helpers = { db: connection.db, run: connection.run, all: connection.all, get: connection.get, saveDB: connection.saveDB, transaction: connection.transaction };
-  _repos = createRepositoryFactory(connection);
+  // 3. Initialize Prisma Client (used by repositories for ORM queries)
+  const prisma = getPrisma();
+
+  _helpers = {
+    db: connection.db,
+    run: connection.run,
+    all: connection.all,
+    get: connection.get,
+    saveDB: connection.saveDB,
+    transaction: connection.transaction,
+    prisma,
+  };
+  _repos = createRepositoryFactory(prisma);
 
   return _helpers;
 }

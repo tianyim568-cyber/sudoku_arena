@@ -1,14 +1,14 @@
 /**
  * Database repository factory.
- * Creates all repositories backed by a single database connection.
+ * Creates all repositories backed by a Prisma Client instance.
  *
- * Active repositories: users, players, categories (updated for current schema)
+ * Active repositories: users, players, categories (now using Prisma ORM)
  * Deprecated repositories: kept as require-only for reference, NOT instantiated
  * (they reference tables dropped in migration 018 or renamed in migrations 037-045).
  *
  * Usage:
  *   const { createRepositoryFactory } = require('./db');
- *   const repos = createRepositoryFactory(dbConnection);
+ *   const repos = createRepositoryFactory(prisma);
  *   await repos.users.findById(uuid);
  *   await repos.players.findByCompetition(competitionId);
  *   await repos.categories.findAll();
@@ -18,19 +18,15 @@ const UserRepository = require('./repositories/UserRepository');
 const PlayerRepository = require('./repositories/PlayerRepository');
 const CategoryRepository = require('./repositories/CategoryRepository');
 
-function createRepositoryFactory(dbConnection) {
-  const { run, all, get, saveDB, transaction } = dbConnection;
-
-  const db = { run, all, get, transaction };
-
+function createRepositoryFactory(prisma) {
   return {
-    // Active repositories (current schema)
-    users: new UserRepository(db),
-    players: new PlayerRepository(db),
-    categories: new CategoryRepository(db),
+    // Active repositories (now using Prisma ORM)
+    users: new UserRepository(prisma),
+    players: new PlayerRepository(prisma),
+    categories: new CategoryRepository(prisma),
 
-    // Expose saveDB as no-op for backward compatibility (PG auto-commits)
-    saveDB: saveDB || (() => {}),
+    // Expose saveDB as no-op for backward compatibility
+    saveDB: () => {},
   };
 }
 
