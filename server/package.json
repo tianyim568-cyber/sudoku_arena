@@ -7,7 +7,13 @@
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "build:client": "cd ../client && npm install && npm run build",
-    "setup": "npm install && npm run build:client"
+    "setup": "npm install && npm run build:client",
+    "migrate": "node-pg-migrate",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:redo": "node-pg-migrate redo",
+    "migrate:create": "node-pg-migrate create",
+    "migrate:baseline": "node scripts/baseline-existing-db.js"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +30,7 @@
     "express-rate-limit": "^8.6.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "node-pg-migrate": "^9.0.0",
     "pg": "^8.22.0",
     "socket.io": "^4.8.3",
     "uuid": "^14.0.1",

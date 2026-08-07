@@ -254,7 +254,7 @@ Server
 |---------|--------------|-----------------|--------|
 | **Authentication** | Single JWT with userId/role | Add organization_id to JWT; add competition-specific JWT for judges/players | Medium |
 | **User model** | Flat: username/password/role | Add organization_id FK; add SUPER_ADMIN role; add competition-scoped user type | Medium |
-| **Tournament model** | No stages, no org_id, flat round list | Add organization_id FK; add stages table; rounds belong to stages; add competition_identifier; add category support | High |
+| **Competition model** | No stages, no org_id, flat round list | Add organization_id FK; add stages table; rounds belong to stages; add access_code; add category support | High |
 | **Authorization middleware** | Role-only checks | Add org_id verification; add competition membership verification; add tenant isolation on every query | High |
 | **GameOrchestrator** | Manual round start, no stages, no auto-progression | Stage-aware lifecycle; automatic round progression; preparation/transition states | High |
 | **SocketManager** | Tournament rooms, no display support | Competition-scoped rooms; display client management; role-based event filtering | High |
@@ -308,127 +308,268 @@ Server
 
 ## 13. Database Changes
 
+> **ID Strategy:** All tables use `UUID` primary keys (via `uuid_generate_v4()`). All foreign keys reference UUID columns. The `uuid-ossp` PostgreSQL extension is required.
+
 ### New Tables
 
 #### organizations
 ```sql
 CREATE TABLE organizations (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
-  plan TEXT DEFAULT 'basic',
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  status VARCHAR(50) DEFAULT 'ACTIVE'    -- ACTIVE, INACTIVE, SUSPENDED
 );
+```
+
+#### competitions
+```sql
+CREATE TABLE competitions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  status VARCHAR(50) DEFAULT 'DRAFT',    -- DRAFT, PUBLISHED, RUNNING, FINISHED
+  access_code VARCHAR(50),               -- URL-safe competition identifier
+  entry_token VARCHAR(255),              -- token for competition entry
+  created_by UUID REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(organization_id, access_code)
+);
+CREATE INDEX idx_competitions_org ON competitions(organization_id);
+CREATE INDEX idx_competitions_access_code ON competitions(access_code);
 ```
 
 #### competition_stages
 ```sql
 CREATE TABLE competition_stages (
-  id SERIAL PRIMARY KEY,
-  tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  stage_type TEXT NOT NULL,           -- INDIVIDUAL, TEAM, PK
-  stage_order INTEGER NOT NULL,       -- execution order within competition
-  status TEXT DEFAULT 'NOT_STARTED',  -- NOT_STARTED, IN_PROGRESS, FINISHED
-  config JSONB DEFAULT '{}',          -- stage-specific configuration
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL,             -- INDIVIDUAL, TEAM, PK
+  order_number INTEGER NOT NULL,         -- execution order within competition
+  status VARCHAR(50) DEFAULT 'WAITING',  -- WAITING, RUNNING, FINISHED
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(tournament_id, stage_order)
+  UNIQUE(competition_id, order_number)
 );
+```
+
+#### competition_judges
+```sql
+CREATE TABLE competition_judges (
+  competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY(competition_id, user_id)
+);
+```
+
+#### rounds
+```sql
+CREATE TABLE rounds (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  stage_id UUID NOT NULL REFERENCES competition_stages(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(50) NOT NULL,             -- STANDARD, TEAM_STANDARD, SPECIAL
+  order_number INTEGER NOT NULL,
+  duration_seconds INTEGER NOT NULL,
+  waiting_seconds INTEGER DEFAULT 0,
+  status VARCHAR(50) DEFAULT 'WAITING',  -- WAITING, RUNNING, FINISHED
+  started_at TIMESTAMPTZ,
+  ended_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_rounds_stage ON rounds(stage_id);
+```
+
+#### puzzle_sets
+```sql
+CREATE TABLE puzzle_sets (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID NOT NULL REFERENCES organizations(id),
+  name VARCHAR(255) NOT NULL,
+  source VARCHAR(100),                   -- 'pdf_import', 'manual', 'generated'
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_puzzle_sets_org ON puzzle_sets(organization_id);
+```
+
+#### puzzles
+```sql
+CREATE TABLE puzzles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  puzzle_set_id UUID NOT NULL REFERENCES puzzle_sets(id),
+  type VARCHAR(100),                     -- puzzle type (e.g., STANDARD, JOC, FINAL)
+  initial_grid JSONB NOT NULL,           -- 2D array with 0 for empty cells
+  solution_grid JSONB NOT NULL,          -- 2D array with complete solution
+  difficulty VARCHAR(50),
+  score INTEGER DEFAULT 100,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_puzzles_set ON puzzles(puzzle_set_id);
+```
+
+#### round_puzzles
+```sql
+CREATE TABLE round_puzzles (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  round_id UUID NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+  puzzle_id UUID NOT NULL REFERENCES puzzles(id),
+  order_number INTEGER NOT NULL,
+  score INTEGER DEFAULT 100,
+  UNIQUE(round_id, puzzle_id)
+);
+```
+
+#### participants
+```sql
+CREATE TABLE participants (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id),
+  name VARCHAR(255) NOT NULL,
+  school VARCHAR(255),
+  province VARCHAR(100),
+  age INTEGER,
+  category VARCHAR(50),                  -- U6, U8, U12, OPEN
+  group_name VARCHAR(100),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_participants_competition ON participants(competition_id);
+CREATE INDEX idx_participants_category ON participants(category);
+```
+
+#### teams
+```sql
+CREATE TABLE teams (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### team_members
+```sql
+CREATE TABLE team_members (
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  participant_id UUID NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+  PRIMARY KEY(team_id, participant_id)
+);
+```
+
+#### player_round_sessions
+```sql
+CREATE TABLE player_round_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  round_id UUID NOT NULL REFERENCES rounds(id),
+  participant_id UUID NOT NULL REFERENCES participants(id),
+  started_at TIMESTAMPTZ DEFAULT NOW(),
+  submitted_at TIMESTAMPTZ,
+  status VARCHAR(50) DEFAULT 'WAITING',  -- WAITING, PLAYING, SUBMITTED, AUTO_SUBMITTED
+  UNIQUE(round_id, participant_id)
+);
+```
+
+#### puzzle_answers
+```sql
+CREATE TABLE puzzle_answers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  session_id UUID NOT NULL REFERENCES player_round_sessions(id) ON DELETE CASCADE,
+  puzzle_id UUID NOT NULL REFERENCES puzzles(id),
+  current_grid JSONB NOT NULL,           -- player's current grid state
+  correct_cells INTEGER DEFAULT 0,
+  total_empty_cells INTEGER DEFAULT 0,
+  progress_percentage DECIMAL(5,2) DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(session_id, puzzle_id)
+);
+```
+
+#### round_rankings
+```sql
+CREATE TABLE round_rankings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  round_id UUID NOT NULL REFERENCES rounds(id) ON DELETE CASCADE,
+  participant_id UUID REFERENCES participants(id),
+  team_id UUID REFERENCES teams(id),
+  score INTEGER DEFAULT 0,
+  rank INTEGER,
+  calculated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_round_rankings_round ON round_rankings(round_id);
+```
+
+#### final_rankings
+```sql
+CREATE TABLE final_rankings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  category VARCHAR(50),                  -- U6, U8, U12, OPEN (nullable = overall)
+  competition_type VARCHAR(50) NOT NULL, -- INDIVIDUAL, TEAM, PK
+  entity_id UUID NOT NULL,               -- participant_id or team_id depending on type
+  rank INTEGER NOT NULL,
+  score INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_final_rankings_competition ON final_rankings(competition_id);
 ```
 
 #### display_sessions
 ```sql
 CREATE TABLE display_sessions (
-  id SERIAL PRIMARY KEY,
-  tournament_id INTEGER NOT NULL REFERENCES tournaments(id),
-  token TEXT UNIQUE NOT NULL,
-  status TEXT DEFAULT 'PENDING',      -- PENDING, CONNECTED, DISCONNECTED, EXPIRED
-  created_by INTEGER REFERENCES users(id),
-  connected_at TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ NOT NULL,
-  display_mode TEXT DEFAULT 'default', -- default, ranking, player_broadcast, round_results, final_ranking
-  broadcast_player_id INTEGER,         -- nullable: player being broadcast
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  competition_id UUID NOT NULL REFERENCES competitions(id) ON DELETE CASCADE,
+  token VARCHAR(255) UNIQUE NOT NULL,
+  current_mode VARCHAR(50) DEFAULT 'DEFAULT', -- RANKING, PLAYER_SCREEN, DEFAULT
+  selected_player_id UUID,               -- nullable: participant being broadcast
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-#### round_results
+#### users
 ```sql
-CREATE TABLE round_results (
-  id SERIAL PRIMARY KEY,
-  round_id INTEGER NOT NULL REFERENCES rounds(id),
-  stage_id INTEGER NOT NULL REFERENCES competition_stages(id),
-  participant_id INTEGER REFERENCES participants(id),
-  team_id INTEGER REFERENCES teams(id),
-  puzzle_id INTEGER REFERENCES puzzles(id),
-  initial_empty_cells INTEGER DEFAULT 0,
-  correctly_filled_cells INTEGER DEFAULT 0,
-  completion_ratio REAL DEFAULT 0,
-  puzzle_points INTEGER DEFAULT 0,
-  puzzle_max_points INTEGER DEFAULT 0,
-  round_total_points INTEGER DEFAULT 0,
-  time_bonus INTEGER DEFAULT 0,
-  submitted_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id),
+  username VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
+  role VARCHAR(50) NOT NULL,             -- SUPER_ADMIN, ORG_ADMIN, JUDGE, PLAYER
+  status VARCHAR(50) DEFAULT 'ACTIVE',   -- ACTIVE, INACTIVE
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-```
-
-#### puzzle_bank
-```sql
-CREATE TABLE puzzle_bank (
-  id SERIAL PRIMARY KEY,
-  organization_id INTEGER NOT NULL REFERENCES organizations(id),
-  puzzle_type TEXT NOT NULL,           -- JOC, STANDARD, FINAL
-  round_type TEXT NOT NULL,            -- compatible round types (JSON array)
-  difficulty TEXT DEFAULT 'MEDIUM',
-  initial_grid TEXT NOT NULL,
-  solution TEXT NOT NULL,
-  points INTEGER DEFAULT 100,
-  metadata JSONB DEFAULT '{}',
-  source TEXT,                         -- 'generated', 'pdf_import', 'manual'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-### Modified Tables (Migration Required)
-
-#### users — add organization support
-```sql
-ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id);
-ALTER TABLE users ADD COLUMN user_type TEXT DEFAULT 'ORG_USER';
--- user_type: SUPER_ADMIN, ORG_USER, COMPETITION_JUDGE, COMPETITION_PLAYER
 CREATE INDEX idx_users_organization ON users(organization_id);
-CREATE INDEX idx_users_user_type ON users(user_type);
+CREATE INDEX idx_users_role ON users(role);
 ```
 
-#### tournaments — add org + identifier + category
-```sql
-ALTER TABLE tournaments ADD COLUMN organization_id INTEGER REFERENCES organizations(id);
-ALTER TABLE tournaments ADD COLUMN identifier TEXT UNIQUE;  -- URL-safe competition identifier
-ALTER TABLE tournaments ADD COLUMN category TEXT;           -- U6, U8, U12, OPEN
-ALTER TABLE tournaments ADD COLUMN published BOOLEAN DEFAULT FALSE;
-CREATE INDEX idx_tournaments_org ON tournaments(organization_id);
-CREATE INDEX idx_tournaments_identifier ON tournaments(identifier);
-```
+### Tables Removed (Replaced by New Schema)
 
-#### rounds — add stage association
-```sql
-ALTER TABLE rounds ADD COLUMN stage_id INTEGER REFERENCES competition_stages(id);
-CREATE INDEX idx_rounds_stage ON rounds(stage_id);
-```
+The following tables from the original single-tenant schema are **replaced** and will not be carried forward:
 
-#### participants — add organization
-```sql
-ALTER TABLE participants ADD COLUMN organization_id INTEGER REFERENCES organizations(id);
-CREATE INDEX idx_participants_org ON participants(organization_id);
-CREATE INDEX idx_participants_category ON participants(category);
-```
+| Old Table | Replaced By | Reason |
+|-----------|------------|--------|
+| `tournaments` | `competitions` | Renamed + restructured with UUID, access_code, entry_token |
+| `tournament_judges` | `competition_judges` | Renamed to match new competition terminology |
+| `tournament_participants` | (merged into `participants`) | participants now has direct `competition_id` FK |
+| `puzzle_relations` | `round_puzzles` | More explicit junction table with order and score |
+| `player_round_states` | `player_round_sessions` | Renamed + added status tracking |
+| `player_puzzle_assignments` | `puzzle_answers` | Replaced with grid-state tracking model |
+| `scores` | `round_rankings` + `final_rankings` | Split into per-round and final snapshot tables |
+| `submissions` | `puzzle_answers` | Real-time progress replaces batch submissions |
+| `puzzle_bank` | `puzzle_sets` + `puzzles` | Split into collections + individual puzzles |
 
-#### puzzles — add puzzle_bank reference
-```sql
-ALTER TABLE puzzles ADD COLUMN puzzle_bank_id INTEGER REFERENCES puzzle_bank(id);
-ALTER TABLE puzzles ADD COLUMN initial_empty_cells INTEGER DEFAULT 0;
-```
+### Legacy Tables (Kept for Reference)
+
+These tables from the original schema are preserved but may be deprecated in future:
+
+| Table | Notes |
+|-------|-------|
+| `schools` | May be linked via `participants.school` field instead |
+| `team_puzzle_sets` | Replaced by `round_puzzles` for round-specific puzzle assignment |
 
 ### Tenant Isolation Audit
 
@@ -436,19 +577,22 @@ Every table that contains organization-scoped data must have `organization_id` o
 
 | Table | Tenant Key | Isolation Method |
 |-------|-----------|-----------------|
-| organizations | id | Root tenant |
-| users | organization_id | Direct FK |
-| tournaments | organization_id | Direct FK |
-| competition_stages | via tournament_id → tournaments.organization_id | FK chain |
-| rounds | via stage_id → tournament → org | FK chain |
-| puzzles | via round → stage → tournament → org | FK chain |
-| teams | via tournament → org | FK chain |
-| participants | organization_id | Direct FK |
-| schools | via participants → org | FK chain |
-| scores | via tournament → org | FK chain |
-| submissions | via round → ... → org | FK chain |
-| puzzle_bank | organization_id | Direct FK |
-| display_sessions | via tournament → org | FK chain |
+| organizations | id (UUID) | Root tenant |
+| users | organization_id (UUID) | Direct FK |
+| competitions | organization_id (UUID) | Direct FK |
+| competition_stages | via competition_id → competitions.organization_id | FK chain |
+| rounds | via stage_id → competition_stages → competition → org | FK chain |
+| puzzles | via puzzle_set_id → puzzle_sets.organization_id | FK chain |
+| puzzle_sets | organization_id (UUID) | Direct FK |
+| round_puzzles | via round_id → rounds → stage → competition → org | FK chain |
+| participants | via competition_id → competitions.organization_id | FK chain |
+| teams | via competition_id → competitions.organization_id | FK chain |
+| player_round_sessions | via round_id → rounds → stage → competition → org | FK chain |
+| puzzle_answers | via session_id → player_round_sessions → round → org | FK chain |
+| round_rankings | via round_id → rounds → stage → competition → org | FK chain |
+| final_rankings | via competition_id → competitions.organization_id | FK chain |
+| display_sessions | via competition_id → competitions.organization_id | FK chain |
+| competition_judges | via competition_id → competitions.organization_id | FK chain |
 
 ---
 
@@ -473,8 +617,8 @@ Every table that contains organization-scoped data must have `organization_id` o
 | POST | `/api/display/token` | Judge | Generate big-screen connection token |
 | GET | `/api/display/:token` | Token | Validate display token, establish connection |
 | PUT | `/api/display/mode` | Judge | Change big-screen display mode |
-| GET | `/api/puzzle-bank` | Org Admin | List org's puzzle bank |
-| POST | `/api/puzzle-bank/import-pdf` | Org Admin | Import puzzles from PDF |
+| GET | `/api/puzzle-sets` | Org Admin | List org's puzzle sets |
+| POST | `/api/puzzle-sets/import-pdf` | Org Admin | Import puzzles from PDF into a puzzle set |
 | GET | `/api/admin/organizations` | Super Admin | List all organizations |
 | GET | `/api/admin/stats` | Super Admin | Platform statistics |
 
@@ -483,13 +627,12 @@ Every table that contains organization-scoped data must have `organization_id` o
 | Existing Endpoint | Change Required |
 |------------------|-----------------|
 | `POST /api/auth/login` | Add organization context; validate org membership |
-| `GET /api/tournaments` | Filter by organization_id |
-| `GET /api/tournaments/:id` | Verify org membership |
-| `POST /api/tournaments/:id/start` | Delegate to StageManager |
-| `POST /api/tournaments/:id/rounds/:roundId/start` | Remove (auto-progression handles this) |
-| `POST /submissions` | Add completion-ratio scoring |
-| All participant endpoints | Add org_id scoping |
-| All puzzle bank endpoints | Add org_id scoping |
+| `GET /api/competitions` | Filter by organization_id |
+| `GET /api/competitions/:id` | Verify org membership |
+| `POST /api/competitions/:id/start` | Delegate to StageManager |
+| `POST /api/competitions/:id/rounds/:roundId/start` | Remove (auto-progression handles this) |
+| All participant endpoints | Scope by competition_id |
+| All puzzle endpoints | Scope by puzzle_set_id → organization_id |
 
 ---
 
@@ -498,7 +641,7 @@ Every table that contains organization-scoped data must have `organization_id` o
 ### Existing (KEEP + MODIFY)
 
 - Socket.IO 4 with JWT auth middleware
-- 3-tier room system: `user_{id}`, `tournament_{id}`, `team_{tournamentId}_{teamId}`
+- 3-tier room system: `user_{id}`, `competition_{id}`, `team_{competitionId}_{teamId}`
 - EmissionBus decoupling
 - Late-join state replay
 
@@ -507,7 +650,7 @@ Every table that contains organization-scoped data must have `organization_id` o
 | Change | Description |
 |--------|-------------|
 | Add competition rooms | `competition_{identifier}` for competition-scoped events |
-| Add display room | `display_{tournamentId}` for big-screen clients |
+| Add display room | `display_{competitionId}` for big-screen clients |
 | Add stage events | STAGE_STARTED, PREPARATION_STARTED, TRANSITION_STARTED |
 | Add auto-progression events | ROUND_AUTO_START, PREPARATION_COUNTDOWN |
 | Add display events | DISPLAY_MODE_CHANGED, DISPLAY_PLAYER_BROADCAST |
@@ -529,7 +672,7 @@ Display Browser → Opens /display/{token}
                → Frontend validates token via REST
                → If valid: establishes WebSocket with token auth
                → Server marks display_session as CONNECTED
-               → Display joins display_{tournamentId} room
+               → Display joins display_{competitionId} room
                → Display receives current display_mode + data
                → Token is consumed (cannot be reused for new connections)
 
@@ -683,7 +826,7 @@ All scoring calculations happen in `CompletionScorer.js` on the server. The clie
 2. Loads initial_grid + solution from database
 3. Computes completion ratio
 4. Calculates integer score
-5. Persists to round_results table
+5. Persists to puzzle_answers and round_rankings tables
 6. Broadcasts score update via WebSocket
 
 ---
@@ -692,12 +835,10 @@ All scoring calculations happen in `CompletionScorer.js` on the server. The clie
 
 ### Per-Round Ranking
 ```sql
-SELECT participant_id, team_id, round_total_points, time_bonus,
-       (round_total_points + time_bonus) AS final_score,
-       submitted_at
-FROM round_results
-WHERE stage_id = $1 AND round_id = $2
-ORDER BY final_score DESC, submitted_at ASC;
+SELECT participant_id, team_id, score, rank
+FROM round_rankings
+WHERE round_id = $1
+ORDER BY rank ASC;
 ```
 
 ### Stage Ranking (Aggregate)
@@ -730,7 +871,7 @@ Sum of individual stage score + team stage score (if both exist).
 │                                                                  │
 │  SocketManager                                                   │
 │    ├── competition_{id} room (players + judges)                  │
-│    ├── display_{tournamentId} room (big screens)                 │
+│    ├── display_{competitionId} room (big screens)                │
 │    ├── team_{id}_{id} room (team collaboration)                  │
 │    └── user_{id} room (individual messages)                      │
 │                                                                  │
@@ -843,7 +984,7 @@ Sum of individual stage score + team stage score (if both exist).
 | 12 | Are all originally-empty cells scored equally? | Weight per cell | Assume yes (1 point per empty cell ratio) | **VERIFY** |
 | 13 | Completion-time definition | When does the clock stop for tiebreaking? | Recommend: time of last submission | **OPEN** |
 | 14 | Can judge end round when not everyone submitted? | Early termination policy | Recommend: yes, with confirmation | **OPEN** |
-| 15 | Competition entry URL format | `/competition/{slug}` vs `/competition/{uuid}` | Recommend: URL-safe slug | **OPEN** |
+| 15 | Competition entry URL format | `/competition/{access_code}` vs `/competition/{uuid}` | Recommend: access_code (URL-safe) | **OPEN** |
 | 16 | Can admin edit published competition? | Post-publication changes | Recommend: limited (no stage/round structure changes) | **OPEN** |
 | 17 | What if participant disconnects during round? | Auto-submit current state? | Recommend: preserve last auto-saved state, score normally | **PROPOSED** |
 | 18 | What if judge disconnects? | Competition pauses? | Recommend: server continues timer; auto-end round on expiry | **PROPOSED** |
@@ -859,7 +1000,7 @@ Sum of individual stage score + team stage score (if both exist).
 
 | Feature | Requirement | Existing State | Action | Owner | Priority | Dependency | Target Date | Definition of Done |
 |---------|-------------|---------------|--------|-------|----------|------------|-------------|-------------------|
-| Multi-tenancy (organizations) | §4 | None | NEW | Sylvain | P0 | — | Day 1-2 | Orgs created; org_id on users/tournaments; tenantGuard middleware |
+| Multi-tenancy (organizations) | §4 | None | NEW | Sylvain | P0 | — | Day 1-2 | Orgs created; org_id on users/competitions; tenantGuard middleware |
 | Organization admin registration | §6 | Flat user model | MODIFY | Louise | P0 | Multi-tenancy | Day 2 | Register creates org+user; login returns org-scoped JWT |
 | Competition-specific auth | §9 | None | NEW | Louise | P0 | Multi-tenancy | Day 3 | Judge/player login via /competition/{id}; competition JWT |
 | Stage model + StageManager | §17-19 | No stages | NEW | Sylvain | P0 | Multi-tenancy | Day 3-5 | Stages configurable; auto-progression works; preparation/transition states |
@@ -932,12 +1073,12 @@ Day 13-14: Integration testing + bug fixing + stabilization
 Establish the multi-tenant foundation: organizations table, org_id on core tables, tenant isolation middleware, and development environment setup.
 
 #### Sylvain
-- [ ] Create `organizations` table migration in `db.js` (id, name, slug, plan, timestamps)
+- [ ] Create `organizations` table migration in `db.js` (id, name, description, status, timestamps)
 - [ ] Add `organization_id` column to `users` table with FK to organizations
-- [ ] Add `organization_id` column to `tournaments` table with FK to organizations
+- [ ] Add `organization_id` column to `competitions` table with FK to organizations
 - [ ] Add `organization_id` column to `participants` table with FK to organizations
-- [ ] Add `identifier` (UNIQUE TEXT) and `category` columns to `tournaments`
-- [ ] Add `user_type` column to `users` (SUPER_ADMIN, ORG_USER, COMPETITION_JUDGE, COMPETITION_PLAYER)
+- [ ] Add `access_code` (UNIQUE) and `category` columns to `competitions`
+- [ ] Update users table to use UUID primary key and add `role` column (SUPER_ADMIN, ORG_ADMIN, JUDGE, PLAYER)
 - [ ] Create `tenantGuard.js` middleware: extracts org_id from JWT, verifies resource ownership
 - [ ] Write unit tests for tenantGuard: org A user blocked from org B resources
 - [ ] Update `config.js` to require JWT_SECRET (remove dev default)
@@ -968,7 +1109,7 @@ Establish the multi-tenant foundation: organizations table, org_id on core table
 
 #### Definition of Done
 - organizations table exists in database
-- users, tournaments, participants have organization_id
+- users, competitions, participants have organization_id
 - tenantGuard middleware blocks cross-org access
 - Security headers present on all responses
 - Server starts without errors
@@ -989,14 +1130,14 @@ Organization admin registration/login flow working. Competition-specific auth de
 - [ ] Update `POST /api/auth/login` to include organization_id in JWT payload
 - [ ] Update JWT generation to include: userId, username, role, organizationId, userType
 - [ ] Create `competitionAuth.js` middleware for competition-scoped authentication
-- [ ] Design competition identifier generation (URL-safe slug from competition name + random suffix)
-- [ ] Add `published` boolean to tournaments table
+- [ ] Design competition access_code generation (URL-safe slug from competition name + random suffix)
+- [ ] Add `status` column to competitions table (DRAFT, PUBLISHED, RUNNING, FINISHED)
 - [ ] Write tests for registration: creates org + user, returns valid JWT
 
 #### Louise
 - [ ] Extend rate limiting to all sensitive endpoints (file upload, competition entry, display token)
 - [ ] Create validation schemas for: tournament CRUD, round creation, participant import, puzzle operations
-- [ ] Apply validation middleware to all existing route files (auth, tournaments, rounds, teams, game, participants, puzzle-bank)
+- [ ] Apply validation middleware to all existing route files (auth, competitions, rounds, teams, game, participants, puzzle-sets)
 - [ ] Add MIME type validation to file upload (check magic bytes, not just extension)
 - [ ] Add file content validation (verify XLSX structure before processing)
 - [ ] Create validation schema for WebSocket messages (basic structure validation)
@@ -1089,7 +1230,7 @@ StageManager foundation. Participant import with org scoping. First integration 
 #### Sylvain
 - [ ] Create `StageManager.js` in `server/src/engine/`
 - [ ] Implement stage lifecycle states: WAITING → STAGE_STARTED → PREPARATION → ROUND_ACTIVE → ROUND_FINISHED → TRANSITION → (next round or STAGE_FINISHED)
-- [ ] Implement `startStage(tournamentId, stageId)` — begins preparation phase
+- [ ] Implement `startStage(competitionId, stageId)` — begins preparation phase
 - [ ] Implement preparation phase: broadcast rules, start countdown (configurable 20-30s)
 - [ ] Implement auto-transition: preparation ends → first round starts automatically
 - [ ] Implement round end handler: round finishes → transition → next round auto-starts
@@ -1102,7 +1243,7 @@ StageManager foundation. Participant import with org scoping. First integration 
 - [ ] Update `ParticipantImportService.js` to scope schools/participants to org
 - [ ] Update participant credential generation: use random passwords instead of predictable pattern
 - [ ] Create `POST /api/competitions/:id/judges` — create judge account scoped to competition
-- [ ] Update judge credential generation: random password, competition-scoped user_type
+- [ ] Update judge credential generation: random password, competition-scoped role
 - [ ] Build judge creation form in dashboard (name, email → generate credentials)
 - [ ] Build credential display/export for judges
 - [ ] Update participant list to show org-scoped data only
@@ -1154,7 +1295,7 @@ Auto round progression integrated with existing GameOrchestrator. Player auto-sa
 #### Louise
 - [ ] Implement persistent auto-save for Round 1: save current_grid on every cell submission
 - [ ] Implement persistent auto-save for Round 3: save shared puzzle state on every accepted proposal
-- [ ] Update `player_puzzle_assignments.current_grid` on every meaningful action
+- [ ] Update `puzzle_answers.current_grid` on every meaningful action
 - [ ] Add debounced save (max 1 write per second per player to avoid DB overload)
 - [ ] Build `DashboardStagesPage.jsx` — stage configuration UI (add/remove stages, set types)
 - [ ] Build round configuration within stages (duration, puzzle assignment)
@@ -1209,8 +1350,8 @@ Individual round types defined. Completion-ratio scoring implemented. WebSocket 
 - [ ] Add round-type compatibility filter to puzzle bank
 - [ ] Implement puzzle assignment from bank to rounds (drag/select interface)
 - [ ] Build puzzle preview modal with initial grid + solution display
-- [ ] Add `puzzle_bank` table with organization_id scoping
-- [ ] Update puzzle generation to store in puzzle_bank
+- [ ] Add `puzzle_sets` table with organization_id scoping
+- [ ] Update puzzle generation to store in puzzle_sets + puzzles tables
 - [ ] Write tests for puzzle bank: org-scoped listing, filter by round type
 
 #### Dependencies
@@ -1252,7 +1393,7 @@ Big-screen connection system. Preparation/transition player screens. **Milestone
 - [ ] Implement `POST /api/display/token` — generate temporary UUID token (5min TTL)
 - [ ] Implement `GET /api/display/:token/validate` — validate token, return competition info
 - [ ] Add display WebSocket auth: accept display token in handshake
-- [ ] Create `display_{tournamentId}` room in SocketManager
+- [ ] Create `display_{competitionId}` room in SocketManager
 - [ ] Implement display connection: validate token → join display room → mark CONNECTED
 - [ ] Emit DISPLAY_CONNECTED event to judge
 - [ ] Implement `PUT /api/display/mode` — judge changes display mode
@@ -1355,9 +1496,9 @@ Judge participant monitoring. Big-screen ranking display. Live player view for j
 Real-time ranking system. Round results storage. PDF import pipeline (basic).
 
 #### Sylvain
-- [ ] Create `round_results` table migration
+- [ ] Create `round_rankings` and `puzzle_answers` table migrations
 - [ ] Implement server-side ranking calculation after round ends
-- [ ] Store per-puzzle, per-round results in `round_results` table
+- [ ] Store per-puzzle progress in `puzzle_answers` and per-round scores in `round_rankings`
 - [ ] Implement `GET /api/competitions/:id/ranking/round/:roundId` — round ranking
 - [ ] Implement `GET /api/competitions/:id/ranking/stage/:stageId` — stage ranking (aggregate)
 - [ ] Implement `GET /api/competitions/:id/ranking/final` — final competition ranking
@@ -1465,7 +1606,7 @@ Category ranking (U6/U8/U12). Team competition integration with stages. Puzzle b
 Super Admin interface (minimal). Security hardening pass. WebSocket security review.
 
 #### Sylvain
-- [ ] Create Super Admin role check middleware (user_type = SUPER_ADMIN)
+- [ ] Create Super Admin role check middleware (role = SUPER_ADMIN)
 - [ ] Implement `POST /api/admin/login` — Super Admin authentication
 - [ ] Implement `GET /api/admin/organizations` — list all organizations
 - [ ] Implement `GET /api/admin/competitions` — list all competitions across orgs
@@ -1975,15 +2116,22 @@ The MVP is complete when ALL of the following are true:
 ## Appendix B: Database Migration Order
 
 1. `organizations` table (new)
-2. `users` — add `organization_id`, `user_type`
-3. `tournaments` — add `organization_id`, `identifier`, `category`, `published`
-4. `participants` — add `organization_id`
-5. `competition_stages` table (new)
-6. `rounds` — add `stage_id`
-7. `puzzle_bank` table (new)
-8. `puzzles` — add `puzzle_bank_id`, `initial_empty_cells`
-9. `round_results` table (new)
-10. `display_sessions` table (new)
+2. `users` — add `organization_id`, `role` (UUID primary key migration)
+3. `competitions` table (new, replaces `tournaments`)
+4. `competition_stages` table (new)
+5. `rounds` table (new, replaces old rounds)
+6. `puzzle_sets` table (new)
+7. `puzzles` table (new structure with JSONB grids)
+8. `round_puzzles` junction table (new)
+9. `competition_judges` table (new)
+10. `participants` table (new structure)
+11. `teams` table (new structure)
+12. `team_members` table (new)
+13. `player_round_sessions` table (new)
+14. `puzzle_answers` table (new)
+15. `round_rankings` table (new)
+16. `final_rankings` table (new)
+17. `display_sessions` table (new)
 
 Each migration must be idempotent and include rollback instructions.
 

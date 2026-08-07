@@ -1,6 +1,11 @@
 /**
  * Tournament repository — abstracts all tournament-related database operations.
  * All methods are async (PostgreSQL). datetime('now') → NOW().
+ *
+ * @deprecated This repository references the legacy `tournaments` table (dropped in migration 018).
+ * The new schema uses `competitions` table with UUID primary keys, `organization_id` FK,
+ * `access_code`, `entry_token`, and status values: DRAFT, PUBLISHED, RUNNING, FINISHED.
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class TournamentRepository {

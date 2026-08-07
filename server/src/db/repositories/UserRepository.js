@@ -1,6 +1,9 @@
 /**
  * User repository — abstracts all user-related database operations.
  * All methods are async (PostgreSQL).
+ *
+ * Schema (migration 020): users table with UUID primary keys, organization_id FK,
+ * password_hash (bcrypt), email, role (SUPER_ADMIN/ORG_ADMIN/JUDGE/PLAYER), status.
  */
 
 class UserRepository {
@@ -12,7 +15,7 @@ class UserRepository {
   }
 
   async findById(id) {
-    return this.db.get('SELECT id, username, role, display_name, created_at FROM users WHERE id = ?', [id]);
+    return this.db.get('SELECT id, organization_id, username, role, status, created_at FROM users WHERE id = ?', [id]);
   }
 
   async findByUsername(username) {
@@ -20,28 +23,35 @@ class UserRepository {
   }
 
   async findByUsernameSafe(username) {
-    return this.db.get('SELECT id, username, role, display_name FROM users WHERE username = ?', [username]);
+    return this.db.get('SELECT id, organization_id, username, role, status FROM users WHERE username = ?', [username]);
   }
 
   async findAll() {
-    return this.db.all('SELECT id, username, role, display_name, created_at FROM users ORDER BY id');
+    return this.db.all('SELECT id, organization_id, username, role, status, created_at FROM users ORDER BY created_at');
   }
 
   async findByRole(role) {
     return this.db.all('SELECT * FROM users WHERE role = ?', [role]);
   }
 
-  async create({ username, password, role, displayName }) {
-    await this.db.run(
-      'INSERT INTO users (username, password, role, display_name) VALUES (?, ?, ?, ?)',
-      [username, password, role, displayName || username]
-    );
-    return this.db.get('SELECT id, username, role, display_name FROM users WHERE username = ?', [username]);
+  async findByOrganization(organizationId) {
+    return this.db.all('SELECT * FROM users WHERE organization_id = ?', [organizationId]);
   }
 
-  async getDisplayName(userId) {
-    const row = await this.db.get('SELECT display_name FROM users WHERE id = ?', [userId]);
-    return row?.display_name || '';
+  async create({ username, password, role, organizationId }) {
+    await this.db.run(
+      'INSERT INTO users (username, password_hash, role, organization_id, status) VALUES (?, ?, ?, ?, ?)',
+      [username, password, role, organizationId || null, 'ACTIVE']
+    );
+    return this.db.get('SELECT id, organization_id, username, role, status FROM users WHERE username = ?', [username]);
+  }
+
+  async updateStatus(id, status) {
+    await this.db.run('UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?', [status, id]);
+  }
+
+  async updatePassword(id, passwordHash) {
+    await this.db.run('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', [passwordHash, id]);
   }
 }
 

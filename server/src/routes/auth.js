@@ -21,14 +21,14 @@ function createAuthRouter(repos) {
       return res.json({ code: 40001, message: '用户名和密码不能为空', data: null });
     }
     const user = await repos.users.findByUsername(username);
-    if (!user || !bcrypt.compareSync(password, user.password)) {
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.json({ code: 40001, message: '用户名或密码错误', data: null });
     }
     const token = generateToken(user);
     res.json({
       code: 200, message: 'success', data: {
         token,
-        user: { id: user.id, username: user.username, role: user.role, displayName: user.display_name }
+        user: { id: user.id, username: user.username, role: user.role, organizationId: user.organization_id }
       }
     });
   });
@@ -40,7 +40,7 @@ function createAuthRouter(repos) {
     }
     res.json({
       code: 200, message: 'success', data: {
-        id: user.id, username: user.username, role: user.role, displayName: user.display_name
+        id: user.id, username: user.username, role: user.role, organizationId: user.organization_id
       }
     });
   });
