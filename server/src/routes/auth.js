@@ -1,23 +1,14 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
 const { generateToken, authMiddleware } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
+const { authLimiter } = require('../middleware/rateLimiters');
 const { loginSchema } = require('../validations/auth');
 
 function createAuthRouter(repos) {
   const router = express.Router();
 
-  // Rate limit login attempts: 30 requests per 15 minutes per IP
-  const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 30,
-    message: { code: 429, message: '登录尝试过于频繁，请15分钟后再试', data: null },
-    standardHeaders: true,
-    legacyHeaders: false
-  });
-
-  router.post('/login', loginLimiter, validate(loginSchema), async (req, res) => {
+  router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
     const { username, password } = req.body;
     const user = await repos.users.findByUsername(username);
     if (!user || !bcrypt.compareSync(password, user.password)) {
