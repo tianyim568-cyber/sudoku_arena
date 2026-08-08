@@ -7,6 +7,10 @@ const EN = {
   // Auth / permissions
   '未登录': 'You are not logged in',
   'Token无效或已过期': 'Your session token is invalid or has expired',
+  '此令牌不是比赛专用令牌': 'This token is not competition-scoped',
+  '您未注册参加此比赛': 'You are not registered for this competition',
+  '缺少比赛标识': 'Missing competition identifier',
+  '比赛登录失败，请稍后重试': 'Competition login failed, please try again later',
   '权限不足': 'Insufficient permissions',
   '登录尝试过于频繁，请15分钟后再试': 'Too many login attempts, please try again in 15 minutes',
   '用户名和密码不能为空': 'Username and password are required',
