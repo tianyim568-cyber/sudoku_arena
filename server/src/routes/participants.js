@@ -6,6 +6,7 @@
 const express = require('express');
 const multer = require('multer');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { validateFileType } = require('../middleware/fileType');
 const ParticipantImportService = require('../services/ParticipantImportService');
 const ParticipantExportService = require('../services/ParticipantExportService');
 
@@ -37,6 +38,7 @@ function createParticipantRouter(repos) {
     authMiddleware,
     roleMiddleware('ADMIN'),
     upload.single('file'),
+    validateFileType(['xlsx', 'xls', 'csv']),
     async (req, res) => {
       try {
         const tournamentId = parseInt(req.params.id);
