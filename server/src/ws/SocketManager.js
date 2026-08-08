@@ -16,6 +16,12 @@
 
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+const {
+  joinRoomSchema,
+  leaveRoomSchema,
+  cellFillSchema,
+  answerSubmitSchema,
+} = require('../validations/socket');
 
 class SocketManager {
   /**
@@ -58,6 +64,24 @@ class SocketManager {
     }
   }
 
+  // ─── Message validation ───────────────────────────────────────
+
+  // Validate an incoming message against a Zod schema. On failure, emit a
+  // VALIDATION_ERROR event back to the sender and return null so the caller
+  // aborts before any game logic runs.
+  _validate(schema, data, socket, eventName) {
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      socket.emit('event', {
+        type: 'VALIDATION_ERROR',
+        timestamp: new Date().toISOString(),
+        payload: { event: eventName, message: result.error.issues[0]?.message || 'Invalid message data' },
+      });
+      return null;
+    }
+    return result.data;
+  }
+
   // ─── Auth middleware ───────────────────────────────────────────
 
   _setupAuth() {
@@ -89,67 +113,81 @@ class SocketManager {
       // ─── Room management ─────────────────────────────────────
 
       socket.on('join_room', async (data) => {
-        const { tournamentId } = data;
-        socket.join(`tournament_${tournamentId}`);
-        console.log(`${socket.user.username} joined tournament ${tournamentId}`);
+        const parsed = this._validate(joinRoomSchema, data, socket, 'join_room');
+        if (!parsed) return;
+        const { tournamentId } = parsed;
+        try {
+          socket.join(`tournament_${tournamentId}`);
+          console.log(`${socket.user.username} joined tournament ${tournamentId}`);
 
-        // If player, also join team room
-        let teamId = null;
-        if (socket.user.role === 'PLAYER') {
-          const member = await this.repos.teams.findMemberTeam(tournamentId, socket.user.userId);
-          if (member) {
-            socket.join(`team_${tournamentId}_${member.team_id}`);
-            teamId = member.team_id;
+          // If player, also join team room
+          let teamId = null;
+          if (socket.user.role === 'PLAYER') {
+            const member = await this.repos.teams.findMemberTeam(tournamentId, socket.user.userId);
+            if (member) {
+              socket.join(`team_${tournamentId}_${member.team_id}`);
+              teamId = member.team_id;
+            }
           }
-        }
 
-        // Track active player
-        await this.orchestrator.state.setActivePlayer(tournamentId, socket.user.userId, socket.id);
+          // Track active player
+          await this.orchestrator.state.setActivePlayer(tournamentId, socket.user.userId, socket.id);
 
-        // Start heartbeat for active player tracking
-        if (socket.user.role === 'PLAYER') {
-          heartbeatInterval = setInterval(async () => {
-            await this.orchestrator.state.setActivePlayer(tournamentId, socket.user.userId, socket.id);
-          }, config.HEARTBEAT_INTERVAL_MS);
-        }
+          // Start heartbeat for active player tracking
+          if (socket.user.role === 'PLAYER') {
+            heartbeatInterval = setInterval(async () => {
+              await this.orchestrator.state.setActivePlayer(tournamentId, socket.user.userId, socket.id);
+            }, config.HEARTBEAT_INTERVAL_MS);
+          }
 
-        // Notify room
-        this.io.to(`tournament_${tournamentId}`).emit('event', {
-          type: 'PLAYER_STATUS_CHANGE',
-          timestamp: new Date().toISOString(),
-          tournamentId,
-          payload: { playerId: socket.user.userId, playerName: socket.user.username, online: true }
-        });
+          // Notify room
+          this.io.to(`tournament_${tournamentId}`).emit('event', {
+            type: 'PLAYER_STATUS_CHANGE',
+            timestamp: new Date().toISOString(),
+            tournamentId,
+            payload: { playerId: socket.user.userId, playerName: socket.user.username, online: true }
+          });
 
-        // Late-join sync via orchestrator
-        if (socket.user.role === 'PLAYER') {
-          await this._handleLateJoin(socket, tournamentId);
+          // Late-join sync via orchestrator
+          if (socket.user.role === 'PLAYER') {
+            await this._handleLateJoin(socket, tournamentId);
+          }
+        } catch (e) {
+          console.error('join_room error:', e.message);
         }
       });
 
       socket.on('leave_room', (data) => {
-        const { tournamentId } = data;
-        socket.leave(`tournament_${tournamentId}`);
-        // Leave all team rooms for this tournament
-        const rooms = [...socket.rooms];
-        for (const room of rooms) {
-          if (room.startsWith(`team_${tournamentId}_`)) {
-            socket.leave(room);
+        const parsed = this._validate(leaveRoomSchema, data, socket, 'leave_room');
+        if (!parsed) return;
+        const { tournamentId } = parsed;
+        try {
+          socket.leave(`tournament_${tournamentId}`);
+          // Leave all team rooms for this tournament
+          const rooms = [...socket.rooms];
+          for (const room of rooms) {
+            if (room.startsWith(`team_${tournamentId}_`)) {
+              socket.leave(room);
+            }
           }
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
+          this.orchestrator.state.removeActivePlayer(tournamentId, socket.user.userId);
+          console.log(`${socket.user.username} left tournament ${tournamentId}`);
+        } catch (e) {
+          console.error('leave_room error:', e.message);
         }
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-        this.orchestrator.state.removeActivePlayer(tournamentId, socket.user.userId);
-        console.log(`${socket.user.username} left tournament ${tournamentId}`);
       });
 
       // ─── Game actions ────────────────────────────────────────
 
       socket.on('cell_fill', async (data) => {
+        const parsed = this._validate(cellFillSchema, data, socket, 'cell_fill');
+        if (!parsed) return;
         try {
-          const { tournamentId, roundId, puzzleId, row, col, value } = data;
+          const { tournamentId, roundId, puzzleId, row, col, value } = parsed;
           const { result, emissions } = await this.orchestrator.handleCellFill(
             socket.user.userId, tournamentId, roundId, puzzleId, row, col, value
           );
@@ -169,8 +207,10 @@ class SocketManager {
       });
 
       socket.on('answer_submit', async (data) => {
+        const parsed = this._validate(answerSubmitSchema, data, socket, 'answer_submit');
+        if (!parsed) return;
         try {
-          const { tournamentId, roundId, puzzleId, submissionType, row, col, value, grid } = data;
+          const { tournamentId, roundId, puzzleId, submissionType, row, col, value, grid } = parsed;
           const { result, emissions } = await this.orchestrator.submitAnswer(
             socket.user.userId, roundId, puzzleId, submissionType, { row, col, value, grid }
           );
