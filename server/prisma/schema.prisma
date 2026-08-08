@@ -45,19 +45,20 @@ model competition_stages {
 }
 
 model competitions {
-  id                   String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  organization_id      String               @db.Uuid
-  name                 String               @db.VarChar(255)
-  description          String?
-  status               String               @default("DRAFT") @db.VarChar(50)
-  display_access_token String?              @db.VarChar(255)
-  created_at           DateTime             @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime             @default(now()) @db.Timestamptz(6)
-  competition_judges   competition_judges[]
-  competition_stages   competition_stages[]
-  organizations        organizations        @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  players              players[]
-  teams                teams[]
+  id                      String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organization_id         String               @db.Uuid
+  name                    String               @db.VarChar(255)
+  description             String?
+  status                  String               @default("DRAFT") @db.VarChar(50)
+  display_access_token    String?              @db.VarChar(255)
+  competition_access_code String?              @unique @db.VarChar(20)
+  created_at              DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime             @default(now()) @db.Timestamptz(6)
+  competition_judges      competition_judges[]
+  competition_stages      competition_stages[]
+  organizations           organizations        @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  players                 players[]
+  teams                   teams[]
 
   @@index([organization_id], map: "competitions_organization_id_index")
 }

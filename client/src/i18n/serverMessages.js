@@ -81,6 +81,12 @@ const EN = {
   '删除选手失败': 'Failed to delete participants',
   '导出选手信息失败': 'Failed to export participant information',
   '没有可导出的选手数据': 'No participant data to export',
+
+  // Access link
+  '生成访问链接失败': 'Failed to generate access link',
+  '获取访问链接失败': 'Failed to retrieve access link',
+  '撤销访问链接失败': 'Failed to revoke access link',
+  '获取比赛信息失败': 'Failed to retrieve competition info',
 };
 
 /**

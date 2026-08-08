@@ -6,6 +6,7 @@ require('dotenv').config();
 const { initDB, getRepos } = require('./utils/db');
 const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
+const { createCompetitionRouter } = require('./routes/competitions');
 // TODO: These routes are disabled until rewritten for the new UUID-based schema (migration 018+).
 // The deprecated repositories they depend on query tables that were dropped.
 // Re-enable after creating new route files backed by updated repositories.
@@ -56,6 +57,7 @@ async function main() {
   // Mount routes — all receive repos instead of raw dbHelpers
   app.use('/api/auth', createAuthRouter(repos));
   app.use('/api/users', createUserRouter(repos));
+  app.use('/api/competitions', createCompetitionRouter(repos));
 
   // TODO: Disabled until rewritten for new UUID-based schema.
   // app.use('/api', createTournamentRouter(repos));
