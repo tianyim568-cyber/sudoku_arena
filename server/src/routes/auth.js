@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { generateToken, authMiddleware } = require('../middleware/auth');
+const { getPrisma } = require('../db/prisma');
 
 function createAuthRouter(repos) {
   const router = express.Router();
@@ -13,6 +14,102 @@ function createAuthRouter(repos) {
     message: { code: 429, message: '登录尝试过于频繁，请15分钟后再试', data: null },
     standardHeaders: true,
     legacyHeaders: false
+  });
+
+  // Rate limit registration: 10 requests per 15 minutes per IP
+  const registerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { code: 429, message: '注册尝试过于频繁，请15分钟后再试', data: null },
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+
+  /**
+   * POST /register — Public registration for new organizations.
+   * Creates an organization + its first ORG_ADMIN user atomically.
+   */
+  router.post('/register', registerLimiter, async (req, res) => {
+    const { organizationName, adminUsername, password } = req.body;
+
+    // 1. Validate required fields
+    if (!organizationName || !adminUsername || !password) {
+      return res.json({ code: 40001, message: '组织名称、管理员用户名和密码不能为空', data: null });
+    }
+
+    // 2. Validate lengths
+    if (typeof organizationName !== 'string' || organizationName.trim().length < 2) {
+      return res.json({ code: 40003, message: '组织名称至少需要2个字符', data: null });
+    }
+    if (typeof password !== 'string' || password.length < 6) {
+      return res.json({ code: 40003, message: '密码至少需要6个字符', data: null });
+    }
+    if (typeof adminUsername !== 'string' || adminUsername.trim().length < 1) {
+      return res.json({ code: 40003, message: '管理员用户名不能为空', data: null });
+    }
+
+    const prisma = getPrisma();
+
+    try {
+      // 3. Check for duplicates
+      const existingOrg = await repos.organizations.findByName(organizationName.trim());
+      if (existingOrg) {
+        return res.json({ code: 40003, message: '组织名称已存在', data: null });
+      }
+
+      const existingUser = await repos.users.findByUsernameSafe(adminUsername.trim());
+      if (existingUser) {
+        return res.json({ code: 40003, message: '用户名已存在', data: null });
+      }
+
+      // 4. Atomic transaction: create org + admin user
+      const passwordHash = bcrypt.hashSync(password, 10);
+
+      const [org, user] = await prisma.$transaction(async (tx) => {
+        const newOrg = await tx.organizations.create({
+          data: {
+            name: organizationName.trim(),
+            status: 'ACTIVE',
+          },
+        });
+
+        const newUser = await tx.users.create({
+          data: {
+            organization_id: newOrg.id,
+            username: adminUsername.trim(),
+            password_hash: passwordHash,
+            role: 'ORG_ADMIN',
+            status: 'ACTIVE',
+          },
+        });
+
+        return [newOrg, newUser];
+      });
+
+      // 5. Generate JWT token (auto-login after registration)
+      const token = generateToken(user);
+
+      res.status(201).json({
+        code: 200,
+        message: 'success',
+        data: {
+          token,
+          organization: { id: org.id, name: org.name },
+          user: { id: user.id, username: user.username, role: user.role, organizationId: user.organization_id },
+        },
+      });
+    } catch (e) {
+      // Handle unique constraint violation (race condition safety)
+      if (e.code === 'P2002') {
+        const field = e.meta?.target?.[0];
+        if (field === 'username') {
+          return res.json({ code: 40003, message: '用户名已存在', data: null });
+        }
+        return res.json({ code: 40003, message: '注册失败，请重试', data: null });
+      }
+      console.error('Registration error:', e.message);
+      res.json({ code: 50000, message: '注册失败，请稍后重试', data: null });
+    }
   });
 
   router.post('/login', loginLimiter, async (req, res) => {

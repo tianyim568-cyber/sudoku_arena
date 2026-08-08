@@ -47,6 +47,8 @@ async function uploadFile(path, file) {
 export const api = {
   // Auth
   login: (username, password) => request('POST', '/auth/login', { username, password }),
+  register: (organizationName, adminUsername, password) =>
+    request('POST', '/auth/register', { organizationName, adminUsername, password }),
   getMe: () => request('GET', '/auth/me'),
 
   // Tournaments

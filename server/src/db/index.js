@@ -17,6 +17,7 @@
 const UserRepository = require('./repositories/UserRepository');
 const PlayerRepository = require('./repositories/PlayerRepository');
 const CategoryRepository = require('./repositories/CategoryRepository');
+const OrganizationRepository = require('./repositories/OrganizationRepository');
 
 function createRepositoryFactory(prisma) {
   return {
@@ -24,6 +25,7 @@ function createRepositoryFactory(prisma) {
     users: new UserRepository(prisma),
     players: new PlayerRepository(prisma),
     categories: new CategoryRepository(prisma),
+    organizations: new OrganizationRepository(prisma),
 
     // Expose saveDB as no-op for backward compatibility
     saveDB: () => {},

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useLanguage } from './i18n/LanguageContext';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import TournamentListPage from './pages/TournamentListPage';
 import TournamentDetailPage from './pages/TournamentDetailPage';
 import PlayerGamePage from './pages/PlayerGamePage';
@@ -28,16 +29,17 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
+      <Route path="/register" element={user ? <Navigate to="/" /> : <RegisterPage />} />
       <Route path="/" element={<PrivateRoute><TournamentListPage /></PrivateRoute>} />
       <Route path="/tournament/:id" element={<PrivateRoute><TournamentDetailPage /></PrivateRoute>} />
       <Route path="/play/:tournamentId" element={
         <PrivateRoute><RoleRoute roles={['PLAYER']}><PlayerGamePage /></RoleRoute></PrivateRoute>
       } />
       <Route path="/judge/:tournamentId" element={
-        <PrivateRoute><RoleRoute roles={['JUDGE', 'ADMIN']}><JudgeControlPage /></RoleRoute></PrivateRoute>
+        <PrivateRoute><RoleRoute roles={['JUDGE']}><JudgeControlPage /></RoleRoute></PrivateRoute>
       } />
       <Route path="/puzzle-bank" element={
-        <PrivateRoute><RoleRoute roles={['ADMIN']}><PuzzleBankPage /></RoleRoute></PrivateRoute>
+        <PrivateRoute><RoleRoute roles={['ORG_ADMIN']}><PuzzleBankPage /></RoleRoute></PrivateRoute>
       } />
     </Routes>
   );
