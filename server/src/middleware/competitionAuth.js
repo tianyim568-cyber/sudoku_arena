@@ -1,75 +1,33 @@
 /**
- * competitionAuth — competition-scoped authentication middleware.
+ * competitionAuth — competition-scoped authentication utilities.
  *
- * Issues and validates JWTs that are scoped to a specific competition.
- * Used by judges and players who access the platform via a competition-specific
- * entry point (e.g. /competition/{identifier}) rather than the org dashboard.
+ * This module provides:
+ *   - generateCompetitionToken() — re-exported from auth.js
+ *   - competitionAuth middleware — enforces competition-scoped tokens only
+ *   - competitionLogin() — route handler factory for competition entry login
  *
- * Two token types coexist in the system:
- *   - Org-scoped:    { userId, username, role, organizationId }
- *   - Competition-scoped: { type: 'competition', competitionId, userId, role,
- *                           participantId, organizationId }
- *
- * The middleware chain for a competition route looks like:
- *   router.get('/rounds', competitionAuth, handler)
- *
- * After competitionAuth runs, `req.competition` is populated with:
- *   { competitionId, userId, role, participantId, organizationId }
- *
- * Usage:
- *   const { competitionAuth, competitionLogin } = require('../middleware/competitionAuth');
- *
- *   // Login endpoint (POST /competitions/:identifier/login)
- *   router.post('/competitions/:identifier/login', competitionLogin(repos));
- *
- *   // Protected competition endpoints
- *   router.get('/competitions/:id/rounds', competitionAuth, listRounds);
+ * The unified authMiddleware in auth.js already handles both token types
+ * and populates req.competition for competition tokens. This middleware
+ * adds an extra check: it REJECTS org-scoped tokens, ensuring only
+ * competition-scoped tokens can access competition-specific routes.
  */
 
-const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const config = require('../config');
+const { authMiddleware, generateCompetitionToken } = require('./auth');
 const { getPrisma } = require('../db/prisma');
-
-// ── Token generation ──
-
-/**
- * Generate a competition-scoped JWT.
- *
- * @param {object} params
- * @param {string} params.competitionId - UUID of the competition
- * @param {string} params.userId - UUID of the user account
- * @param {string} params.role - 'JUDGE' or 'PLAYER'
- * @param {string|null} params.participantId - UUID from players table (null for judges)
- * @param {string} params.organizationId - UUID of the owning organization
- * @returns {string} signed JWT
- */
-function generateCompetitionToken({ competitionId, userId, role, participantId, organizationId }) {
-  return jwt.sign(
-    {
-      type: 'competition',
-      competitionId,
-      userId,
-      role,
-      participantId: participantId || null,
-      organizationId,
-    },
-    config.JWT_SECRET,
-    { expiresIn: config.JWT_EXPIRES_IN }
-  );
-}
 
 // ── Middleware ──
 
 /**
- * Middleware that validates a competition-scoped JWT.
+ * Middleware that enforces competition-scoped JWTs only.
  *
- * Extracts the Bearer token, verifies it, and checks that it is a
- * competition-type token. On success, attaches `req.competition` with
- * the decoded context and calls next().
+ * Uses authMiddleware internally to validate the token and populate req.user.
+ * Then adds an extra check: req.competition must exist (i.e. the token must
+ * be competition-scoped). Org-scoped tokens are rejected with 403.
  *
- * Must be used AFTER the route is matched — it does NOT call authMiddleware
- * internally. It is a standalone validator for competition tokens.
+ * After this middleware runs:
+ *   req.user = { userId, username, role, organizationId }
+ *   req.competition = { competitionId, userId, role, participantId, organizationId }
  *
  * Responses:
  *   401 { code: 40101 } — no Authorization header
@@ -77,36 +35,18 @@ function generateCompetitionToken({ competitionId, userId, role, participantId, 
  *   403 { code: 40303 } — token is valid but not competition-scoped
  */
 function competitionAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ code: 40101, message: '未登录', data: null });
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
-
-    if (decoded.type !== 'competition') {
+  // Use authMiddleware to validate and populate req.user
+  authMiddleware(req, res, () => {
+    // Check that this is a competition-scoped token
+    if (!req.competition) {
       return res.status(403).json({
         code: 40303,
         message: '此令牌不是比赛专用令牌',
         data: null,
       });
     }
-
-    // Attach competition context to the request
-    req.competition = {
-      competitionId: decoded.competitionId,
-      userId: decoded.userId,
-      role: decoded.role,
-      participantId: decoded.participantId,
-      organizationId: decoded.organizationId,
-    };
-
     next();
-  } catch (e) {
-    return res.status(401).json({ code: 40102, message: 'Token无效或已过期', data: null });
-  }
+  });
 }
 
 // ── Login handler factory ──
