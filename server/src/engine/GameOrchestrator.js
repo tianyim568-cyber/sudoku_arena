@@ -25,7 +25,7 @@ const Round3Engine = require('./Round3Engine');
 const PuzzleAssignmentService = require('../services/PuzzleAssignmentService');
 const Round2NotificationService = require('../services/Round2NotificationService');
 const Round3CollaborationService = require('../services/Round3CollaborationService');
-const { TournamentError, RoundError } = require('./errors');
+const { TournamentError, RoundError, StageError } = require('./errors');
 const { getPrisma } = require('../db/prisma');
 const { StageManager } = require('./StageManager');
 const { RoundManager } = require('./RoundManager');
@@ -235,9 +235,7 @@ class GameOrchestrator {
       data: { status: 'RUNNING' },
     });
 
-    // Start the first stage via StageManager
     const firstStage = await this.stages.findFirstStage(competitionId);
-    const stageResult = await this.stages.startStage(competitionId, firstStage.id);
 
     const emissions = [{
       target: 'competition', targetId: competitionId, event: 'TOURNAMENT_STARTED',
@@ -250,17 +248,45 @@ class GameOrchestrator {
       },
     }];
 
-    // Append stage emissions
-    emissions.push(...stageResult.emissions);
+    return { result: { competitionId, status: 'RUNNING', firstStageId: firstStage.id }, emissions };
+  }
+
+  /**
+   * Start a stage — judge-triggered.
+   * Validates competition is RUNNING, starts the stage, then auto-chains
+   * into the first round's preparation countdown.
+   *
+   * Round succession within the stage is automatic: when a round finishes,
+   * endRound() auto-starts the next round (or finishes the stage if it was the last).
+   *
+   * @param {string} competitionId
+   * @param {string} stageId
+   * @returns {Promise<{result: Object, emissions: Array}>}
+   */
+  async startStage(competitionId, stageId) {
+    const comp = await this._prisma.competitions.findUnique({
+      where: { id: competitionId },
+    });
+    if (!comp) throw new TournamentError('比赛不存在');
+    if (comp.status !== 'RUNNING') {
+      throw new TournamentError('比赛必须先开始才能启动阶段');
+    }
+
+    // Start the stage via StageManager
+    const stageResult = await this.stages.startStage(competitionId, stageId);
+    const emissions = [...stageResult.emissions];
 
     // Auto-chain: start first round's preparation phase
-    const firstRound = await this.rounds.findFirstRound(firstStage.id);
+    const firstRound = await this.rounds.findFirstRound(stageId);
     if (firstRound) {
       const roundStartResult = await this.startRound(competitionId, firstRound.id);
       emissions.push(...roundStartResult.emissions);
     }
 
-    return { result: { competitionId, status: 'RUNNING', firstStageId: firstStage.id }, emissions };
+    return {
+      result: { competitionId, stageId, status: 'STAGE_STARTED' },
+      emissions,
+    };
   }
 
   async startRound(competitionId, roundId) {
@@ -559,6 +585,115 @@ class GameOrchestrator {
     }
 
     return { result: { roundId, status: 'FINISHED' }, emissions };
+  }
+
+  // ─── Stage queries ─────────────────────────────────────────────
+
+  /**
+   * List all stages with rounds for a competition.
+   * @param {string} competitionId
+   * @returns {Promise<Array>} stages array
+   */
+  async listStages(competitionId) {
+    return this.stages.loadAllStages(competitionId);
+  }
+
+  /**
+   * Configure stage order and types for a competition.
+   * Expects an array of stage objects: [{ id?, type, orderNumber }]
+   *
+   * - If id is provided: update that existing stage.
+   * - If id is omitted: create a new stage.
+   * - Stages not in the array but present in DB are deleted.
+   *
+   * Only allowed when competition is DRAFT or PUBLISHED.
+   *
+   * @param {string} competitionId
+   * @param {Array<{id?: string, type: string, orderNumber: number}>} stageConfigs
+   * @returns {Promise<Array>} updated stages
+   */
+  async configureStages(competitionId, stageConfigs) {
+    const comp = await this._prisma.competitions.findUnique({
+      where: { id: competitionId },
+    });
+    if (!comp) throw new TournamentError('比赛不存在');
+    if (comp.status === 'RUNNING' || comp.status === 'FINISHED') {
+      throw new TournamentError('比赛进行中或已结束，无法修改阶段配置');
+    }
+
+    // Validate input
+    if (!Array.isArray(stageConfigs) || stageConfigs.length === 0) {
+      throw new StageError('至少需要一个阶段');
+    }
+
+    for (const cfg of stageConfigs) {
+      if (!cfg.type || !['INDIVIDUAL', 'TEAM', 'PK'].includes(cfg.type)) {
+        throw new StageError(`无效的阶段类型: ${cfg.type}`);
+      }
+      if (typeof cfg.orderNumber !== 'number' || cfg.orderNumber < 1) {
+        throw new StageError(`orderNumber 必须是正整数: ${cfg.orderNumber}`);
+      }
+    }
+
+    // Check for duplicate orderNumbers
+    const orderNumbers = stageConfigs.map(s => s.orderNumber);
+    if (new Set(orderNumbers).size !== orderNumbers.length) {
+      throw new StageError('阶段序号不能重复');
+    }
+
+    // Execute in a transaction
+    const result = await this._prisma.$transaction(async (tx) => {
+      // Get existing stages
+      const existing = await tx.competition_stages.findMany({
+        where: { competition_id: competitionId },
+      });
+      const existingIds = new Set(existing.map(s => s.id));
+      const incomingIds = new Set(stageConfigs.filter(s => s.id).map(s => s.id));
+
+      // Delete stages not in the incoming array
+      for (const old of existing) {
+        if (!incomingIds.has(old.id)) {
+          // Delete rounds belonging to this stage first
+          await tx.rounds.deleteMany({ where: { stage_id: old.id } });
+          await tx.competition_stages.delete({ where: { id: old.id } });
+        }
+      }
+
+      // Upsert each incoming stage config
+      for (const cfg of stageConfigs) {
+        if (cfg.id && existingIds.has(cfg.id)) {
+          // Update existing stage
+          await tx.competition_stages.update({
+            where: { id: cfg.id },
+            data: {
+              type: cfg.type,
+              order_number: cfg.orderNumber,
+            },
+          });
+        } else {
+          // Create new stage
+          await tx.competition_stages.create({
+            data: {
+              competition_id: competitionId,
+              type: cfg.type,
+              order_number: cfg.orderNumber,
+              status: 'WAITING',
+            },
+          });
+        }
+      }
+
+      // Return all stages with rounds
+      return tx.competition_stages.findMany({
+        where: { competition_id: competitionId },
+        include: {
+          rounds: { orderBy: { order_number: 'asc' } },
+        },
+        orderBy: { order_number: 'asc' },
+      });
+    });
+
+    return result;
   }
 
   // ─── Manual stage finish (judge-triggered) ──────────────────────

@@ -12,10 +12,40 @@ function createGameRouter(repos, orchestrator) {
     return result?.result || result;
   }
 
+  // List stages with rounds
+  router.get('/competitions/:id/stages', authMiddleware, async (req, res) => {
+    try {
+      const stages = await orchestrator.listStages(req.params.id);
+      res.json({ code: 200, message: 'success', data: stages });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
+  // Configure stage order and types
+  router.put('/competitions/:id/stages', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+    try {
+      const stages = await orchestrator.configureStages(req.params.id, req.body.stages);
+      res.json({ code: 200, message: 'success', data: stages });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
   // Start tournament
   router.post('/tournaments/:id/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.startTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.startTournament(req.params.id));
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
+  // Start stage
+  router.post('/competitions/:competitionId/stages/:stageId/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+    try {
+      const result = handleOrchestratorResult(await orchestrator.startStage(req.params.competitionId, req.params.stageId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
