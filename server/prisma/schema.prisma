@@ -201,6 +201,7 @@ model rounds {
   type                  String                  @db.VarChar(50)
   order_number          Int
   duration_seconds      Int
+  preparation_seconds   Int                     @default(10)
   waiting_seconds       Int                     @default(0)
   status                String                  @default("WAITING") @db.VarChar(50)
   started_at            DateTime?               @db.Timestamptz(6)

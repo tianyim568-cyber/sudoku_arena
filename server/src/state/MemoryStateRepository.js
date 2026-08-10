@@ -24,6 +24,9 @@ class MemoryStateRepository {
     // Round 3 suggestion votes: puzzleId -> Map<"row-col", Set<playerId>>
     this._r3SuggestionVotes = new Map();
 
+    // Stage context: competitionId -> context object
+    this._stageContexts = new Map();
+
     // Active players: tournamentId -> Map<userId, socketId>
     this._activePlayers = new Map();
   }
@@ -310,6 +313,20 @@ class MemoryStateRepository {
     const players = this._activePlayers.get(tournamentId);
     if (!players) return {};
     return Object.fromEntries(players);
+  }
+
+  // ─── Stage Context ─────────────────────────────────────────
+
+  async getStageContext(competitionId) {
+    return this._stageContexts.get(competitionId) || null;
+  }
+
+  async setStageContext(competitionId, context) {
+    this._stageContexts.set(competitionId, { ...context });
+  }
+
+  async deleteStageContext(competitionId) {
+    this._stageContexts.delete(competitionId);
   }
 }
 
