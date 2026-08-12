@@ -1,6 +1,15 @@
 /**
  * Team repository — abstracts all team-related database operations.
  * All methods are async (PostgreSQL).
+ *
+ * @deprecated This repository references the legacy schema (dropped in migration 018).
+ * New schema changes:
+ *   - `teams` now has UUID PK, `competition_id` FK (was `tournament_id`), `created_at`
+ *   - `team_members` now has composite PK (team_id, participant_id), uses `participant_id`
+ *     FK (was `player_id` → users), no `position` or `joined_at` columns
+ *   - Judge management moved to `competition_judges` table (composite PK: competition_id + user_id)
+ *   - `tournament_judges` table dropped
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class TeamRepository {

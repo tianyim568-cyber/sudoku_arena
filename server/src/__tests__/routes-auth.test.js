@@ -27,7 +27,7 @@ function buildRepos(overrides = {}) {
       // (user not found) or a different row.
       findByUsername: overrides.findByUsername || (async (username) => {
         if (username === 'admin') {
-          return { id: 1, username: 'admin', password: ADMIN_HASH, role: 'ADMIN', display_name: '管理员' };
+          return { id: 1, username: 'admin', password_hash: ADMIN_HASH, role: 'ADMIN', display_name: '管理员' };
         }
         return null;
       }),
@@ -60,7 +60,7 @@ describe('POST /api/auth/login', () => {
     expect(res.body.data.user.username).toBe('admin');
     expect(res.body.data.user.role).toBe('ADMIN');
     // Password must NEVER be in the response.
-    expect(res.body.data.user.password).toBeUndefined();
+    expect(res.body.data.user.password_hash).toBeUndefined();
   });
 
   test('wrong password returns error envelope with code 40001', async () => {
@@ -97,7 +97,7 @@ describe('POST /api/auth/login', () => {
     const repos = buildRepos({
       findByUsername: async (username) => {
         receivedUsername = username;
-        return { id: 1, username, password: ADMIN_HASH, role: 'ADMIN', display_name: 'x' };
+        return { id: 1, username, password_hash: ADMIN_HASH, role: 'ADMIN', display_name: 'x' };
       },
     });
     const app = buildApp(repos);

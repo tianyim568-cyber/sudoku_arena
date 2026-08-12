@@ -4,7 +4,7 @@
 //   - invalid body -> responds with the app's error envelope (code 40001) and stops
 // We test it in isolation by building fake req/res/next objects.
 
-const { validate } = require('../middleware/validate');
+const { validateBody } = require('../middleware/validate');
 const { z } = require('zod');
 
 // Build a minimal mock of Express's req/res/next trio.
@@ -28,7 +28,7 @@ describe('validate middleware', () => {
     name: z.string().min(1),
     age: z.coerce.number().int().positive(),
   });
-  const middleware = validate(schema);
+  const middleware = validateBody(schema);
 
   test('calls next() when body matches the schema', () => {
     const { req, res, next, state } = buildMocks({ name: 'Alice', age: 30 });

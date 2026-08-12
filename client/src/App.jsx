@@ -2,16 +2,22 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { useLanguage } from './i18n/LanguageContext';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import TournamentListPage from './pages/TournamentListPage';
 import TournamentDetailPage from './pages/TournamentDetailPage';
 import PlayerGamePage from './pages/PlayerGamePage';
 import JudgeControlPage from './pages/JudgeControlPage';
-import CompetitionEntryPage from './pages/CompetitionEntryPage';
+import CompetitionJoinPage from './pages/CompetitionJoinPage';
+import DisplayPage from './pages/DisplayPage';
 import DashboardLayout from './components/DashboardLayout';
 import DashboardCompetitionsPage from './pages/DashboardCompetitionsPage';
 import DashboardPuzzleBankPage from './pages/DashboardPuzzleBankPage';
 import DashboardPage from './pages/DashboardPage';
 import ComingSoonPage from './pages/ComingSoonPage';
+
+// Multi-tenancy introduced ORG_ADMIN alongside the original ADMIN role.
+// Both administer an organization, so both get the dashboard.
+const ADMIN_ROLES = ['ADMIN', 'ORG_ADMIN'];
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -33,13 +39,15 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-      <Route path="/competition/:identifier" element={<CompetitionEntryPage />} />
+      <Route path="/register" element={user ? <Navigate to="/" /> : <RegisterPage />} />
+      <Route path="/competition/:accessCode" element={<CompetitionJoinPage />} />
+      <Route path="/display/:token" element={<DisplayPage />} />
       {/* Admins manage from the dashboard; judges and players keep the plain list.
           Redirecting here (rather than in LoginPage) also covers returning users
           who land on "/" with a stored token. */}
       <Route path="/" element={
         <PrivateRoute>
-          {user?.role === 'ADMIN' ? <Navigate to="/dashboard" replace /> : <TournamentListPage />}
+          {ADMIN_ROLES.includes(user?.role) ? <Navigate to="/dashboard" replace /> : <TournamentListPage />}
         </PrivateRoute>
       } />
       <Route path="/tournament/:id" element={<PrivateRoute><TournamentDetailPage /></PrivateRoute>} />
@@ -47,7 +55,7 @@ function AppRoutes() {
         <PrivateRoute><RoleRoute roles={['PLAYER']}><PlayerGamePage /></RoleRoute></PrivateRoute>
       } />
       <Route path="/judge/:tournamentId" element={
-        <PrivateRoute><RoleRoute roles={['JUDGE', 'ADMIN']}><JudgeControlPage /></RoleRoute></PrivateRoute>
+        <PrivateRoute><RoleRoute roles={['JUDGE']}><JudgeControlPage /></RoleRoute></PrivateRoute>
       } />
       {/* Puzzle Bank used to live at /puzzle-bank as a standalone page. It is
           now a dashboard section (/dashboard/puzzle-bank), so old links and
@@ -55,7 +63,7 @@ function AppRoutes() {
       <Route path="/puzzle-bank" element={<Navigate to="/dashboard/puzzle-bank" replace />} />
       {/* Dashboard route group — admin-only, uses DashboardLayout with sidebar */}
       <Route path="/dashboard" element={
-        <PrivateRoute><RoleRoute roles={['ADMIN']}><DashboardLayout /></RoleRoute></PrivateRoute>
+        <PrivateRoute><RoleRoute roles={ADMIN_ROLES}><DashboardLayout /></RoleRoute></PrivateRoute>
       }>
         <Route index element={<DashboardPage />} />
         <Route path="competitions" element={<DashboardCompetitionsPage />} />

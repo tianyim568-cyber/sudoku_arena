@@ -1,6 +1,12 @@
 /**
  * Submission repository — abstracts all submission-related database operations.
  * All methods are async (PostgreSQL).
+ *
+ * @deprecated This repository references the legacy `submissions` table (dropped in migration 018).
+ * New schema replaces submissions with `puzzle_answers` table (UUID PK, session_id FK,
+ * JSONB `current_grid`, `correct_cells`, `total_empty_cells`, `progress_percentage`).
+ * Submissions are now tracked per-session via `player_round_sessions` + `puzzle_answers`.
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class SubmissionRepository {

@@ -7,12 +7,24 @@ const EN = {
   // Auth / permissions
   '未登录': 'You are not logged in',
   'Token无效或已过期': 'Your session token is invalid or has expired',
+  '此令牌不是比赛专用令牌': 'This token is not competition-scoped',
+  '您未注册参加此比赛': 'You are not registered for this competition',
+  '缺少比赛标识': 'Missing competition identifier',
+  '比赛登录失败，请稍后重试': 'Competition login failed, please try again later',
   '权限不足': 'Insufficient permissions',
   '登录尝试过于频繁，请15分钟后再试': 'Too many login attempts, please try again in 15 minutes',
   '用户名和密码不能为空': 'Username and password are required',
   '用户名或密码错误': 'Incorrect username or password',
   '用户不存在': 'User not found',
   '用户名已存在': 'Username already exists',
+  '组织名称已存在': 'Organization name already exists',
+  '组织名称、管理员用户名和密码不能为空': 'Organization name, admin username, and password are required',
+  '组织名称至少需要2个字符': 'Organization name must be at least 2 characters',
+  '密码至少需要6个字符': 'Password must be at least 6 characters',
+  '管理员用户名不能为空': 'Admin username is required',
+  '注册失败，请重试': 'Registration failed, please try again',
+  '注册失败，请稍后重试': 'Registration failed, please try again later',
+  '注册尝试过于频繁，请15分钟后再试': 'Too many registration attempts, please try again in 15 minutes',
   '缺少必填字段': 'Missing required field(s)',
   '角色值无效': 'Invalid role value',
 
@@ -69,6 +81,12 @@ const EN = {
   '删除选手失败': 'Failed to delete participants',
   '导出选手信息失败': 'Failed to export participant information',
   '没有可导出的选手数据': 'No participant data to export',
+
+  // Access link
+  '生成访问链接失败': 'Failed to generate access link',
+  '获取访问链接失败': 'Failed to retrieve access link',
+  '撤销访问链接失败': 'Failed to revoke access link',
+  '获取比赛信息失败': 'Failed to retrieve competition info',
 };
 
 /**

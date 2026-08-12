@@ -2,6 +2,13 @@
  * Score repository — abstracts all score-related database operations.
  * Uses idempotent upsert semantics to prevent double-scoring.
  * All methods are async (PostgreSQL). datetime("now") → NOW().
+ *
+ * @deprecated This repository references the legacy `scores` table (dropped in migration 018).
+ * New schema replaces scores with:
+ *   - `round_rankings` (UUID PK, round_id FK, participant_id/team_id, score, rank)
+ *   - `final_rankings` (UUID PK, competition_id FK, category, competition_type, entity_id, rank, score)
+ * Rankings are now snapshot-based, computed after round/competition completion.
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class ScoreRepository {

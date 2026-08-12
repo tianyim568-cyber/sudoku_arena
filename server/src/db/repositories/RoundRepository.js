@@ -1,6 +1,14 @@
 /**
  * Round repository — abstracts all round-related database operations.
  * All methods are async (PostgreSQL). datetime('now') → NOW().
+ *
+ * @deprecated This repository references the legacy schema (dropped in migration 018).
+ * New schema changes:
+ *   - Table `rounds` now has UUID PK, `stage_id` FK (→ competition_stages), `type` (was `round_type`),
+ *     `order_number` (was `round_number`), `waiting_seconds` (new), status values: WAITING/RUNNING/FINISHED
+ *   - Rounds no longer have `tournament_id` — they belong to a `competition_stage` which belongs to a `competition`
+ *   - `remaining_seconds` column removed — timing handled in application layer
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class RoundRepository {

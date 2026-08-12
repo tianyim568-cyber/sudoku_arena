@@ -1,6 +1,16 @@
 /**
  * Participant repository — abstracts all participant-related database operations.
  * Handles schools, participants, and tournament-participant links.
+ *
+ * @deprecated This repository references multiple legacy tables dropped in migration 018:
+ *   - `schools` table dropped — school info now stored as `school`/`province` columns on `participants`
+ *   - `tournament_participants` junction table dropped — `participants` now has direct `competition_id` FK
+ *   - `participants` table restructured: UUID PK, `competition_id` FK, `user_id` FK (UUID),
+ *     `name`, `school`, `province`, `age`, `category`, `group_name`; columns `account`,
+ *     `password`, `school_id` removed
+ *   - User creation now uses `password_hash` (was `password`), `email` (new),
+ *     `role` values updated (SUPER_ADMIN/ORG_ADMIN/JUDGE/PLAYER), `display_name` removed
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 const bcrypt = require('bcryptjs');

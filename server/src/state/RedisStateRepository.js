@@ -373,6 +373,23 @@ class RedisStateRepository {
     }
     return result;
   }
+
+  // ─── Stage Context ─────────────────────────────────────────
+
+  async getStageContext(competitionId) {
+    const data = await this.redis.get(`stage:context:${competitionId}`);
+    if (!data) return null;
+    return JSON.parse(data);
+  }
+
+  async setStageContext(competitionId, context) {
+    const key = `stage:context:${competitionId}`;
+    await this.redis.set(key, JSON.stringify(context), 'EX', 86400); // 24 hour TTL
+  }
+
+  async deleteStageContext(competitionId) {
+    await this.redis.del(`stage:context:${competitionId}`);
+  }
 }
 
 module.exports = RedisStateRepository;

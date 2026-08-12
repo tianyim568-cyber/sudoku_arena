@@ -11,7 +11,7 @@ const { createTournamentRouter } = require('../routes/tournaments');
 
 // Mint real JWT tokens for the three roles. The auth middleware will verify
 // these against config.JWT_SECRET — same path as production.
-const ADMIN_TOKEN = generateToken({ id: 1, username: 'admin', role: 'ADMIN' });
+const ADMIN_TOKEN = generateToken({ id: 1, username: 'admin', role: 'ORG_ADMIN' });
 const JUDGE_TOKEN = generateToken({ id: 2, username: 'judge', role: 'JUDGE' });
 const PLAYER_TOKEN = generateToken({ id: 3, username: 'player1', role: 'PLAYER' });
 

@@ -1,5 +1,5 @@
 /**
- * Round2Engine — Relay round logic.
+ * Round2Engine — Relay round logic (Team Round).
  *
  * Each team has 16 puzzles. Players are assigned one puzzle at a time.
  * Every 60s, puzzle assignments rotate among team members.
@@ -7,14 +7,14 @@
  * Completion bonus: +3 pts/min remaining when all 16 solved.
  */
 
-const RoundEngine = require('./RoundEngine');
+const RoundEngine = require('../RoundEngine');
 
 class Round2Engine extends RoundEngine {
   /**
-   * @param {import('../db/index')} repos
-   * @param {import('../state/StateRepository')} state
-   * @param {import('./ScoringService')} scoring
-   * @param {import('../services/Round2NotificationService')} [r2Notification]
+   * @param {import('../../db/index')} repos
+   * @param {import('../../state/StateRepository')} state
+   * @param {import('../ScoringService')} scoring
+   * @param {import('../../services/Round2NotificationService')} [r2Notification]
    */
   constructor(repos, state, scoring, r2Notification) {
     super(repos, state, scoring);

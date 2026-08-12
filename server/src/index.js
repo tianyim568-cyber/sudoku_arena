@@ -7,13 +7,19 @@ require('dotenv').config();
 const { initDB, getRepos, getHelpers } = require('./utils/db');
 const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
-const { createTournamentRouter } = require('./routes/tournaments');
-const { createGameRouter } = require('./routes/game');
-const { createPuzzleBankRouter } = require('./routes/puzzleBank');
-const { createParticipantRouter } = require('./routes/participants');
+const { createCompetitionRouter } = require('./routes/competitions');
+const { createDisplayRouter } = require('./routes/display');
+// TODO: These routes are disabled until rewritten for the new UUID-based schema (migration 018+).
+// The deprecated repositories they depend on query tables that were dropped.
+// Re-enable after creating new route files backed by updated repositories.
+// const { createTournamentRouter } = require('./routes/tournaments');
+// const { createGameRouter } = require('./routes/game');
+// const { createPuzzleBankRouter } = require('./routes/puzzleBank');
+// const { createParticipantRouter } = require('./routes/participants');
 const EmissionBus = require('./ws/EmissionBus');
 const SocketManager = require('./ws/SocketManager');
 const GameOrchestrator = require('./engine/GameOrchestrator');
+const DisplayManager = require('./engine/DisplayManager');
 const { createStateRepository } = require('./state');
 const config = require('./config');
 
@@ -30,11 +36,22 @@ async function main() {
   });
 
   // Security headers on every response (clickjacking, MIME-sniffing, etc.).
-  // CSP is left off for now — it needs per-asset tuning for the Vite/React SPA
-  // and Socket.IO before we enable it during production hardening.
+  // CSP only governs pages Express itself serves — in dev the SPA is served by
+  // Vite, so these directives apply to the production build. connectSrc allows
+  // ws:/wss: for Socket.IO.
   app.use(helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+      },
+    },
+    // The client runs on another origin in dev and must be able to load these.
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    // -> X-Frame-Options: DENY (anti-clickjacking)
     frameguard: { action: 'deny' },
   }));
 
@@ -75,35 +92,47 @@ async function main() {
   // Mount routes — all receive repos instead of raw dbHelpers
   app.use('/api/auth', createAuthRouter(repos));
   app.use('/api/users', createUserRouter(repos));
-  app.use('/api', createTournamentRouter(repos));
+  app.use('/api/competitions', createCompetitionRouter(repos));
+
+  // TODO: Disabled until rewritten for new UUID-based schema.
+  // app.use('/api', createTournamentRouter(repos));
 
   // Create EmissionBus and GameOrchestrator
   const bus = new EmissionBus();
   const orchestrator = new GameOrchestrator(repos, state, bus);
-  app.use('/api', createGameRouter(repos, orchestrator));
-  app.use('/api', createPuzzleBankRouter(repos));
-  app.use('/api', createParticipantRouter(repos));
+  const displayManager = new DisplayManager(repos, bus);
+
+  // Mount display routes
+  app.use('/api', createDisplayRouter(displayManager));
+
+  // app.use('/api', createGameRouter(repos, orchestrator));
+  // app.use('/api', createPuzzleBankRouter(repos));
+  // app.use('/api', createParticipantRouter(repos));
 
   // Setup WebSocket via SocketManager (replaces socketHandler)
   new SocketManager(io, repos, orchestrator, bus);
 
   // Serve frontend static files
   const path = require('path');
+  const fs = require('fs');
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
-  app.use(express.static(clientDist));
-
-  // Unknown API routes must answer, not hang. Without this they fall through to
-  // the SPA fallback below, which sends nothing for /api paths — leaving the
-  // connection open until the client times out.
-  app.use('/api', (req, res) => {
-    res.status(404).json({ code: 404, message: 'Interface not found', data: null });
-  });
-
-  // SPA fallback: serve index.html for any non-API route
+  const indexHtml = path.join(clientDist, 'index.html');
+  const hasFrontend = fs.existsSync(indexHtml);
+  if (hasFrontend) {
+    app.use(express.static(clientDist));
+  }
+  // SPA fallback: serve index.html for any non-API route.
+  // Unknown /api paths must answer here, not fall through silently — otherwise
+  // the connection stays open until the client times out.
   app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
-      res.sendFile(path.join(clientDist, 'index.html'));
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      // Standard envelope, so the client's { code, message, data } contract holds.
+      return res.status(404).json({ code: 404, message: 'Interface not found', data: null });
     }
+    if (hasFrontend) {
+      return res.sendFile(indexHtml);
+    }
+    return res.status(404).json({ error: 'Frontend not built' });
   });
 
   const PORT = config.PORT;

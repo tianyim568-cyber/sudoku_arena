@@ -1,6 +1,6 @@
 const express = require('express');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
-const { validate } = require('../middleware/validate');
+const { validateBody } = require('../middleware/validate');
 const { submitAnswerSchema } = require('../validations/game');
 
 function createGameRouter(repos, orchestrator) {
@@ -14,10 +14,40 @@ function createGameRouter(repos, orchestrator) {
     return result?.result || result;
   }
 
+  // List stages with rounds
+  router.get('/competitions/:id/stages', authMiddleware, async (req, res) => {
+    try {
+      const stages = await orchestrator.listStages(req.params.id);
+      res.json({ code: 200, message: 'success', data: stages });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
+  // Configure stage order and types
+  router.put('/competitions/:id/stages', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+    try {
+      const stages = await orchestrator.configureStages(req.params.id, req.body.stages);
+      res.json({ code: 200, message: 'success', data: stages });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
   // Start tournament
   router.post('/tournaments/:id/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.startTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.startTournament(req.params.id));
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
+  // Start stage
+  router.post('/competitions/:competitionId/stages/:stageId/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+    try {
+      const result = handleOrchestratorResult(await orchestrator.startStage(req.params.competitionId, req.params.stageId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
@@ -64,6 +94,16 @@ function createGameRouter(repos, orchestrator) {
     }
   });
 
+  // Transition to next stage (judge-triggered: after current stage finishes, start the next)
+  router.post('/competitions/:id/stages/next', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+    try {
+      const result = handleOrchestratorResult(await orchestrator.startNextStage(req.params.id));
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
   // End tournament
   router.post('/tournaments/:id/end', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
     try {
@@ -75,10 +115,28 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Submit answer
-  router.post('/submissions', authMiddleware, roleMiddleware('PLAYER'), validate(submitAnswerSchema), async (req, res) => {
+  router.post('/submissions', authMiddleware, roleMiddleware('PLAYER'), validateBody(submitAnswerSchema), async (req, res) => {
     try {
       const { roundId, puzzleId, submissionType, row, col, value, grid } = req.body;
       const { result, emissions } = await orchestrator.submitAnswer(req.user.userId, roundId, puzzleId, submissionType, { row, col, value, grid });
+      orchestrator.processEmissions(emissions);
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      res.json({ code: 40050, message: e.message, data: null });
+    }
+  });
+
+  // Individual round submission (server-authoritative scoring)
+  router.post('/submissions/individual', authMiddleware, roleMiddleware('PLAYER'), async (req, res) => {
+    try {
+      const { tournamentId, roundId, puzzleId, grid } = req.body;
+      const { result, emissions } = await orchestrator.submitAnswer(
+        req.user.userId,
+        roundId,
+        puzzleId,
+        'INDIVIDUAL',
+        { grid, tournamentId }
+      );
       orchestrator.processEmissions(emissions);
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {

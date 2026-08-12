@@ -1,16 +1,61 @@
-// Validation middleware factory.
-// Checks req.body against a Zod schema before the route handler runs.
-// On failure, responds with the app's standard error envelope (HTTP 200 + code);
-// on success, the request continues to the handler.
-function validate(schema) {
+/**
+ * validate.js — Zod-based request body validation middleware factory.
+ *
+ * Creates Express middleware from a Zod schema. On validation failure,
+ * returns a 400 response with the first error message.
+ *
+ * Usage:
+ *   const { z } = require('zod');
+ *   const { validate } = require('../middleware/validate');
+ *
+ *   const loginSchema = z.object({
+ *     username: z.string().min(1),
+ *     password: z.string().min(1),
+ *   });
+ *
+ *   router.post('/login', validate(loginSchema), handler);
+ */
+
+const { z } = require('zod');
+
+/**
+ * Validate req.body against a Zod schema.
+ * @param {z.ZodSchema} schema
+ * @returns {import('express').RequestHandler}
+ */
+function validateBody(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      const message = result.error.issues[0]?.message || 'Invalid request data';
-      return res.json({ code: 40001, message, data: null });
+      // Zod v4 error structure: result.error.errors is an array
+      const firstError = result.error.issues?.[0]?.message ||
+                         result.error.errors?.[0]?.message ||
+                         'Validation failed';
+      return res.json({ code: 40001, message: firstError, data: null });
     }
+    // Replace req.body with the parsed (and possibly transformed) data
+    req.body = result.data;
     next();
   };
 }
 
-module.exports = { validate };
+/**
+ * Validate req.query against a Zod schema.
+ * @param {z.ZodSchema} schema
+ * @returns {import('express').RequestHandler}
+ */
+function validateQuery(schema) {
+  return (req, res, next) => {
+    const result = schema.safeParse(req.query);
+    if (!result.success) {
+      const firstError = result.error.issues?.[0]?.message ||
+                         result.error.errors?.[0]?.message ||
+                         'Query validation failed';
+      return res.json({ code: 40001, message: firstError, data: null });
+    }
+    req.query = result.data;
+    next();
+  };
+}
+
+module.exports = { validateBody, validateQuery, z };

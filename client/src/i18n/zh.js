@@ -75,6 +75,26 @@ export default {
     admin: '管理员',
     judge: '裁判',
     player1: '选手1',
+    linkToRegister: '还没有账号？立即注册',
+  },
+
+  register: {
+    title: '注册新组织',
+    subtitle: '创建您的组织并开始使用数独竞技场',
+    organizationName: '组织名称',
+    adminUsername: '管理员用户名',
+    password: '密码',
+    confirmPassword: '确认密码',
+    submit: '注册',
+    failed: '注册失败',
+    success: '注册成功！正在跳转...',
+    linkToLogin: '已有账号？返回登录',
+    orgNameRequired: '请输入组织名称',
+    orgNameTooShort: '组织名称至少需要2个字符',
+    adminRequired: '请输入管理员用户名',
+    passwordRequired: '请输入密码',
+    passwordTooShort: '密码至少需要6个字符',
+    passwordMismatch: '两次输入的密码不一致',
   },
 
   tournamentList: {

@@ -1,6 +1,15 @@
 /**
  * Puzzle repository — abstracts all puzzle-related database operations.
  * All methods are async (PostgreSQL).
+ *
+ * @deprecated This repository references the legacy schema (dropped in migration 018).
+ * New schema changes:
+ *   - Table `puzzles` now has UUID PK, `puzzle_set_id` FK (→ puzzle_sets), `type` (was `puzzle_type`),
+ *     `initial_grid` / `solution_grid` as JSONB (was TEXT), `score` (was `points`)
+ *   - `round_id`, `order_in_round`, `letter`, `team_id`, `metadata` columns removed
+ *   - Puzzle-to-round assignment now via `round_puzzles` junction table
+ *   - Player puzzle tracking now via `puzzle_answers` table (session-based)
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class PuzzleRepository {

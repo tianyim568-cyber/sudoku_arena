@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
@@ -55,6 +55,12 @@ export default function LoginPage() {
             {t('login.submit')}
           </button>
         </form>
+
+        <div className="mt-4 text-center">
+          <Link to="/register" className="text-purple-300 hover:text-white text-xs sm:text-sm transition-colors">
+            {t('login.linkToRegister')}
+          </Link>
+        </div>
       </div>
     </div>
   );

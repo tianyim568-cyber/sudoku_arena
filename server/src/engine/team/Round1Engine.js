@@ -1,19 +1,19 @@
 /**
- * Round1Engine — "Nine-in-One" round logic.
+ * Round1Engine — "Nine-in-One" round logic (Team Round).
  *
  * 9 JOC puzzles (single-cell submission → reveals a letter clue).
  * 1 FINAL puzzle (full-grid submission, unlocked after all 9 JOC solved).
  * Time bonus: +3 pts/min remaining if all 10 completed.
  */
 
-const RoundEngine = require('./RoundEngine');
+const RoundEngine = require('../RoundEngine');
 
 class Round1Engine extends RoundEngine {
   /**
-   * @param {import('../db/index')} repos
-   * @param {import('../state/StateRepository')} state
-   * @param {import('./ScoringService')} scoring
-   * @param {import('../services/PuzzleAssignmentService')} puzzleAssignment
+   * @param {import('../../db/index')} repos
+   * @param {import('../../state/StateRepository')} state
+   * @param {import('../ScoringService')} scoring
+   * @param {import('../../services/PuzzleAssignmentService')} puzzleAssignment
    */
   constructor(repos, state, scoring, puzzleAssignment) {
     super(repos, state, scoring);

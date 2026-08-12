@@ -134,6 +134,17 @@ export function AuthProvider({ children }) {
     throw new Error(res.message);
   };
 
+  // Org registration: creates the organization and signs the admin straight in.
+  const registerAndLogin = async (organizationName, adminUsername, password) => {
+    const res = await api.register(organizationName, adminUsername, password);
+    if (res.code === 200 && res.data?.token) {
+      setApiToken(res.data.token);
+      setUser(normalizeUser(res.data.user));
+      return true;
+    }
+    throw new Error(res.message);
+  };
+
   // Competition entry (judges and players). Goes through the context so the
   // session is registered — calling setToken() directly would store the token
   // while leaving `user` null, and PrivateRoute would bounce back to /login.
@@ -146,10 +157,13 @@ export function AuthProvider({ children }) {
     }
     setApiToken(res.data.token);
     const claims = decodeJwtPayload(res.data.token) || {};
-    // Prefer what the server sends; fall back to the claims if it sends only a token.
+    // The server answers { token, competition, user }; older shapes sent only a
+    // token. Prefer what it sends, and fall back to the token's own claims.
+    const competitionId =
+      res.data.competition?.id ?? res.data.competitionId ?? claims.competitionId;
     const session = res.data.user
-      ? normalizeUser({ ...res.data.user, competitionId: res.data.competitionId ?? claims.competitionId })
-      : userFromCompetitionClaims(claims);
+      ? normalizeUser({ ...res.data.user, competitionId })
+      : userFromCompetitionClaims({ ...claims, competitionId });
     setUser(session);
     return session;
   };
@@ -168,6 +182,7 @@ export function AuthProvider({ children }) {
       user,
       loading,
       login,
+      registerAndLogin,
       competitionLogin,
       logout,
       authType,

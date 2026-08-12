@@ -16,6 +16,7 @@
 
 const jwt = require('jsonwebtoken');
 const config = require('../config');
+const { getPrisma } = require('../db/prisma');
 const {
   joinRoomSchema,
   leaveRoomSchema,
@@ -61,6 +62,9 @@ class SocketManager {
       this.io.to(`team_${e.targetId.tournamentId}_${e.targetId.teamId}`).emit('event', msg);
     } else if (e.target === 'user') {
       this.io.to(`user_${e.targetId}`).emit('event', msg);
+    } else if (e.target === 'display') {
+      msg.tournamentId = e.targetId;
+      this.io.to(`display_${e.targetId}`).emit('event', msg);
     }
   }
 
@@ -223,6 +227,69 @@ class SocketManager {
         } catch (e) {
           socket.emit('event', {
             type: 'ANSWER_ERROR',
+            timestamp: new Date().toISOString(),
+            payload: { message: e.message }
+          });
+        }
+      });
+
+      socket.on('player_move', async (data) => {
+        try {
+          const { roundId, puzzleId, row, col, value } = data;
+          const userId = socket.user.userId;
+          const prisma = getPrisma();
+
+          // Find player record
+          const player = await prisma.players.findFirst({
+            where: { competition_id: data.tournamentId, user_id: userId },
+          });
+          if (!player) {
+            socket.emit('event', {
+              type: 'PLAYER_MOVE_ERROR',
+              timestamp: new Date().toISOString(),
+              payload: { message: '未找到参赛者记录' }
+            });
+            return;
+          }
+
+          // Get current grid from state repository
+          let grid = await this.orchestrator.state.getIndividualPlayerGrid(roundId, player.id, puzzleId);
+
+          // If no grid exists yet, fetch from puzzle_answers
+          if (!grid) {
+            const answer = await prisma.puzzle_answers.findFirst({
+              where: {
+                session_id: `${roundId}_${player.id}`,
+                puzzle_id: puzzleId,
+              },
+            });
+            if (answer) {
+              grid = typeof answer.current_grid === 'string'
+                ? JSON.parse(answer.current_grid)
+                : answer.current_grid;
+            }
+          }
+
+          // Apply the move
+          if (grid) {
+            grid[row][col] = value;
+            await this.orchestrator.state.setIndividualPlayerGrid(roundId, player.id, puzzleId, grid);
+
+            socket.emit('event', {
+              type: 'PLAYER_MOVE_ACK',
+              timestamp: new Date().toISOString(),
+              payload: { success: true, row, col, value }
+            });
+          } else {
+            socket.emit('event', {
+              type: 'PLAYER_MOVE_ERROR',
+              timestamp: new Date().toISOString(),
+              payload: { message: '未找到答题记录' }
+            });
+          }
+        } catch (e) {
+          socket.emit('event', {
+            type: 'PLAYER_MOVE_ERROR',
             timestamp: new Date().toISOString(),
             payload: { message: e.message }
           });
