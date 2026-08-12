@@ -38,6 +38,16 @@ export function AuthProvider({ children }) {
     throw new Error(res.message);
   };
 
+  const registerAndLogin = async (organizationName, adminUsername, password) => {
+    const res = await api.register(organizationName, adminUsername, password);
+    if (res.code === 200 && res.data?.token) {
+      setApiToken(res.data.token);
+      setUser(normalizeUser(res.data.user));
+      return true;
+    }
+    throw new Error(res.message);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setApiToken(null);
@@ -45,7 +55,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, registerAndLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

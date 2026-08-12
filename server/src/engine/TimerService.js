@@ -122,7 +122,11 @@ class TimerService {
       const remaining = await this.state.getRemainingSeconds(roundId);
       if (remaining <= 0) {
         this.clearTickInterval(roundId);
-        onExpire();
+        try {
+          await onExpire();
+        } catch (e) {
+          console.error('[TimerService] onExpire callback failed:', e.message);
+        }
         return;
       }
       tickCount++;

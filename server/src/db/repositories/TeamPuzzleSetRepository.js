@@ -3,6 +3,12 @@
  * Extracted from PuzzleAssignmentService (SRP).
  * All methods are async (PostgreSQL).
  * INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
+ *
+ * @deprecated This repository references the legacy `team_puzzle_sets` table (dropped in migration 018).
+ * New schema replaces this with `round_puzzles` junction table (UUID PK, round_id FK,
+ * puzzle_id FK, order_number, score) for puzzle-to-round assignment, and the
+ * `puzzle_sets` + `puzzles` two-table model for puzzle library management.
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class TeamPuzzleSetRepository {

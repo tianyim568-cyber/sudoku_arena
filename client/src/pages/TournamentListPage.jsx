@@ -72,11 +72,11 @@ export default function TournamentListPage() {
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">{t('tournamentList.appTitle')}</h1>
-            <p className="text-purple-200 text-xs sm:text-sm">{user?.displayName} ({user?.role})</p>
+            <p className="text-purple-200 text-xs sm:text-sm">{user?.username} ({user?.role})</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <LanguageSwitcher />
-            {user?.role === 'ADMIN' && (
+            {user?.role === 'ORG_ADMIN' && (
               <button onClick={() => navigate('/puzzle-bank')}
                 className="px-3 sm:px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-xs sm:text-sm transition-colors">
                 {t('tournamentList.puzzleBank')}
@@ -99,7 +99,7 @@ export default function TournamentListPage() {
 
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{t('tournamentList.listTitle')}</h2>
-          {user?.role === 'ADMIN' && (
+          {user?.role === 'ORG_ADMIN' && (
             <button onClick={() => setShowCreate(!showCreate)}
               className="px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors">
               {t('tournamentList.newTournament')}

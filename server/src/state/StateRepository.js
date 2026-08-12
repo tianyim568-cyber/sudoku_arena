@@ -281,6 +281,30 @@ class StateRepository {
    */
   async deleteRound3PlayerFocuses(puzzleId) { throw new Error('Not implemented'); }
 
+  // ─── Stage Context ─────────────────────────────────────────
+
+  /**
+   * Get stage context for a competition.
+   * @param {string} competitionId
+   * @returns {Promise<Object|null>} stage context or null
+   */
+  async getStageContext(competitionId) { throw new Error('Not implemented'); }
+
+  /**
+   * Set stage context for a competition.
+   * @param {string} competitionId
+   * @param {Object} context — stage context object
+   * @returns {Promise<void>}
+   */
+  async setStageContext(competitionId, context) { throw new Error('Not implemented'); }
+
+  /**
+   * Delete stage context for a competition.
+   * @param {string} competitionId
+   * @returns {Promise<void>}
+   */
+  async deleteStageContext(competitionId) { throw new Error('Not implemented'); }
+
   // ─── Active Players ────────────────────────────────────────
 
   /**

@@ -5,7 +5,7 @@ function createTournamentRouter(repos) {
   const router = express.Router();
 
   // Create tournament
-  router.post('/tournaments', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const { name, description, scheduledTime } = req.body;
     if (!name) return res.json({ code: 40010, message: '比赛名称不能为空', data: null });
     const t = await repos.tournaments.create({ name, description: description || '', scheduledTime, createdBy: req.user.userId });
@@ -32,7 +32,7 @@ function createTournamentRouter(repos) {
   });
 
   // Delete tournament (PENDING or FINISHED only, ADMIN only)
-  router.delete('/tournaments/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.delete('/tournaments/:id', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const t = await repos.tournaments.findById(req.params.id);
     if (!t) return res.json({ code: 40400, message: '比赛不存在', data: null });
     if (t.status === 'IN_PROGRESS' || t.status === 'PAUSED') {
@@ -44,7 +44,7 @@ function createTournamentRouter(repos) {
   });
 
   // Update tournament
-  router.put('/tournaments/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.put('/tournaments/:id', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const t = await repos.tournaments.findById(req.params.id);
     if (!t) return res.json({ code: 40400, message: '比赛不存在', data: null });
     if (t.status !== 'PENDING') return res.json({ code: 40041, message: '比赛已开始，无法修改', data: null });
@@ -54,7 +54,7 @@ function createTournamentRouter(repos) {
   });
 
   // Create round
-  router.post('/tournaments/:id/rounds', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments/:id/rounds', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const { name, roundType, durationSeconds } = req.body;
     if (!name || !roundType || !durationSeconds) {
       return res.json({ code: 40010, message: '缺少必填字段', data: null });
@@ -75,7 +75,7 @@ function createTournamentRouter(repos) {
   });
 
   // Import puzzles
-  router.post('/rounds/:roundId/puzzles/import', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/rounds/:roundId/puzzles/import', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const { puzzles } = req.body;
     if (!puzzles || !Array.isArray(puzzles)) {
       return res.json({ code: 40020, message: '题目数据格式错误', data: null });
@@ -116,7 +116,7 @@ function createTournamentRouter(repos) {
   });
 
   // Create team
-  router.post('/tournaments/:id/teams', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments/:id/teams', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const { name } = req.body;
     if (!name) return res.json({ code: 40030, message: '队伍名称不能为空', data: null });
     const t = await repos.teams.create({ tournamentId: parseInt(req.params.id), name });
@@ -130,7 +130,7 @@ function createTournamentRouter(repos) {
   });
 
   // Add team member
-  router.post('/teams/:teamId/members', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/teams/:teamId/members', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const { playerId, position } = req.body;
     if (!playerId) return res.json({ code: 40030, message: '缺少选手ID', data: null });
     if (await repos.teams.memberExists(req.params.teamId, playerId)) {
@@ -145,7 +145,7 @@ function createTournamentRouter(repos) {
   });
 
   // Assign judge
-  router.post('/tournaments/:id/judges', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/tournaments/:id/judges', authMiddleware, roleMiddleware('ORG_ADMIN'), async (req, res) => {
     const { judgeId } = req.body;
     if (!judgeId) return res.json({ code: 40010, message: '缺少裁判ID', data: null });
     if (await repos.teams.judgeAlreadyAssigned(req.params.id, judgeId)) {

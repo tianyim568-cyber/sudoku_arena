@@ -38,6 +38,26 @@ export default {
     admin: 'Admin',
     judge: 'Judge',
     player1: 'Player 1',
+    linkToRegister: "Don't have an account? Register now",
+  },
+
+  register: {
+    title: 'Register New Organization',
+    subtitle: 'Create your organization and start using Sudoku Arena',
+    organizationName: 'Organization name',
+    adminUsername: 'Admin username',
+    password: 'Password',
+    confirmPassword: 'Confirm password',
+    submit: 'Register',
+    failed: 'Registration failed',
+    success: 'Registration successful! Redirecting...',
+    linkToLogin: 'Already have an account? Back to login',
+    orgNameRequired: 'Organization name is required',
+    orgNameTooShort: 'Organization name must be at least 2 characters',
+    adminRequired: 'Admin username is required',
+    passwordRequired: 'Password is required',
+    passwordTooShort: 'Password must be at least 6 characters',
+    passwordMismatch: 'Passwords do not match',
   },
 
   tournamentList: {

@@ -7,7 +7,13 @@
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "build:client": "cd ../client && npm install && npm run build",
-    "setup": "npm install && npm run build:client"
+    "setup": "npm install && npm run build:client",
+    "migrate": "node-pg-migrate",
+    "migrate:up": "node-pg-migrate up",
+    "migrate:down": "node-pg-migrate down",
+    "migrate:redo": "node-pg-migrate redo",
+    "migrate:create": "node-pg-migrate create",
+    "migrate:baseline": "node scripts/baseline-existing-db.js"
   },
   "keywords": [],
   "author": "",
@@ -17,16 +23,24 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "@prisma/client": "^6.12.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.22.2",
     "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "node-pg-migrate": "^9.0.0",
     "pg": "^8.22.0",
     "socket.io": "^4.8.3",
     "uuid": "^14.0.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.12.0",
+    "supertest": "^7.2.2"
   }
 }

@@ -3,6 +3,15 @@
  * All methods are async (PostgreSQL).
  * INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
  * datetime("now") → NOW()
+ *
+ * @deprecated This repository references legacy tables dropped in migration 018:
+ *   - `player_round_states` → replaced by `player_round_sessions` (UUID PK, round_id FK,
+ *     participant_id FK, status: WAITING/PLAYING/SUBMITTED/AUTO_SUBMITTED)
+ *   - `player_puzzle_assignments` → replaced by `puzzle_answers` (UUID PK, session_id FK,
+ *     puzzle_id FK, JSONB current_grid, correct_cells, total_empty_cells, progress_percentage)
+ * Key renames: `player_id` → `participant_id`, `is_completed` → status-based,
+ *   `current_grid` TEXT → JSONB.
+ * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
  */
 
 class PlayerStateRepository {
