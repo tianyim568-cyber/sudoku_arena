@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
-const { initDB, getRepos } = require('./utils/db');
+const { initDB, getRepos, getHelpers } = require('./utils/db');
 const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
 const { createTournamentRouter } = require('./routes/tournaments');
@@ -44,7 +44,19 @@ async function main() {
   // Health check endpoint for monitoring
   app.get('/api/health', async (req, res) => {
     try {
-      const db = repos.UserRepository ? 'ok' : 'error';
+      // Probe the database with a trivial query so the reported status
+      // reflects live reachability, not just that the repos object exists.
+      let db = 'error';
+      try {
+        const helpers = getHelpers();
+        if (helpers) {
+          await helpers.get('SELECT 1');
+          db = 'ok';
+        }
+      } catch (dbErr) {
+        console.error('Health check DB probe failed:', dbErr.message);
+      }
+
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -79,6 +91,14 @@ async function main() {
   const path = require('path');
   const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
   app.use(express.static(clientDist));
+
+  // Unknown API routes must answer, not hang. Without this they fall through to
+  // the SPA fallback below, which sends nothing for /api paths — leaving the
+  // connection open until the client times out.
+  app.use('/api', (req, res) => {
+    res.status(404).json({ code: 404, message: 'Interface not found', data: null });
+  });
+
   // SPA fallback: serve index.html for any non-API route
   app.get('*', (req, res) => {
     if (!req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {

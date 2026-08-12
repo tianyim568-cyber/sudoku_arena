@@ -7,6 +7,7 @@ const express = require('express');
 const multer = require('multer');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { validateFileType } = require('../middleware/fileType');
+const { expensiveLimiter } = require('../middleware/rateLimiters');
 const ParticipantImportService = require('../services/ParticipantImportService');
 const ParticipantExportService = require('../services/ParticipantExportService');
 
@@ -35,6 +36,7 @@ function createParticipantRouter(repos) {
   // Upload Excel, parse & validate, return preview data
   router.post(
     '/tournaments/:id/participants/upload',
+    expensiveLimiter,
     authMiddleware,
     roleMiddleware('ADMIN'),
     upload.single('file'),

@@ -1,5 +1,7 @@
 const express = require('express');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const { submitAnswerSchema } = require('../validations/game');
 
 function createGameRouter(repos, orchestrator) {
   const router = express.Router();
@@ -73,7 +75,7 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Submit answer
-  router.post('/submissions', authMiddleware, roleMiddleware('PLAYER'), async (req, res) => {
+  router.post('/submissions', authMiddleware, roleMiddleware('PLAYER'), validate(submitAnswerSchema), async (req, res) => {
     try {
       const { roundId, puzzleId, submissionType, row, col, value, grid } = req.body;
       const { result, emissions } = await orchestrator.submitAnswer(req.user.userId, roundId, puzzleId, submissionType, { row, col, value, grid });

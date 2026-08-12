@@ -92,31 +92,31 @@ function assert(condition, message) {
   }
 }
 
-function describe(name, fn) {
+async function describe(name, fn) {
   console.log(`\n${name}`);
-  fn();
+  await fn();
 }
 
 // ─── Tests ───────────────────────────────────────────────────────
 
-describe('1. Enough puzzle validation', () => {
+describe('1. Enough puzzle validation', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(5);
   const puzzles = generatePuzzles(45, 5); // 5 teams × 9 = 45 JOC + 5 FINAL
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
   assert(result.size === 5, 'All 5 teams should get assignments');
   for (const [teamId, teamPuzzles] of result) {
     assert(teamPuzzles.length === 10, `Team ${teamId} should have 10 puzzles, got ${teamPuzzles.length}`);
   }
 });
 
-describe('2. Insufficient bank handling', () => {
+describe('2. Insufficient bank handling', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(10);
   const puzzles = generatePuzzles(30, 3); // Need 90 JOC + 10 FINAL, only have 30 + 3
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
   // Should still assign what's available, some teams get fewer
   assert(result.size === 10, 'All 10 teams should still get entries');
   const teamsWith10 = [...result.values()].filter(p => p.length === 10).length;
@@ -124,25 +124,25 @@ describe('2. Insufficient bank handling', () => {
   assert(teamsWith10 < 10, 'Not all teams should get full sets when bank is insufficient');
 });
 
-describe('3. 300-team simulation', () => {
+describe('3. 300-team simulation', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(300);
   const puzzles = generatePuzzles(2700, 300);
   const start = Date.now();
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
   const elapsed = Date.now() - start;
   assert(result.size === 300, 'All 300 teams should get assignments');
   assert(elapsed < 5000, `Should complete in under 5s, took ${elapsed}ms`);
   console.log(`  Completed in ${elapsed}ms`);
 });
 
-describe('4. Exact puzzle counts (9 JOC + 1 FINAL per team)', () => {
+describe('4. Exact puzzle counts (9 JOC + 1 FINAL per team)', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(20);
   const puzzles = generatePuzzles(180, 20);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
   for (const [teamId, teamPuzzles] of result) {
     const jocCount = teamPuzzles.filter(p => p.puzzle_type === 'JOC').length;
     const finalCount = teamPuzzles.filter(p => p.puzzle_type === 'FINAL').length;
@@ -152,12 +152,12 @@ describe('4. Exact puzzle counts (9 JOC + 1 FINAL per team)', () => {
   }
 });
 
-describe('5. No duplicate puzzle IDs within a team', () => {
+describe('5. No duplicate puzzle IDs within a team', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(50);
   const puzzles = generatePuzzles(450, 50);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
   for (const [teamId, teamPuzzles] of result) {
     const ids = teamPuzzles.map(p => p.id);
     const uniqueIds = new Set(ids);
@@ -165,13 +165,13 @@ describe('5. No duplicate puzzle IDs within a team', () => {
   }
 });
 
-describe('6. Difficulty balancing', () => {
+describe('6. Difficulty balancing', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(20);
   // All JOC are EASY (by definition: only 1 empty cell)
   const puzzles = generatePuzzles(180, 20);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
   for (const [teamId, teamPuzzles] of result) {
     const jocPuzzles = teamPuzzles.filter(p => p.puzzle_type === 'JOC');
     const diffCounts = { EASY: 0, MEDIUM: 0, HARD: 0 };
@@ -183,19 +183,19 @@ describe('6. Difficulty balancing', () => {
   }
 });
 
-describe('7. Random distribution (different teams get different puzzles)', () => {
+describe('7. Random distribution (different teams get different puzzles)', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(10);
   const puzzles = generatePuzzles(90, 10);
 
   // Run twice with same inputs - should produce different results (with very high probability)
-  const result1 = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result1 = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   // Reset DB mock
   repos.db.run('DELETE FROM team_puzzle_sets');
 
-  const result2 = service.assignPerTeamPuzzles(2, 2, teams, puzzles);
+  const result2 = await service.assignPerTeamPuzzles(2, 2, teams, puzzles);
 
   // Check that at least some teams got different puzzle sets
   let differentTeams = 0;
@@ -208,12 +208,12 @@ describe('7. Random distribution (different teams get different puzzles)', () =>
   console.log(`  ${differentTeams}/10 teams got different puzzles across two runs`);
 });
 
-describe('8. FINAL assignment (one per team)', () => {
+describe('8. FINAL assignment (one per team)', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(15);
   const puzzles = generatePuzzles(135, 15);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   // Each team should have exactly 1 FINAL
   for (const [teamId, teamPuzzles] of result) {
@@ -230,12 +230,12 @@ describe('8. FINAL assignment (one per team)', () => {
   assert(uniqueFinals.size === 15, 'Each team should get a different FINAL puzzle');
 });
 
-describe('9. Word-letter mapping (9-letter words)', () => {
+describe('9. Word-letter mapping (9-letter words)', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(10);
   const puzzles = generatePuzzles(90, 10);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   for (const [teamId, teamPuzzles] of result) {
     const jocPuzzles = teamPuzzles.filter(p => p.puzzle_type === 'JOC');
@@ -248,12 +248,12 @@ describe('9. Word-letter mapping (9-letter words)', () => {
   }
 });
 
-describe('10. Repeated letters handling', () => {
+describe('10. Repeated letters handling', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(5);
   const puzzles = generatePuzzles(45, 5);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   for (const [teamId, teamPuzzles] of result) {
     const jocPuzzles = teamPuzzles.filter(p => p.puzzle_type === 'JOC');
@@ -278,14 +278,14 @@ describe('10. Repeated letters handling', () => {
   }
 });
 
-describe('11. Idempotent restart', () => {
+describe('11. Idempotent restart', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(5);
   const puzzles = generatePuzzles(45, 5);
 
   // First assignment
-  const result1 = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result1 = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   // Collect first assignment data
   const firstWords = {};
@@ -296,7 +296,7 @@ describe('11. Idempotent restart', () => {
   }
 
   // Simulate restart: call again with same tournament/round
-  const result2 = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result2 = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   // Should return same assignments (loaded from persistence)
   for (const [teamId, teamPuzzles] of result2) {
@@ -307,12 +307,12 @@ describe('11. Idempotent restart', () => {
   }
 });
 
-describe('12. Non-overlapping puzzle sets across teams', () => {
+describe('12. Non-overlapping puzzle sets across teams', async () => {
   const repos = createMockRepos();
   const service = new PuzzleAssignmentService(repos);
   const teams = generateTeams(10);
   const puzzles = generatePuzzles(90, 10);
-  const result = service.assignPerTeamPuzzles(1, 1, teams, puzzles);
+  const result = await service.assignPerTeamPuzzles(1, 1, teams, puzzles);
 
   // Collect all puzzle IDs used by each team
   const teamPuzzleIds = new Map();

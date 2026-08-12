@@ -7,7 +7,9 @@
     "start": "node src/index.js",
     "dev": "node src/index.js",
     "build:client": "cd ../client && npm install && npm run build",
-    "setup": "npm install && npm run build:client"
+    "setup": "npm install && npm run build:client",
+    "test": "jest",
+    "test:watch": "jest --watchAll"
   },
   "keywords": [],
   "author": "",
@@ -30,5 +32,9 @@
     "uuid": "^14.0.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }

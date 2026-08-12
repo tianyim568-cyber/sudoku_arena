@@ -1,6 +1,8 @@
 const express = require('express');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { expensiveLimiter } = require('../middleware/rateLimiters');
+const { validate } = require('../middleware/validate');
+const { generatePuzzlesSchema, generateBulkSchema, importToRoundSchema } = require('../validations/puzzleBank');
 const PuzzleBankService = require('../services/PuzzleBankService');
 
 function createPuzzleBankRouter(repos) {
@@ -29,25 +31,22 @@ function createPuzzleBankRouter(repos) {
   });
 
   // Generate new puzzles and add to bank
-  router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware('ADMIN'), (req, res) => {
+  router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware('ADMIN'), validate(generatePuzzlesSchema), (req, res) => {
     const { roundType, count, teamsCount } = req.body;
-    if (!roundType) return res.json({ code: 40010, message: '缺少轮次类型', data: null });
     const data = puzzleBankService.generatePuzzles({ roundType, count, teamsCount });
     res.json({ code: 200, message: 'success', data });
   });
 
   // Bulk generate puzzles for ALL rounds at once (given team count)
-  router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware('ADMIN'), (req, res) => {
+  router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware('ADMIN'), validate(generateBulkSchema), (req, res) => {
     const { teamsCount } = req.body;
-    if (!teamsCount || teamsCount < 1) return res.json({ code: 40010, message: '缺少队伍数量', data: null });
     const result = puzzleBankService.generateBulk(teamsCount);
     res.json({ code: 200, message: 'success', data: result });
   });
 
   // Import puzzles from bank into a round
-  router.post('/puzzle-bank/import-to-round', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.post('/puzzle-bank/import-to-round', authMiddleware, roleMiddleware('ADMIN'), validate(importToRoundSchema), async (req, res) => {
     const { roundId, puzzleIds, count, teamsCount } = req.body;
-    if (!roundId) return res.json({ code: 40010, message: '缺少轮次ID', data: null });
 
     const result = await puzzleBankService.importToRound({ roundId, puzzleIds, count, teamsCount });
     if (result.error) {

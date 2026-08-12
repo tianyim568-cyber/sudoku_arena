@@ -14,19 +14,38 @@ export function getToken() {
   return token;
 }
 
+// Read the response as JSON. A missing route (404) or a crashed server answers
+// with HTML or an empty body, which would make res.json() throw a cryptic
+// "JSON.parse: unexpected end of data". Fall back to the standard envelope so
+// callers can always rely on { code, message }.
+async function parseResponse(res) {
+  const text = await res.text();
+  if (!text) {
+    return { code: res.status, message: `HTTP ${res.status}`, data: null };
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { code: res.status, message: `HTTP ${res.status}`, data: null };
+  }
+}
+
+function translateMessage(json) {
+  if (json && typeof json.message === 'string') {
+    const lang = localStorage.getItem('sa_lang') === 'en' ? 'en' : 'zh';
+    json.message = translateServerMessage(json.message, lang);
+  }
+  return json;
+}
+
 async function request(method, path, body) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(`${API_BASE}${path}`, opts);
-  const json = await res.json();
   // Translate server-originated (Chinese) messages to the current language.
-  if (json && typeof json.message === 'string') {
-    const lang = localStorage.getItem('sa_lang') === 'en' ? 'en' : 'zh';
-    json.message = translateServerMessage(json.message, lang);
-  }
-  return json;
+  return translateMessage(await parseResponse(res));
 }
 
 async function uploadFile(path, file) {
@@ -36,12 +55,7 @@ async function uploadFile(path, file) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   // Do NOT set Content-Type — browser sets multipart boundary automatically
   const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
-  const json = await res.json();
-  if (json && typeof json.message === 'string') {
-    const lang = localStorage.getItem('sa_lang') === 'en' ? 'en' : 'zh';
-    json.message = translateServerMessage(json.message, lang);
-  }
-  return json;
+  return translateMessage(await parseResponse(res));
 }
 
 export const api = {
@@ -141,6 +155,11 @@ export const api = {
 
     return { success: true, filename };
   },
+
+  // Competition entry (competition-scoped auth)
+  getCompetitionInfo: (identifier) => request('GET', `/competitions/${identifier}/info`),
+  competitionLogin: (identifier, username, password) =>
+    request('POST', `/competitions/${identifier}/login`, { username, password }),
 
   // Generic request (for endpoints not covered above)
   request,
