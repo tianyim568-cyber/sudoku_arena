@@ -27,6 +27,42 @@ export default {
     },
   },
 
+  competition: {
+    loading: 'Loading competition...',
+    notFound: 'Competition not found',
+    notFoundHint: 'Check the link or contact the organizer.',
+    title: 'Competition login',
+    username: 'Username',
+    password: 'Password',
+    submit: 'Enter competition',
+    loggingIn: 'Logging in...',
+    failed: 'Login failed',
+    endpointUnavailable: 'Competition login is not available yet. Please try again later.',
+    networkError: 'Cannot reach the server. Check your connection and try again.',
+  },
+
+  dashboard: {
+    appTitle: 'Sudoku Arena — Dashboard',
+    comingSoon: 'Coming soon',
+    overviewTitle: 'Dashboard',
+    overviewSubtitle: 'Organization overview',
+    totalCompetitions: 'Total competitions',
+    inProgress: 'In progress',
+    upcoming: 'Upcoming',
+    finished: 'Finished',
+    noCompetitions: 'No competitions yet',
+    loading: 'Loading overview...',
+    nav: {
+      dashboard: 'Dashboard',
+      competitions: 'Competitions',
+      puzzleBank: 'Puzzle Bank',
+      participants: 'Participants',
+      judges: 'Judges',
+      teams: 'Teams',
+      results: 'Results',
+    },
+  },
+
   login: {
     title: 'Sudoku Arena',
     subtitle: 'Real-time multiplayer',

@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 require('dotenv').config();
-const { initDB, getRepos } = require('./utils/db');
+const { initDB, getRepos, getHelpers } = require('./utils/db');
 const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
 const { createCompetitionRouter } = require('./routes/competitions');
@@ -35,7 +35,10 @@ async function main() {
     cors: { origin: config.CORS_ORIGINS, methods: ['GET', 'POST'] }
   });
 
-  app.use(cors({ origin: config.CORS_ORIGINS }));
+  // Security headers on every response (clickjacking, MIME-sniffing, etc.).
+  // CSP only governs pages Express itself serves — in dev the SPA is served by
+  // Vite, so these directives apply to the production build. connectSrc allows
+  // ws:/wss: for Socket.IO.
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -46,13 +49,31 @@ async function main() {
         connectSrc: ["'self'", "ws:", "wss:"],
       },
     },
+    // The client runs on another origin in dev and must be able to load these.
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    // -> X-Frame-Options: DENY (anti-clickjacking)
+    frameguard: { action: 'deny' },
   }));
+
+  app.use(cors({ origin: config.CORS_ORIGINS }));
   app.use(express.json({ limit: '10mb' }));
 
   // Health check endpoint for monitoring
   app.get('/api/health', async (req, res) => {
     try {
-      const db = repos.UserRepository ? 'ok' : 'error';
+      // Probe the database with a trivial query so the reported status
+      // reflects live reachability, not just that the repos object exists.
+      let db = 'error';
+      try {
+        const helpers = getHelpers();
+        if (helpers) {
+          await helpers.get('SELECT 1');
+          db = 'ok';
+        }
+      } catch (dbErr) {
+        console.error('Health check DB probe failed:', dbErr.message);
+      }
+
       res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -100,10 +121,13 @@ async function main() {
   if (hasFrontend) {
     app.use(express.static(clientDist));
   }
-  // SPA fallback: serve index.html for any non-API route
+  // SPA fallback: serve index.html for any non-API route.
+  // Unknown /api paths must answer here, not fall through silently — otherwise
+  // the connection stays open until the client times out.
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
-      return res.status(404).json({ error: 'Not found' });
+      // Standard envelope, so the client's { code, message, data } contract holds.
+      return res.status(404).json({ code: 404, message: 'Interface not found', data: null });
     }
     if (hasFrontend) {
       return res.sendFile(indexHtml);

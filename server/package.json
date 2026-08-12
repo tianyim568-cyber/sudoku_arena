@@ -8,6 +8,8 @@
     "dev": "node src/index.js",
     "build:client": "cd ../client && npm install && npm run build",
     "setup": "npm install && npm run build:client",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
     "migrate": "node-pg-migrate",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
@@ -40,6 +42,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "jest": "^30.4.2",
     "prisma": "^6.12.0",
     "supertest": "^7.2.2"
   }

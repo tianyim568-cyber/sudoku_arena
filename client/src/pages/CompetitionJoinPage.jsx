@@ -2,13 +2,18 @@
  * CompetitionJoinPage — public entry page for competition participants.
  *
  * Resolves an access code to show competition info, then lets judges/players
- * log in to receive a competition-scoped JWT. The token is stored in
- * sessionStorage so it doesn't interfere with the user's org-scoped session.
+ * log in to receive a competition-scoped JWT.
+ *
+ * The login goes through useAuth().competitionLogin so the session is
+ * registered in AuthContext. Storing the token directly would leave `user`
+ * null, and the PrivateRoute guarding /judge and /play would bounce the user
+ * straight back to /login.
  */
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../hooks/useAuth';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 
 const STATUS_LABELS = {
@@ -21,6 +26,7 @@ const STATUS_LABELS = {
 export default function CompetitionJoinPage() {
   const { accessCode } = useParams();
   const navigate = useNavigate();
+  const { competitionLogin } = useAuth();
 
   const [info, setInfo] = useState(null);
   const [infoError, setInfoError] = useState('');
@@ -53,25 +59,10 @@ export default function CompetitionJoinPage() {
     setSubmitting(true);
 
     try {
-      const res = await api.competitionLogin(accessCode, username, password);
-
-      if (res.code === 200) {
-        const { token, competition, user } = res.data;
-
-        // Store competition token in sessionStorage (isolated from org session)
-        sessionStorage.setItem('competitionToken', token);
-        sessionStorage.setItem('competitionInfo', JSON.stringify(competition));
-        sessionStorage.setItem('competitionUser', JSON.stringify(user));
-
-        // Navigate based on role
-        if (user.role === 'JUDGE') {
-          navigate(`/judge/${competition.id}`);
-        } else {
-          navigate(`/play/${competition.id}`);
-        }
-      } else {
-        setLoginError(res.message || 'Login failed');
-      }
+      // Registers the session in AuthContext, so PrivateRoute lets us through.
+      const session = await competitionLogin(accessCode, username, password);
+      const target = session.role === 'JUDGE' ? 'judge' : 'play';
+      navigate(`/${target}/${session.competitionId}`, { replace: true });
     } catch (err) {
       setLoginError(err.message || 'Login failed');
     } finally {

@@ -28,6 +28,42 @@ export default {
     },
   },
 
+  competition: {
+    loading: '加载比赛信息...',
+    notFound: '未找到该比赛',
+    notFoundHint: '请检查链接或联系组织者。',
+    title: '比赛登录',
+    username: '用户名',
+    password: '密码',
+    submit: '进入比赛',
+    loggingIn: '登录中...',
+    failed: '登录失败',
+    endpointUnavailable: '比赛登录功能尚未开放，请稍后再试。',
+    networkError: '无法连接服务器，请检查网络后重试。',
+  },
+
+  dashboard: {
+    appTitle: '数独竞技场 — 控制台',
+    comingSoon: '即将推出',
+    overviewTitle: '控制台',
+    overviewSubtitle: '组织概览',
+    totalCompetitions: '赛事总数',
+    inProgress: '进行中',
+    upcoming: '未开始',
+    finished: '已结束',
+    noCompetitions: '暂无赛事',
+    loading: '加载中...',
+    nav: {
+      dashboard: '控制台',
+      competitions: '赛事',
+      puzzleBank: '题库',
+      participants: '选手',
+      judges: '裁判',
+      teams: '队伍',
+      results: '成绩',
+    },
+  },
+
   login: {
     title: '数独竞技场',
     subtitle: '实时多人竞技',
