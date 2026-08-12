@@ -1,5 +1,5 @@
 /**
- * Round3Engine — Collaborative round logic with suggestion-based workflow.
+ * Round3Engine — Collaborative round logic with suggestion-based workflow (Team Round).
  *
  * All team members work on shared puzzles simultaneously.
  * Players PROPOSE cell fills; teammates ACCEPT or REJECT proposals.
@@ -8,14 +8,14 @@
  * Completion bonus: +5 pts/min remaining if all 10 solved.
  */
 
-const RoundEngine = require('./RoundEngine');
+const RoundEngine = require('../RoundEngine');
 
 class Round3Engine extends RoundEngine {
   /**
-   * @param {import('../db/index')} repos
-   * @param {import('../state/StateRepository')} state
-   * @param {import('./ScoringService')} scoring
-   * @param {import('../services/Round3CollaborationService')} [r3Collaboration]
+   * @param {import('../../db/index')} repos
+   * @param {import('../../state/StateRepository')} state
+   * @param {import('../ScoringService')} scoring
+   * @param {import('../../services/Round3CollaborationService')} [r3Collaboration]
    */
   constructor(repos, state, scoring, r3Collaboration) {
     super(repos, state, scoring);

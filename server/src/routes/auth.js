@@ -3,9 +3,22 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const { generateToken, authMiddleware } = require('../middleware/auth');
 const { getPrisma } = require('../db/prisma');
+const { validateBody, z } = require('../middleware/validate');
 
 function createAuthRouter(repos) {
   const router = express.Router();
+
+  // Zod schemas for validation
+  const registerSchema = z.object({
+    organizationName: z.string().min(2, '组织名称至少需要2个字符'),
+    adminUsername: z.string().min(1, '管理员用户名不能为空'),
+    password: z.string().min(6, '密码至少需要6个字符'),
+  });
+
+  const loginSchema = z.object({
+    username: z.string().min(1, '用户名不能为空'),
+    password: z.string().min(1, '密码不能为空'),
+  });
 
   // Rate limit login attempts: 30 requests per 15 minutes per IP
   const loginLimiter = rateLimit({
@@ -29,24 +42,8 @@ function createAuthRouter(repos) {
    * POST /register — Public registration for new organizations.
    * Creates an organization + its first ORG_ADMIN user atomically.
    */
-  router.post('/register', registerLimiter, async (req, res) => {
+  router.post('/register', registerLimiter, validateBody(registerSchema), async (req, res) => {
     const { organizationName, adminUsername, password } = req.body;
-
-    // 1. Validate required fields
-    if (!organizationName || !adminUsername || !password) {
-      return res.json({ code: 40001, message: '组织名称、管理员用户名和密码不能为空', data: null });
-    }
-
-    // 2. Validate lengths
-    if (typeof organizationName !== 'string' || organizationName.trim().length < 2) {
-      return res.json({ code: 40003, message: '组织名称至少需要2个字符', data: null });
-    }
-    if (typeof password !== 'string' || password.length < 6) {
-      return res.json({ code: 40003, message: '密码至少需要6个字符', data: null });
-    }
-    if (typeof adminUsername !== 'string' || adminUsername.trim().length < 1) {
-      return res.json({ code: 40003, message: '管理员用户名不能为空', data: null });
-    }
 
     const prisma = getPrisma();
 
@@ -112,11 +109,8 @@ function createAuthRouter(repos) {
     }
   });
 
-  router.post('/login', loginLimiter, async (req, res) => {
+  router.post('/login', loginLimiter, validateBody(loginSchema), async (req, res) => {
     const { username, password } = req.body;
-    if (!username || !password) {
-      return res.json({ code: 40001, message: '用户名和密码不能为空', data: null });
-    }
     const user = await repos.users.findByUsername(username);
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
       return res.json({ code: 40001, message: '用户名或密码错误', data: null });

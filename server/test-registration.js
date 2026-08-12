@@ -144,7 +144,7 @@ async function testValidationRules() {
     adminUsername: `${TEST_PREFIX}_val1`,
     password: TEST_PASSWORD,
   });
-  assert(r1.json.code === 40003, 'org name < 2 chars → code 40003');
+  assert(r1.json.code === 40001, 'org name < 2 chars → code 40001');
 
   // Password too short
   const r2 = await register({
@@ -152,7 +152,7 @@ async function testValidationRules() {
     adminUsername: `${TEST_PREFIX}_val2`,
     password: '123',
   });
-  assert(r2.json.code === 40003, 'password < 6 chars → code 40003');
+  assert(r2.json.code === 40001, 'password < 6 chars → code 40001');
 }
 
 async function testLoginAfterRegistration() {

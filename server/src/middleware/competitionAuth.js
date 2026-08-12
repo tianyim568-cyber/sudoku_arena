@@ -13,8 +13,15 @@
  */
 
 const bcrypt = require('bcryptjs');
+const { z } = require('zod');
 const { authMiddleware, generateCompetitionToken } = require('./auth');
 const { getPrisma } = require('../db/prisma');
+
+// Zod schema for competition login
+const competitionLoginSchema = z.object({
+  username: z.string().min(1, '用户名不能为空'),
+  password: z.string().min(1, '密码不能为空'),
+});
 
 // ── Middleware ──
 
@@ -77,12 +84,17 @@ function competitionAuth(req, res, next) {
 function competitionLogin(repos) {
   return async (req, res) => {
     const { identifier } = req.params;
-    const { username, password } = req.body;
 
-    // 1. Validate input
-    if (!username || !password) {
-      return res.json({ code: 40001, message: '用户名和密码不能为空', data: null });
+    // Validate input with Zod
+    const validation = competitionLoginSchema.safeParse(req.body);
+    if (!validation.success) {
+      const firstError = validation.error.issues?.[0]?.message ||
+                         validation.error.errors?.[0]?.message ||
+                         'Validation failed';
+      return res.json({ code: 40001, message: firstError, data: null });
     }
+
+    const { username, password } = validation.data;
 
     if (!identifier) {
       return res.json({ code: 40001, message: '缺少比赛标识', data: null });
@@ -90,11 +102,15 @@ function competitionLogin(repos) {
 
     const prisma = getPrisma();
 
+    // Check if identifier is a UUID (has dashes) or access code
+    const isUuid = identifier.length === 36 && identifier.includes('-');
+
     try {
       // 2. Find the competition by UUID or access_code
-      // const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(identifier);
       const competition = await prisma.competitions.findFirst({
-        where: { id: identifier },
+        where: isUuid
+          ? { id: identifier }
+          : { competition_access_code: identifier },
         include: {
           organizations: { select: { id: true, name: true, status: true } },
         },

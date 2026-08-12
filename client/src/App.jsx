@@ -8,6 +8,8 @@ import TournamentDetailPage from './pages/TournamentDetailPage';
 import PlayerGamePage from './pages/PlayerGamePage';
 import JudgeControlPage from './pages/JudgeControlPage';
 import PuzzleBankPage from './pages/PuzzleBankPage';
+import CompetitionJoinPage from './pages/CompetitionJoinPage';
+import DisplayPage from './pages/DisplayPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -30,6 +32,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to="/" /> : <RegisterPage />} />
+      <Route path="/competition/:accessCode" element={<CompetitionJoinPage />} />
+      <Route path="/display/:token" element={<DisplayPage />} />
       <Route path="/" element={<PrivateRoute><TournamentListPage /></PrivateRoute>} />
       <Route path="/tournament/:id" element={<PrivateRoute><TournamentDetailPage /></PrivateRoute>} />
       <Route path="/play/:tournamentId" element={

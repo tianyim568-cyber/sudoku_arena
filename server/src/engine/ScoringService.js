@@ -145,6 +145,48 @@ class ScoringService {
     await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, completionBonus);
     return completionBonus;
   }
+
+  // ─── Individual round completion scoring ──────────────────────────
+
+  /**
+   * Calculate completion-based score for individual rounds.
+   * Pure function — no database operations.
+   *
+   * Formula: puzzleScore = Math.round(maxPoints * correctlyFilledCells / totalOriginallyEmptyCells)
+   *
+   * @param {number[][]} initialGrid - Original puzzle grid (0 = empty)
+   * @param {number[][]} solution - Complete solution grid
+   * @param {number[][]} playerGrid - Player's current grid
+   * @returns {{totalOriginallyEmptyCells: number, correctlyFilledCells: number, completionRatio: number}}
+   */
+  calculateCompletion(initialGrid, solution, playerGrid) {
+    let totalOriginallyEmptyCells = 0;
+    let correctlyFilledCells = 0;
+
+    for (let row = 0; row < initialGrid.length; row++) {
+      for (let col = 0; col < initialGrid[row].length; col++) {
+        // Only count cells that were originally empty
+        if (initialGrid[row][col] === 0) {
+          totalOriginallyEmptyCells++;
+
+          // Check if player filled this cell correctly
+          if (playerGrid[row]?.[col] === solution[row][col]) {
+            correctlyFilledCells++;
+          }
+        }
+      }
+    }
+
+    const completionRatio = totalOriginallyEmptyCells > 0
+      ? correctlyFilledCells / totalOriginallyEmptyCells
+      : 0;
+
+    return {
+      totalOriginallyEmptyCells,
+      correctlyFilledCells,
+      completionRatio,
+    };
+  }
 }
 
 module.exports = ScoringService;

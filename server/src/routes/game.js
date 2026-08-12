@@ -92,6 +92,16 @@ function createGameRouter(repos, orchestrator) {
     }
   });
 
+  // Transition to next stage (judge-triggered: after current stage finishes, start the next)
+  router.post('/competitions/:id/stages/next', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+    try {
+      const result = handleOrchestratorResult(await orchestrator.startNextStage(req.params.id));
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      res.json({ code: 40040, message: e.message, data: null });
+    }
+  });
+
   // End tournament
   router.post('/tournaments/:id/end', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
     try {
@@ -107,6 +117,24 @@ function createGameRouter(repos, orchestrator) {
     try {
       const { roundId, puzzleId, submissionType, row, col, value, grid } = req.body;
       const { result, emissions } = await orchestrator.submitAnswer(req.user.userId, roundId, puzzleId, submissionType, { row, col, value, grid });
+      orchestrator.processEmissions(emissions);
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      res.json({ code: 40050, message: e.message, data: null });
+    }
+  });
+
+  // Individual round submission (server-authoritative scoring)
+  router.post('/submissions/individual', authMiddleware, roleMiddleware('PLAYER'), async (req, res) => {
+    try {
+      const { tournamentId, roundId, puzzleId, grid } = req.body;
+      const { result, emissions } = await orchestrator.submitAnswer(
+        req.user.userId,
+        roundId,
+        puzzleId,
+        'INDIVIDUAL',
+        { grid, tournamentId }
+      );
       orchestrator.processEmissions(emissions);
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {

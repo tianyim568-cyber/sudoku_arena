@@ -2,11 +2,13 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
 require('dotenv').config();
 const { initDB, getRepos } = require('./utils/db');
 const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
 const { createCompetitionRouter } = require('./routes/competitions');
+const { createDisplayRouter } = require('./routes/display');
 // TODO: These routes are disabled until rewritten for the new UUID-based schema (migration 018+).
 // The deprecated repositories they depend on query tables that were dropped.
 // Re-enable after creating new route files backed by updated repositories.
@@ -17,6 +19,7 @@ const { createCompetitionRouter } = require('./routes/competitions');
 const EmissionBus = require('./ws/EmissionBus');
 const SocketManager = require('./ws/SocketManager');
 const GameOrchestrator = require('./engine/GameOrchestrator');
+const DisplayManager = require('./engine/DisplayManager');
 const { createStateRepository } = require('./state');
 const config = require('./config');
 
@@ -33,6 +36,17 @@ async function main() {
   });
 
   app.use(cors({ origin: config.CORS_ORIGINS }));
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'", "ws:", "wss:"],
+      },
+    },
+  }));
   app.use(express.json({ limit: '10mb' }));
 
   // Health check endpoint for monitoring
@@ -65,6 +79,11 @@ async function main() {
   // Create EmissionBus and GameOrchestrator
   const bus = new EmissionBus();
   const orchestrator = new GameOrchestrator(repos, state, bus);
+  const displayManager = new DisplayManager(repos, bus);
+
+  // Mount display routes
+  app.use('/api', createDisplayRouter(displayManager));
+
   // app.use('/api', createGameRouter(repos, orchestrator));
   // app.use('/api', createPuzzleBankRouter(repos));
   // app.use('/api', createParticipantRouter(repos));

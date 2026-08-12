@@ -1,20 +1,31 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { validateBody, z } = require('../middleware/validate');
 
 function createUserRouter(repos) {
   const router = express.Router();
 
+  // Zod schemas
+  const createUserSchema = z.object({
+    username: z.string().min(1, '用户名不能为空'),
+    password: z.string().min(6, '密码至少需要6个字符'),
+    role: z.enum(['SUPER_ADMIN', 'ORG_ADMIN', 'JUDGE', 'PLAYER'], {
+      errorMap: () => ({ message: '角色值无效' }),
+    }),
+    organizationId: z.string().uuid().optional().nullable(),
+  });
+
+  const updateStatusSchema = z.object({
+    status: z.enum(['ACTIVE', 'INACTIVE'], {
+      errorMap: () => ({ message: '状态值无效' }),
+    }),
+  });
+
   router.use(authMiddleware, roleMiddleware('SUPER_ADMIN', 'ORG_ADMIN'));
 
-  router.post('/', async (req, res) => {
+  router.post('/', validateBody(createUserSchema), async (req, res) => {
     const { username, password, role, organizationId } = req.body;
-    if (!username || !password || !role) {
-      return res.json({ code: 40003, message: '缺少必填字段', data: null });
-    }
-    if (!['SUPER_ADMIN', 'ORG_ADMIN', 'JUDGE', 'PLAYER'].includes(role)) {
-      return res.json({ code: 40004, message: '角色值无效', data: null });
-    }
     const existing = await repos.users.findByUsernameSafe(username);
     if (existing) {
       return res.json({ code: 40003, message: '用户名已存在', data: null });
@@ -29,11 +40,8 @@ function createUserRouter(repos) {
     res.json({ code: 200, message: 'success', data: users });
   });
 
-  router.put('/:id/status', async (req, res) => {
+  router.put('/:id/status', validateBody(updateStatusSchema), async (req, res) => {
     const { status } = req.body;
-    if (!['ACTIVE', 'INACTIVE'].includes(status)) {
-      return res.json({ code: 40004, message: '状态值无效', data: null });
-    }
     await repos.users.updateStatus(req.params.id, status);
     res.json({ code: 200, message: 'success', data: null });
   });

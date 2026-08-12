@@ -26,6 +26,7 @@
 
 const { RoundError } = require('./errors');
 const { getPrisma } = require('../db/prisma');
+const { isValidRoundType } = require('./RoundTypes');
 
 // ─── Round Lifecycle States ─────────────────────────────────────
 
@@ -655,8 +656,12 @@ class RoundManager {
           });
         }
       },
-      () => {
-        onExpire(competitionId, this._context.roundId);
+      async () => {
+        try {
+          await onExpire(competitionId, this._context.roundId);
+        } catch (e) {
+          console.error('[RoundManager] Timer expiry callback failed:', e.message);
+        }
       }
     );
   }
@@ -731,7 +736,7 @@ class RoundManager {
    * @returns {boolean}
    */
   isRoundTypeSupported(roundType) {
-    return ['ROUND1_NINE_ONE', 'ROUND2_RELAY', 'ROUND3_COLLABORATE'].includes(roundType);
+    return isValidRoundType(roundType);
   }
 }
 

@@ -15,20 +15,23 @@ class MemoryStateRepository {
     // Round 3 cells: puzzleId -> Map<"row-col", {value, playerId, playerName}>
     this._r3Cells = new Map();
 
-    // Round 3 suggestions: puzzleId -> Map<"row-col", {value, playerId, playerName, timestamp}>
+    // Round 3 suggestions: puzzleId -> Map<"row-col", {value, playerId, playerName, votes: Set<playerId>}>
     this._r3Suggestions = new Map();
 
-    // Round 3 player focus: puzzleId -> Map<playerId, {row, col}>
+    // Round 3 player focuses: puzzleId -> Map<playerId, {row, col, playerName}>
     this._r3PlayerFocuses = new Map();
 
     // Round 3 suggestion votes: puzzleId -> Map<"row-col", Set<playerId>>
     this._r3SuggestionVotes = new Map();
 
-    // Stage context: competitionId -> context object
+    // Stage contexts: competitionId -> context object
     this._stageContexts = new Map();
 
-    // Active players: tournamentId -> Map<userId, socketId>
+    // Active players: roundId -> Set<playerId>
     this._activePlayers = new Map();
+
+    // Individual round player grids: roundId:playerId:puzzleId -> grid
+    this._individualPlayerGrids = new Map();
   }
 
   // ─── Round Timers ──────────────────────────────────────────
@@ -327,6 +330,41 @@ class MemoryStateRepository {
 
   async deleteStageContext(competitionId) {
     this._stageContexts.delete(competitionId);
+  }
+
+  // ─── Individual Player Grids (auto-save) ─────────────────────
+
+  _igKey(roundId, playerId, puzzleId) {
+    return `${roundId}:${playerId}:${puzzleId}`;
+  }
+
+  async setIndividualPlayerGrid(roundId, playerId, puzzleId, grid) {
+    this._individualPlayerGrids.set(this._igKey(roundId, playerId, puzzleId), grid);
+  }
+
+  async getIndividualPlayerGrid(roundId, playerId, puzzleId) {
+    return this._individualPlayerGrids.get(this._igKey(roundId, playerId, puzzleId)) || null;
+  }
+
+  async deleteIndividualPlayerGrids(roundId) {
+    const prefix = `${roundId}:`;
+    for (const key of this._individualPlayerGrids.keys()) {
+      if (key.startsWith(prefix)) {
+        this._individualPlayerGrids.delete(key);
+      }
+    }
+  }
+
+  async getIndividualGridsByPlayer(roundId, playerId) {
+    const prefix = `${roundId}:${playerId}:`;
+    const result = {};
+    for (const [key, grid] of this._individualPlayerGrids.entries()) {
+      if (key.startsWith(prefix)) {
+        const puzzleId = key.substring(prefix.length);
+        result[puzzleId] = grid;
+      }
+    }
+    return result;
   }
 }
 

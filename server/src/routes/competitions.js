@@ -20,6 +20,7 @@ const crypto = require('crypto');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { tenantGuard } = require('../middleware/tenantGuard');
 const { getPrisma } = require('../db/prisma');
+const { competitionLogin } = require('../middleware/competitionAuth');
 const config = require('../config');
 
 /**
@@ -247,6 +248,25 @@ function createCompetitionRouter(repos) {
       res.json({ code: 50000, message: '获取比赛信息失败', data: null });
     }
   });
+
+  // ── Competition-scoped login (no auth required) ──
+
+  /**
+   * POST /by-code/:identifier/login — Authenticate user for a specific competition.
+   *
+   * Takes an access code (or UUID) and credentials, verifies the user is registered
+   * as a judge or player for that competition, and returns a competition-scoped JWT.
+   *
+   * No auth required — this is the entry point for competition participants.
+   *
+   * Response:
+   *   200 { code: 200, data: { token, competition, user } }
+   *   400 { code: 40001 } — missing credentials
+   *   401 { code: 40001 } — wrong username/password
+   *   403 { code: 40304 } — user not registered for this competition
+   *   404 { code: 40400 } — competition not found
+   */
+  router.post('/by-code/:identifier/login', competitionLogin(repos));
 
   return router;
 }

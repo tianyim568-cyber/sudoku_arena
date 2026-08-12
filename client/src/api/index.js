@@ -144,6 +144,23 @@ export const api = {
     return { success: true, filename };
   },
 
+  // Competition access
+  getCompetitionByCode: (accessCode) => request('GET', `/competitions/by-code/${accessCode}/info`),
+  competitionLogin: (identifier, username, password) =>
+    request('POST', `/competitions/by-code/${identifier}/login`, { username, password }),
+
+  // Display token management (ORG_ADMIN)
+  generateDisplayToken: (competitionId) => request('POST', `/competitions/${competitionId}/display-token`),
+  revokeDisplayToken: (competitionId) => request('DELETE', `/competitions/${competitionId}/display-token`),
+
+  // Competition access links (ORG_ADMIN)
+  generateAccessLink: (competitionId) => request('POST', `/competitions/${competitionId}/access-link`),
+  getAccessLink: (competitionId) => request('GET', `/competitions/${competitionId}/access-link`),
+  revokeAccessLink: (competitionId) => request('DELETE', `/competitions/${competitionId}/access-link`),
+
+  // Competitions list
+  listCompetitions: () => request('GET', '/competitions'),
+
   // Generic request (for endpoints not covered above)
   request,
 };

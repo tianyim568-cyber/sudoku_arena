@@ -19,13 +19,19 @@
 
 const TimerService = require('./TimerService');
 const ScoringService = require('./ScoringService');
-const Round1Engine = require('./Round1Engine');
-const Round2Engine = require('./Round2Engine');
-const Round3Engine = require('./Round3Engine');
+const Round1Engine = require('./team/Round1Engine');
+const Round2Engine = require('./team/Round2Engine');
+const Round3Engine = require('./team/Round3Engine');
+const IndividualRoundEngine = require('./individual/IndividualRoundEngine');
 const PuzzleAssignmentService = require('../services/PuzzleAssignmentService');
 const Round2NotificationService = require('../services/Round2NotificationService');
 const Round3CollaborationService = require('../services/Round3CollaborationService');
+const { isIndividualRoundType } = require('./RoundTypes');
 const { TournamentError, RoundError, StageError } = require('./errors');
+
+// Default transition delay between rounds (seconds).
+// Gives clients time to show "next round" screen before preparation countdown starts.
+const DEFAULT_TRANSITION_SECONDS = 5;
 const { getPrisma } = require('../db/prisma');
 const { StageManager } = require('./StageManager');
 const { RoundManager } = require('./RoundManager');
@@ -93,7 +99,14 @@ class GameOrchestrator {
       case 'ROUND1_NINE_ONE': return this.round1;
       case 'ROUND2_RELAY': return this.round2;
       case 'ROUND3_COLLABORATE': return this.round3;
-      default: throw new RoundError(`Unknown round type: ${roundType}`);
+      default:
+        if (isIndividualRoundType(roundType)) {
+          if (!this.individual) {
+            this.individual = new IndividualRoundEngine(this.repos, this.state, this.scoring);
+          }
+          return this.individual;
+        }
+        throw new RoundError(`Unknown round type: ${roundType}`);
     }
   }
 
@@ -201,6 +214,8 @@ class GameOrchestrator {
       result.round2State = roundState;
     } else if (activeRound.type === 'ROUND3_COLLABORATE' && roundState) {
       result.round3State = roundState;
+    } else if (isIndividualRoundType(activeRound.type) && roundState) {
+      result.individualState = roundState;
     }
 
     return result;
@@ -527,7 +542,7 @@ class GameOrchestrator {
           where: { round_id: roundId },
         });
 
-        const completionBonus = this.scoring.applyRound3CompletionBonus(
+        const completionBonus = await this.scoring.applyRound3CompletionBonus(
           competitionId, roundId, team.id, remaining, solvedCount, totalPuzzles
         );
         if (completionBonus > 0) {
@@ -542,6 +557,145 @@ class GameOrchestrator {
           });
         }
       }
+    }
+
+    // Individual round auto-save flush and scoring
+    if (isIndividualRoundType(round.type)) {
+      // Get all players in this competition
+      const players = await this._prisma.players.findMany({
+        where: { competition_id: competitionId },
+        include: { users: { select: { id: true, username: true } } },
+      });
+
+      // Get all puzzles for this round
+      const roundPuzzles = await this._prisma.round_puzzles.findMany({
+        where: { round_id: roundId },
+        include: { puzzles: true },
+      });
+
+      for (const player of players) {
+        let totalRoundScore = 0;
+        let solvedCount = 0;
+
+        for (const rp of roundPuzzles) {
+          const puzzle = rp.puzzles;
+          const sessionId = `${roundId}_${player.id}`;
+
+          // Flush in-memory grid to puzzle_answers
+          const inMemoryGrid = await this.state.getIndividualPlayerGrid(roundId, player.id, puzzle.id);
+          const answer = await this._prisma.puzzle_answers.findFirst({
+            where: { session_id: sessionId, puzzle_id: puzzle.id },
+          });
+
+          let playerGrid = inMemoryGrid || (answer?.current_grid
+            ? (typeof answer.current_grid === 'string' ? JSON.parse(answer.current_grid) : answer.current_grid)
+            : null);
+
+          if (!playerGrid) continue;
+
+          // Calculate completion score
+          const solution = typeof puzzle.solution_grid === 'string'
+            ? JSON.parse(puzzle.solution_grid)
+            : puzzle.solution_grid;
+          const initialGrid = typeof puzzle.initial_grid === 'string'
+            ? JSON.parse(puzzle.initial_grid)
+            : puzzle.initial_grid;
+
+          const completion = this.scoring.calculateCompletion(initialGrid, solution, playerGrid);
+          const maxPoints = puzzle.score || 100;
+          const puzzleScore = Math.round(maxPoints * completion.completionRatio);
+
+          // Update puzzle_answers with final state
+          await this._prisma.puzzle_answers.upsert({
+            where: {
+              session_id_puzzle_id_unique: {
+                session_id: sessionId,
+                puzzle_id: puzzle.id,
+              },
+            },
+            create: {
+              session_id: sessionId,
+              puzzle_id: puzzle.id,
+              current_grid: playerGrid,
+              correct_cells: completion.correctlyFilledCells,
+              total_empty_cells: completion.totalOriginallyEmptyCells,
+              progress_percentage: completion.completionRatio * 100,
+            },
+            update: {
+              current_grid: playerGrid,
+              correct_cells: completion.correctlyFilledCells,
+              total_empty_cells: completion.totalOriginallyEmptyCells,
+              progress_percentage: completion.completionRatio * 100,
+            },
+          });
+
+          totalRoundScore += puzzleScore;
+          if (completion.completionRatio >= 1.0) solvedCount++;
+        }
+
+        // Create or update round_rankings entry (no unique constraint, use findFirst)
+        const existingRanking = await this._prisma.round_rankings.findFirst({
+          where: { round_id: roundId, participant_id: player.id },
+        });
+        if (existingRanking) {
+          await this._prisma.round_rankings.update({
+            where: { id: existingRanking.id },
+            data: { score: totalRoundScore, category_id: player.category_id },
+          });
+        } else {
+          await this._prisma.round_rankings.create({
+            data: {
+              round_id: roundId,
+              participant_id: player.id,
+              score: totalRoundScore,
+              rank: 0,
+              category_id: player.category_id,
+            },
+          });
+        }
+
+        // Emit score update
+        emissions.push({
+          target: 'user',
+          targetId: player.user_id,
+          event: 'INDIVIDUAL_ROUND_COMPLETE',
+          payload: {
+            roundId,
+            playerId: player.user_id,
+            playerName: player.users?.username || 'Unknown',
+            totalScore: totalRoundScore,
+            solvedCount,
+            totalPuzzles: roundPuzzles.length,
+          },
+        });
+      }
+
+      // Compute ranks within each category (descending score order)
+      const rankings = await this._prisma.round_rankings.findMany({
+        where: { round_id: roundId },
+        orderBy: { score: 'desc' },
+      });
+
+      // Group by category_id and assign ranks
+      const categoryGroups = {};
+      rankings.forEach(r => {
+        const catId = r.category_id || 'null';
+        if (!categoryGroups[catId]) categoryGroups[catId] = [];
+        categoryGroups[catId].push(r);
+      });
+
+      for (const catId in categoryGroups) {
+        const group = categoryGroups[catId];
+        for (let i = 0; i < group.length; i++) {
+          await this._prisma.round_rankings.update({
+            where: { id: group[i].id },
+            data: { rank: i + 1 },
+          });
+        }
+      }
+
+      // Clean up in-memory grids
+      await this.state.deleteIndividualPlayerGrids(roundId);
     }
 
     // Finish round via RoundManager (updates DB, cleans up timer, emits ROUND_FINISHED)
@@ -564,14 +718,41 @@ class GameOrchestrator {
     const finishResult = await this.rounds.finishRound();
     emissions.push(...finishResult.emissions);
 
-    // Auto-chain: start next round or finish stage
+    // Auto-chain: start next round (with transition delay) or finish stage
     const hasNext = await this.rounds.hasNextRound();
     if (hasNext) {
       const nextRound = await this.rounds.getNextRound();
       if (nextRound) {
-        // Auto-start next round's preparation phase
-        const nextStartResult = await this.startRound(competitionId, nextRound.id);
-        emissions.push(...nextStartResult.emissions);
+        // Emit transition event so clients can show "next round in X seconds"
+        emissions.push({
+          target: 'competition',
+          targetId: competitionId,
+          event: 'ROUND_TRANSITION_STARTED',
+          payload: {
+            finishedRoundId: roundId,
+            nextRoundId: nextRound.id,
+            nextRoundName: nextRound.name,
+            nextRoundType: nextRound.type,
+            nextRoundOrder: nextRound.order_number,
+            transitionSeconds: DEFAULT_TRANSITION_SECONDS,
+          },
+        });
+
+        // Schedule next round start after transition delay (non-blocking)
+        if (DEFAULT_TRANSITION_SECONDS > 0) {
+          setTimeout(async () => {
+            try {
+              const nextStartResult = await this.startRound(competitionId, nextRound.id);
+              this.bus.emitAll(nextStartResult.emissions);
+            } catch (e) {
+              console.error('[GameOrchestrator] Failed to auto-start next round:', e.message);
+            }
+          }, DEFAULT_TRANSITION_SECONDS * 1000);
+        } else {
+          // No transition delay — start immediately
+          const nextStartResult = await this.startRound(competitionId, nextRound.id);
+          emissions.push(...nextStartResult.emissions);
+        }
       }
     } else {
       // Last round in stage — auto-finish the stage
@@ -726,6 +907,52 @@ class GameOrchestrator {
     const { result, emissions } = await this.stages.finishStage();
 
     return { result, emissions };
+  }
+
+  // ─── Stage-to-stage progression (judge-triggered) ─────────────────
+
+  /**
+   * Transition from the current finished stage to the next stage.
+   * Finds the next stage by order_number, starts it, and auto-chains
+   * into the first round's preparation countdown.
+   *
+   * @param {string} competitionId
+   * @returns {Promise<{result: Object, emissions: Array}>}
+   * @throws {StageError} if no next stage exists
+   */
+  async startNextStage(competitionId) {
+    const comp = await this._prisma.competitions.findUnique({
+      where: { id: competitionId },
+    });
+    if (!comp) throw new TournamentError('比赛不存在');
+    if (comp.status !== 'RUNNING') {
+      throw new TournamentError('比赛状态不允许切换阶段');
+    }
+
+    // Ensure current stage context is loaded
+    const currentCtx = this.stages.getContext();
+    if (!currentCtx) {
+      throw new StageError('当前无阶段上下文，请先结束当前阶段');
+    }
+
+    // Find next stage via StageManager
+    const transitionResult = await this.stages.transitionToNextStage();
+    const emissions = [...transitionResult.emissions];
+
+    // Start the next stage (which auto-chains into first round)
+    const startResult = await this.startStage(competitionId, transitionResult.result.toStageId);
+    emissions.push(...startResult.emissions);
+
+    return {
+      result: {
+        competitionId,
+        fromStageId: transitionResult.result.fromStageId,
+        toStageId: transitionResult.result.toStageId,
+        toStageType: transitionResult.result.toStageType,
+        status: 'STAGE_TRANSITIONED',
+      },
+      emissions,
+    };
   }
 
   // ─── End competition ───────────────────────────────────────────
