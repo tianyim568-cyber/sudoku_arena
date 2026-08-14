@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { AuthProvider, useAuth, decodeJwtPayload } from '../hooks/useAuth';
+import { AuthProvider, useAuth, decodeJwtPayload, ADMIN_ROLES } from '../hooks/useAuth';
 import { api } from '../api';
 
 // Mock the API module so no real network call happens.
@@ -47,9 +47,9 @@ afterEach(() => {
 
 describe('decodeJwtPayload', () => {
   it('reads the claims of a well-formed token', () => {
-    const claims = decodeJwtPayload(makeToken({ userId: 1, role: 'ADMIN' }));
+    const claims = decodeJwtPayload(makeToken({ userId: 1, role: 'ORG_ADMIN' }));
     expect(claims.userId).toBe(1);
-    expect(claims.role).toBe('ADMIN');
+    expect(claims.role).toBe('ORG_ADMIN');
   });
 
   it('preserves non-ASCII values (seeded accounts use Chinese names)', () => {
@@ -99,10 +99,10 @@ describe('AuthProvider session restore', () => {
   });
 
   it('still calls /auth/me for an org token', async () => {
-    api.getMe.mockResolvedValue({ code: 200, data: { id: 1, role: 'ADMIN' } });
-    localStorage.setItem('token', makeToken({ userId: 1, role: 'ADMIN', exp: inOneHour() }));
+    api.getMe.mockResolvedValue({ code: 200, data: { id: 1, role: 'ORG_ADMIN' } });
+    localStorage.setItem('token', makeToken({ userId: 1, role: 'ORG_ADMIN', exp: inOneHour() }));
     renderAuth();
-    await waitFor(() => expect(screen.getByTestId('role')).toHaveTextContent('ADMIN'));
+    await waitFor(() => expect(screen.getByTestId('role')).toHaveTextContent('ORG_ADMIN'));
     expect(screen.getByTestId('type')).toHaveTextContent('ORG');
     expect(api.getMe).toHaveBeenCalledTimes(1);
   });
@@ -121,5 +121,25 @@ describe('AuthProvider session restore', () => {
     renderAuth();
     await waitFor(() => expect(screen.getByTestId('role')).toHaveTextContent('none'));
     expect(screen.getByTestId('type')).toHaveTextContent('none');
+  });
+});
+
+// Regression guard: the legacy `ADMIN` role was removed when multi-tenancy
+// landed. `ADMIN_ROLES` is the single source of truth for "is this an admin
+// account?" on the client, and it must accept the post-migration roles
+// (ORG_ADMIN tenant admin + SUPER_ADMIN platform owner) while rejecting the
+// ghost `ADMIN` role. If a future edit re-adds 'ADMIN' here, the private
+// dashboard would open up to accounts the server now refuses.
+describe('ADMIN_ROLES (client-side role list)', () => {
+  it('does not contain the removed ADMIN role', () => {
+    expect(ADMIN_ROLES).not.toContain('ADMIN');
+  });
+
+  it('accepts ORG_ADMIN (tenant administrator)', () => {
+    expect(ADMIN_ROLES).toContain('ORG_ADMIN');
+  });
+
+  it('accepts SUPER_ADMIN (platform owner)', () => {
+    expect(ADMIN_ROLES).toContain('SUPER_ADMIN');
   });
 });

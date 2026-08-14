@@ -12,6 +12,9 @@ export default defineConfig({
     // machine. Run them one after another instead. Slower, but stable.
     // (Vitest 4 removed `poolOptions.forks.singleFork`; this is the successor.)
     fileParallelism: false,
+    // Windows + jsdom is slow to bootstrap; give each test 15s before timing
+    // out. Default 5s was too tight on this machine.
+    testTimeout: 15000,
   },
   server: {
     port: 5173,

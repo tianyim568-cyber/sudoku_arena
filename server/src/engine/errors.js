@@ -13,10 +13,10 @@ class GameError extends Error {
   }
 }
 
-class TournamentError extends GameError {
-  constructor(message, code = 'TOURNAMENT_ERROR') {
+class CompetitionError extends GameError {
+  constructor(message, code = 'COMPETITION_ERROR') {
     super(message, code);
-    this.name = 'TournamentError';
+    this.name = 'CompetitionError';
   }
 }
 
@@ -57,7 +57,7 @@ class StageError extends GameError {
 
 module.exports = {
   GameError,
-  TournamentError,
+  CompetitionError,
   RoundError,
   PuzzleError,
   SubmissionError,

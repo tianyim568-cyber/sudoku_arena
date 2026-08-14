@@ -309,27 +309,27 @@ class StateRepository {
 
   /**
    * Set active player (heartbeat).
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} userId
    * @param {string} socketId
    * @returns {Promise<void>}
    */
-  async setActivePlayer(tournamentId, userId, socketId) { throw new Error('Not implemented'); }
+  async setActivePlayer(competitionId, userId, socketId) { throw new Error('Not implemented'); }
 
   /**
    * Remove active player.
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} userId
    * @returns {Promise<void>}
    */
-  async removeActivePlayer(tournamentId, userId) { throw new Error('Not implemented'); }
+  async removeActivePlayer(competitionId, userId) { throw new Error('Not implemented'); }
 
   /**
-   * Get all active players for a tournament.
-   * @param {number} tournamentId
+   * Get all active players for a competition.
+   * @param {number} competitionId
    * @returns {Promise<Object<number, string>>} userId -> socketId
    */
-  async getActivePlayers(tournamentId) { throw new Error('Not implemented'); }
+  async getActivePlayers(competitionId) { throw new Error('Not implemented'); }
 }
 
 module.exports = StateRepository;

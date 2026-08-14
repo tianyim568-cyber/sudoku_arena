@@ -47,22 +47,22 @@ async function test() {
   function p1Api(m, p, b) { return apiCall(m, p, b, p1Token); }
 
   // --- Setup ---
-  const t = await adminApi('POST', '/api/tournaments', { name: 'R2R3 Test' });
+  const t = await adminApi('POST', '/api/competitions', { name: 'R2R3 Test' });
   const tid = t.data.id;
 
-  const r1 = await adminApi('POST', '/api/tournaments/' + tid + '/rounds', { name: 'R1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600 });
-  const r2 = await adminApi('POST', '/api/tournaments/' + tid + '/rounds', { name: 'R2', roundType: 'ROUND2_RELAY', durationSeconds: 900 });
-  const r3 = await adminApi('POST', '/api/tournaments/' + tid + '/rounds', { name: 'R3', roundType: 'ROUND3_COLLABORATE', durationSeconds: 1200 });
+  const r1 = await adminApi('POST', '/api/competitions/' + tid + '/rounds', { name: 'R1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600 });
+  const r2 = await adminApi('POST', '/api/competitions/' + tid + '/rounds', { name: 'R2', roundType: 'ROUND2_RELAY', durationSeconds: 900 });
+  const r3 = await adminApi('POST', '/api/competitions/' + tid + '/rounds', { name: 'R3', roundType: 'ROUND3_COLLABORATE', durationSeconds: 1200 });
   const r2Id = r2.data.id;
   const r3Id = r3.data.id;
 
-  const team1 = await adminApi('POST', '/api/tournaments/' + tid + '/teams', { name: 'Red' });
-  const team2 = await adminApi('POST', '/api/tournaments/' + tid + '/teams', { name: 'Blue' });
+  const team1 = await adminApi('POST', '/api/competitions/' + tid + '/teams', { name: 'Red' });
+  const team2 = await adminApi('POST', '/api/competitions/' + tid + '/teams', { name: 'Blue' });
   await adminApi('POST', '/api/teams/' + team1.data.id + '/members', { playerId: p1Id, position: 1 });
   await adminApi('POST', '/api/teams/' + team1.data.id + '/members', { playerId: p2Id, position: 2 });
   await adminApi('POST', '/api/teams/' + team2.data.id + '/members', { playerId: p3Id, position: 1 });
   await adminApi('POST', '/api/teams/' + team2.data.id + '/members', { playerId: p4Id, position: 2 });
-  await adminApi('POST', '/api/tournaments/' + tid + '/judges', { judgeId: judgeId });
+  await adminApi('POST', '/api/competitions/' + tid + '/judges', { judgeId: judgeId });
 
   // Import R1 puzzles (minimal)
   const puzzles1 = [];
@@ -91,16 +91,16 @@ async function test() {
   check('Import R3 puzzles', await adminApi('POST', '/api/rounds/' + r3Id + '/puzzles/import', { puzzles: puzzles3 }));
 
   // --- Start Game + R1 (must complete R1 first) ---
-  check('Start tournament', await judgeApi('POST', '/api/tournaments/' + tid + '/start'));
-  check('Start round 1', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r1.data.id + '/start'));
+  check('Start competition', await judgeApi('POST', '/api/competitions/' + tid + '/start'));
+  check('Start round 1', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r1.data.id + '/start'));
 
   // End R1 quickly
-  check('End round 1', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r1.data.id + '/end'));
+  check('End round 1', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r1.data.id + '/end'));
 
   // --- Round 2 ---
-  check('Start round 2', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r2Id + '/start'));
+  check('Start round 2', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r2Id + '/start'));
 
-  const r2State = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const r2State = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   check('Get R2 game state', r2State);
 
   if (r2State.code === 200) {
@@ -112,12 +112,12 @@ async function test() {
     }
   }
 
-  check('End round 2', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r2Id + '/end'));
+  check('End round 2', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r2Id + '/end'));
 
   // --- Round 3 ---
-  check('Start round 3', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r3Id + '/start'));
+  check('Start round 3', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r3Id + '/start'));
 
-  const r3State = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const r3State = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   check('Get R3 game state', r3State);
 
   if (r3State.code === 200) {
@@ -125,14 +125,14 @@ async function test() {
     console.log('    R3 puzzles:', r3State.data.puzzles?.length);
   }
 
-  check('End round 3', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r3Id + '/end'));
+  check('End round 3', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r3Id + '/end'));
 
   // --- Final ---
-  check('End tournament', await judgeApi('POST', '/api/tournaments/' + tid + '/end'));
-  check('Get final scores', await p1Api('GET', '/api/tournaments/' + tid + '/scores/my'));
+  check('End competition', await judgeApi('POST', '/api/competitions/' + tid + '/end'));
+  check('Get final scores', await p1Api('GET', '/api/competitions/' + tid + '/scores/my'));
 
   // Cleanup
-  await adminApi('DELETE', '/api/tournaments/' + tid);
+  await adminApi('DELETE', '/api/competitions/' + tid);
 
   console.log('');
   console.log('=== Results: ' + pass + ' passed, ' + fail + ' failed ===');

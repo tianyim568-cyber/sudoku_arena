@@ -29,13 +29,13 @@ class PuzzleAssignmentService {
    * Assign non-overlapping, difficulty-balanced puzzle sets to each team.
    * Each team gets 9 JOC puzzles + 1 FINAL puzzle.
    *
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @param {Array} teams - team objects with id property
    * @param {Array} allPuzzles - full puzzle pool for the round
    * @returns {Map<number, Array>} teamPuzzleMap: teamId -> puzzle array (9 JOC + 1 FINAL)
    */
-  async assignPerTeamPuzzles(tournamentId, roundId, teams, allPuzzles) {
+  async assignPerTeamPuzzles(competitionId, roundId, teams, allPuzzles) {
     const teamPuzzleMap = new Map();
 
     // 0. Check for existing assignments (idempotent restart)
@@ -102,7 +102,7 @@ class PuzzleAssignmentService {
       teamPuzzleMap.set(team.id, teamPuzzles);
 
       // Persist assignment
-      await this._persistAssignment(tournamentId, roundId, team.id, word, teamPuzzles);
+      await this._persistAssignment(competitionId, roundId, team.id, word, teamPuzzles);
     }
 
     return teamPuzzleMap;
@@ -253,10 +253,10 @@ class PuzzleAssignmentService {
 
   // ─── Persistence (via TeamPuzzleSetRepository) ─────────────────
 
-  async _persistAssignment(tournamentId, roundId, teamId, word, puzzles) {
+  async _persistAssignment(competitionId, roundId, teamId, word, puzzles) {
     const puzzleIds = puzzles.map(p => p.id).join(',');
     try {
-      await this.repos.teamPuzzleSets.persist(tournamentId, roundId, teamId, word, puzzleIds);
+      await this.repos.teamPuzzleSets.persist(competitionId, roundId, teamId, word, puzzleIds);
     } catch (e) {
       console.error('Failed to persist team puzzle set:', e.message);
     }
@@ -338,7 +338,7 @@ class PuzzleAssignmentService {
   }
 
   /**
-   * Reset assignments for a tournament (admin operation).
+   * Reset assignments for a competition (admin operation).
    */
   async resetAssignments(roundId) {
     try {

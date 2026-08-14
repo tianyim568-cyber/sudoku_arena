@@ -99,7 +99,7 @@ describe('LoginPage', () => {
   it('calls login() with the typed credentials when the form is submitted', async () => {
     // We import the mocked api so we can spy on api.login directly.
     const { api } = await import('../api');
-    api.login.mockResolvedValueOnce({ code: 200, data: { token: 'tok', user: { id: 1, username: 'alice', role: 'ADMIN' } } });
+    api.login.mockResolvedValueOnce({ code: 200, data: { token: 'tok', user: { id: 1, username: 'alice', role: 'ORG_ADMIN' } } });
 
     renderPage();
     const usernameInput = document.querySelector('input[type="text"]');

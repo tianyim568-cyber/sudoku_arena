@@ -1,5 +1,5 @@
 const express = require('express');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { authMiddleware, roleMiddleware, ADMIN_ROLES } = require('../middleware/auth');
 const { expensiveLimiter } = require('../middleware/rateLimiters');
 const { validateBody } = require('../middleware/validate');
 const { generatePuzzlesSchema, generateBulkSchema, importToRoundSchema } = require('../validations/puzzleBank');
@@ -17,35 +17,35 @@ function createPuzzleBankRouter(repos) {
   });
 
   // Get single puzzle detail (includes solution, ADMIN/JUDGE only)
-  router.get('/puzzle-bank/:id', authMiddleware, roleMiddleware('ADMIN', 'JUDGE'), (req, res) => {
+  router.get('/puzzle-bank/:id', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), (req, res) => {
     const puzzle = puzzleBankService.getPuzzleDetail(req.params.id);
     if (!puzzle) return res.json({ code: 40400, message: '题目不存在', data: null });
     res.json({ code: 200, message: 'success', data: puzzle });
   });
 
   // Preview puzzle grid (for admin to check)
-  router.get('/puzzle-bank/:id/preview', authMiddleware, roleMiddleware('ADMIN', 'JUDGE'), (req, res) => {
+  router.get('/puzzle-bank/:id/preview', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), (req, res) => {
     const preview = puzzleBankService.getPuzzlePreview(req.params.id);
     if (!preview) return res.json({ code: 40400, message: '题目不存在', data: null });
     res.json({ code: 200, message: 'success', data: preview });
   });
 
   // Generate new puzzles and add to bank
-  router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware('ADMIN'), validateBody(generatePuzzlesSchema), (req, res) => {
+  router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generatePuzzlesSchema), (req, res) => {
     const { roundType, count, teamsCount } = req.body;
     const data = puzzleBankService.generatePuzzles({ roundType, count, teamsCount });
     res.json({ code: 200, message: 'success', data });
   });
 
   // Bulk generate puzzles for ALL rounds at once (given team count)
-  router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware('ADMIN'), validateBody(generateBulkSchema), (req, res) => {
+  router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generateBulkSchema), (req, res) => {
     const { teamsCount } = req.body;
     const result = puzzleBankService.generateBulk(teamsCount);
     res.json({ code: 200, message: 'success', data: result });
   });
 
   // Import puzzles from bank into a round
-  router.post('/puzzle-bank/import-to-round', authMiddleware, roleMiddleware('ADMIN'), validateBody(importToRoundSchema), async (req, res) => {
+  router.post('/puzzle-bank/import-to-round', authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(importToRoundSchema), async (req, res) => {
     const { roundId, puzzleIds, count, teamsCount } = req.body;
 
     const result = await puzzleBankService.importToRound({ roundId, puzzleIds, count, teamsCount });
@@ -56,14 +56,14 @@ function createPuzzleBankRouter(repos) {
   });
 
   // Delete single puzzle from bank
-  router.delete('/puzzle-bank/:id', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.delete('/puzzle-bank/:id', authMiddleware, roleMiddleware(...ADMIN_ROLES), async (req, res) => {
     const result = await puzzleBankService.deletePuzzle(req.params.id);
     if (!result.deleted) return res.json({ code: 40400, message: result.message, data: null });
     res.json({ code: 200, message: 'success', data: result });
   });
 
   // Clear all puzzles from bank
-  router.delete('/puzzle-bank', authMiddleware, roleMiddleware('ADMIN'), async (req, res) => {
+  router.delete('/puzzle-bank', authMiddleware, roleMiddleware(...ADMIN_ROLES), async (req, res) => {
     const result = await puzzleBankService.clearAll();
     res.json({ code: 200, message: 'success', data: result });
   });

@@ -21,11 +21,11 @@ import Round2View from './Round2View';
 import Round3View from './Round3View';
 
 export default function PlayerGamePage() {
-  const { tournamentId } = useParams();
+  const { competitionId } = useParams();
   const { user } = useAuth();
   const { t, lang } = useLanguage();
   const navigate = useNavigate();
-  const [tournament, setTournament] = useState(null);
+  const [competition, setCompetition] = useState(null);
   const [currentRound, setCurrentRound] = useState(null);
   const [activePuzzle, setActivePuzzle] = useState(null);
   // Message banner: { text, type } where type ∈ 'success' | 'warning' | 'error' | 'info'
@@ -58,7 +58,7 @@ export default function PlayerGamePage() {
     setRound2FromRest,
     setRound3FromRest,
     setTimerMetaFromRest,
-  } = useGameSocket(parseInt(tournamentId));
+  } = useGameSocket(competitionId);
 
   // Server-authoritative timer
   const { remainingSeconds, formattedTime, isPaused } = useTimer(timerMeta);
@@ -73,17 +73,22 @@ export default function PlayerGamePage() {
     messageTimerRef.current = setTimeout(() => setMessage(null), 3000);
   }, []);
 
-  // Load tournament info
+  // Load competition info
   useEffect(() => {
-    api.getTournament(tournamentId).then(res => {
-      if (res.code === 200) setTournament(res.data);
+    api.getCompetition(competitionId).then(res => {
+      if (res.code === 200) setCompetition(res.data);
     });
-  }, [tournamentId]);
+  }, [competitionId]);
 
   // REST fallback: fetch current game state on mount (handles late-join / page refresh)
   useEffect(() => {
     if (user?.role !== 'PLAYER') return;
-    api.getMyGameState(tournamentId).then(res => {
+    api.getMyGameState(competitionId).then(res => {
+      // `competitionId` is the UUID from useParams(), passed through unchanged
+      // to both REST and WebSocket calls. The socket emissions used to wrap it
+      // in parseInt() — a leftover of the SERIAL era. parseInt on a UUID yields
+      // a small integer rather than NaN, so the socket schema rejected every
+      // message: the player could never join a room or submit an answer.
       if (res.code === 200 && res.data?.currentRound) {
         setCurrentRound(res.data.currentRound);
 
@@ -130,7 +135,7 @@ export default function PlayerGamePage() {
         }
       }
     });
-  }, [tournamentId, user?.role, setRound2FromRest, setRound3FromRest, setTimerMetaFromRest]);
+  }, [competitionId, user?.role, setRound2FromRest, setRound3FromRest, setTimerMetaFromRest]);
 
   // Merge socket puzzles into local state
   useEffect(() => {
@@ -283,11 +288,11 @@ export default function PlayerGamePage() {
       return;
     }
     if (currentRound.roundType === 'ROUND3_COLLABORATE') {
-      submitCellFill(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col, value);
+      submitCellFill(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col, value);
     } else if (currentRound.roundType === 'ROUND1_NINE_ONE') {
-      submitAnswer(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, 'SINGLE_CELL', { row, col, value });
+      submitAnswer(competitionId, currentRound.roundId, activePuzzle.puzzleId, 'SINGLE_CELL', { row, col, value });
     }
-  }, [activePuzzle, currentRound, tournamentId, showMessage, t]);
+  }, [activePuzzle, currentRound, competitionId, showMessage, t]);
 
   const handleFullGridSubmit = useCallback((grid) => {
     if (!activePuzzle || !currentRound) return;
@@ -295,8 +300,8 @@ export default function PlayerGamePage() {
       showMessage(t('game.puzzleCompleted'), 'warning');
       return;
     }
-    submitAnswer(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, 'FULL_GRID', { grid });
-  }, [activePuzzle, currentRound, tournamentId, showMessage, t]);
+    submitAnswer(competitionId, currentRound.roundId, activePuzzle.puzzleId, 'FULL_GRID', { grid });
+  }, [activePuzzle, currentRound, competitionId, showMessage, t]);
 
   // Round 2: cell change handler (sends real-time updates for own puzzle)
   const handleR2CellChange = useCallback((row, col, value) => {
@@ -307,28 +312,28 @@ export default function PlayerGamePage() {
   // Round 3: collaboration handlers
   const handleR3ProposeCell = useCallback((row, col, value) => {
     if (!activePuzzle || !currentRound) return;
-    proposeCell(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col, value);
-  }, [activePuzzle, currentRound, tournamentId, proposeCell]);
+    proposeCell(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col, value);
+  }, [activePuzzle, currentRound, competitionId, proposeCell]);
 
   const handleR3AcceptProposal = useCallback((row, col) => {
     if (!activePuzzle || !currentRound) return;
-    acceptProposal(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col);
-  }, [activePuzzle, currentRound, tournamentId, acceptProposal]);
+    acceptProposal(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col);
+  }, [activePuzzle, currentRound, competitionId, acceptProposal]);
 
   const handleR3RejectProposal = useCallback((row, col) => {
     if (!activePuzzle || !currentRound) return;
-    rejectProposal(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col);
-  }, [activePuzzle, currentRound, tournamentId, rejectProposal]);
+    rejectProposal(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col);
+  }, [activePuzzle, currentRound, competitionId, rejectProposal]);
 
   const handleR3FocusUpdate = useCallback((row, col) => {
     if (!activePuzzle || !currentRound) return;
-    focusUpdate(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col);
-  }, [activePuzzle, currentRound, tournamentId, focusUpdate]);
+    focusUpdate(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col);
+  }, [activePuzzle, currentRound, competitionId, focusUpdate]);
 
   const handleR3WithdrawProposal = useCallback((row, col) => {
     if (!activePuzzle || !currentRound) return;
-    withdrawProposal(parseInt(tournamentId), currentRound.roundId, activePuzzle.puzzleId, row, col);
-  }, [activePuzzle, currentRound, tournamentId, withdrawProposal]);
+    withdrawProposal(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col);
+  }, [activePuzzle, currentRound, competitionId, withdrawProposal]);
 
   // Puzzle selection handler (Round 1 & 3)
   const handleSelectPuzzle = useCallback((puzzle) => {
@@ -341,10 +346,10 @@ export default function PlayerGamePage() {
       <div className="bg-gray-800 px-3 sm:px-6 py-2 sm:py-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white text-xs sm:text-sm">
+            <button onClick={() => navigate(`/competitions/${competitionId}`)} className="text-gray-400 hover:text-white text-xs sm:text-sm">
               &larr; {t('game.back')}
             </button>
-            <h1 className="text-sm sm:text-lg font-bold">{tournament?.name || t('game.defaultTournamentName')}</h1>
+            <h1 className="text-sm sm:text-lg font-bold">{competition?.name || t('game.defaultCompetitionName')}</h1>
             {currentRound && (
               <span className="text-xs sm:text-sm text-gray-400">
                 {currentRound.roundName || `Round ${currentRound.roundNumber}`}

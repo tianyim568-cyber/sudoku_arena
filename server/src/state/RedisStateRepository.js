@@ -8,7 +8,7 @@
  *   r2:assign:{roundId}:{teamId}     Hash   — playerId -> puzzleId
  *   r2:grid:{roundId}:{teamId}:{pid} String — JSON grid
  *   r3:cells:{puzzleId}              Hash   — "row-col" -> JSON({value, playerId, playerName})
- *   active:{tournamentId}            Hash   — userId -> socketId
+ *   active:{competitionId}            Hash   — userId -> socketId
  */
 
 class RedisStateRepository {
@@ -354,18 +354,18 @@ class RedisStateRepository {
 
   // ─── Active Players ────────────────────────────────────────
 
-  async setActivePlayer(tournamentId, userId, socketId) {
-    const key = `active:${tournamentId}`;
+  async setActivePlayer(competitionId, userId, socketId) {
+    const key = `active:${competitionId}`;
     await this.redis.hset(key, String(userId), socketId);
     await this.redis.expire(key, 120); // 2 min TTL — heartbeat refreshes
   }
 
-  async removeActivePlayer(tournamentId, userId) {
-    await this.redis.hdel(`active:${tournamentId}`, String(userId));
+  async removeActivePlayer(competitionId, userId) {
+    await this.redis.hdel(`active:${competitionId}`, String(userId));
   }
 
-  async getActivePlayers(tournamentId) {
-    const data = await this.redis.hgetall(`active:${tournamentId}`);
+  async getActivePlayers(competitionId) {
+    const data = await this.redis.hgetall(`active:${competitionId}`);
     if (!data) return {};
     const result = {};
     for (const [uid, socketId] of Object.entries(data)) {

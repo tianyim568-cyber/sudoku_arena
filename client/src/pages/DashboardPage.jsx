@@ -4,17 +4,18 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
 // Dashboard overview page — simple stats summary of competitions.
-// Data comes from the existing listTournaments() API; we just count by status.
-// No advanced features here — just a snapshot of the organization's competitions.
+// Data comes from listCompetitions() (renamed in Phase 6 from
+// listCompetitions); we just count by status. No advanced features here — just
+// a snapshot of the organization's competitions.
 export default function DashboardPage() {
   const { t } = useLanguage();
-  const [tournaments, setTournaments] = useState([]);
+  const [competitions, setCompetitions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      const res = await api.listTournaments();
-      if (res.code === 200) setTournaments(res.data);
+      const res = await api.listCompetitions();
+      if (res.code === 200) setCompetitions(res.data);
       setLoading(false);
     };
     load();
@@ -26,10 +27,10 @@ export default function DashboardPage() {
 
   // Count competitions by status. PENDING = upcoming, IN_PROGRESS/PAUSED = in progress, FINISHED = finished.
   const counts = {
-    total: tournaments.length,
-    inProgress: tournaments.filter(t => t.status === 'IN_PROGRESS' || t.status === 'PAUSED').length,
-    upcoming: tournaments.filter(t => t.status === 'PENDING').length,
-    finished: tournaments.filter(t => t.status === 'FINISHED').length,
+    total: competitions.length,
+    inProgress: competitions.filter(c => c.status === 'IN_PROGRESS' || c.status === 'PAUSED').length,
+    upcoming: competitions.filter(c => c.status === 'PENDING').length,
+    finished: competitions.filter(c => c.status === 'FINISHED').length,
   };
 
   // Stat cards: { key, value, color }.
@@ -56,27 +57,27 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {tournaments.length === 0 ? (
+      {competitions.length === 0 ? (
         <div className="bg-white rounded-xl shadow p-6 sm:p-8 text-center text-gray-400">
           <p className="text-sm sm:text-base">{t('dashboard.noCompetitions')}</p>
           <Link to="/dashboard/competitions" className="inline-block mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs sm:text-sm hover:bg-indigo-500 transition-colors">
-            {t('tournamentList.newTournament')}
+            {t('competitionList.newCompetition')}
           </Link>
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow p-4 sm:p-6">
-          <h3 className="text-sm sm:text-base font-semibold text-gray-700 mb-3">{t('tournamentList.listTitle')}</h3>
+          <h3 className="text-sm sm:text-base font-semibold text-gray-700 mb-3">{t('competitionList.listTitle')}</h3>
           <ul className="divide-y divide-gray-100">
-            {tournaments.slice(0, 5).map(tour => (
-              <li key={tour.id}>
-                <Link to={`/tournament/${tour.id}`} className="flex items-center justify-between py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors">
-                  <span className="text-sm text-gray-700 truncate">{tour.name}</span>
-                  <span className="text-xs text-gray-400 ml-3">{t(`common.status.${tour.status}`)}</span>
+            {competitions.slice(0, 5).map(competition => (
+              <li key={competition.id}>
+                <Link to={`/competitions/${competition.id}`} className="flex items-center justify-between py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors">
+                  <span className="text-sm text-gray-700 truncate">{competition.name}</span>
+                  <span className="text-xs text-gray-400 ml-3">{t(`common.status.${competition.status}`)}</span>
                 </Link>
               </li>
             ))}
           </ul>
-          {tournaments.length > 5 && (
+          {competitions.length > 5 && (
             <Link to="/dashboard/competitions" className="block text-center text-xs text-indigo-600 hover:text-indigo-500 mt-3">
               {t('dashboard.nav.competitions')} →
             </Link>

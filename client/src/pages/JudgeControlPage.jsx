@@ -6,43 +6,45 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
 
 export default function JudgeControlPage() {
-  const { tournamentId } = useParams();
+  // The URL param is still named :competitionId (Phase 13 will rename the route).
+  // We alias it locally to competitionId to match the api function signatures.
+  const { competitionId } = useParams();
   const { user } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [tournament, setTournament] = useState(null);
+  const [competition, setCompetition] = useState(null);
   const [roomStatus, setRoomStatus] = useState(null);
   const [message, setMessage] = useState('');
 
   const load = async () => {
-    const res = await api.getTournament(tournamentId);
-    if (res.code === 200) setTournament(res.data);
+    const res = await api.getCompetition(competitionId);
+    if (res.code === 200) setCompetition(res.data);
   };
 
   const loadRoomStatus = async () => {
-    const res = await api.getRoomStatus(tournamentId);
+    const res = await api.getRoomStatus(competitionId);
     if (res.code === 200) setRoomStatus(res.data);
   };
 
-  useEffect(() => { load(); }, [tournamentId]);
+  useEffect(() => { load(); }, [competitionId]);
   useEffect(() => {
-    if (tournament?.status === 'IN_PROGRESS' || tournament?.status === 'PAUSED') {
+    if (competition?.status === 'IN_PROGRESS' || competition?.status === 'PAUSED') {
       loadRoomStatus();
       const iv = setInterval(loadRoomStatus, 5000);
       return () => clearInterval(iv);
     }
-  }, [tournament?.status]);
+  }, [competition?.status]);
 
   const handleAction = async (action, ...args) => {
     try {
       let res;
       switch (action) {
-        case 'start': res = await api.startTournament(tournamentId); break;
-        case 'pause': res = await api.pauseTournament(tournamentId); break;
-        case 'resume': res = await api.resumeTournament(tournamentId); break;
-        case 'end': res = await api.endTournament(tournamentId); break;
-        case 'startRound': res = await api.startRound(tournamentId, args[0]); break;
-        case 'endRound': res = await api.endRound(tournamentId, args[0]); break;
+        case 'start': res = await api.startCompetition(competitionId); break;
+        case 'pause': res = await api.pauseCompetition(competitionId); break;
+        case 'resume': res = await api.resumeCompetition(competitionId); break;
+        case 'end': res = await api.endCompetition(competitionId); break;
+        case 'startRound': res = await api.startRound(competitionId, args[0]); break;
+        case 'endRound': res = await api.endRound(competitionId, args[0]); break;
       }
       if (res.code === 200) {
         setMessage(t('judge.actionSuccess', { action }));
@@ -63,26 +65,26 @@ export default function JudgeControlPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (!tournament) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
+  if (!competition) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-gray-800 text-white px-4 sm:px-6 py-3 sm:py-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 sm:gap-4">
-            <button onClick={() => navigate(`/tournament/${tournamentId}`)} className="text-gray-400 hover:text-white text-xs sm:text-sm">&larr; {t('judge.back')}</button>
+            <button onClick={() => navigate(`/competitions/${competitionId}`)} className="text-gray-400 hover:text-white text-xs sm:text-sm">&larr; {t('judge.back')}</button>
             <div>
-              <h1 className="text-base sm:text-lg font-bold">{tournament.name}</h1>
+              <h1 className="text-base sm:text-lg font-bold">{competition.name}</h1>
               <span className="text-xs sm:text-sm text-gray-400">{t('judge.console')}</span>
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSwitcher />
             <span className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium ${
-              tournament.status === 'PENDING' ? 'bg-yellow-600' :
-              tournament.status === 'IN_PROGRESS' ? 'bg-green-600' :
-              tournament.status === 'PAUSED' ? 'bg-orange-600' : 'bg-gray-600'
-            }`}>{t(`common.status.${tournament.status}`)}</span>
+              competition.status === 'PENDING' ? 'bg-yellow-600' :
+              competition.status === 'IN_PROGRESS' ? 'bg-green-600' :
+              competition.status === 'PAUSED' ? 'bg-orange-600' : 'bg-gray-600'
+            }`}>{t(`common.status.${competition.status}`)}</span>
           </div>
         </div>
       </header>
@@ -92,17 +94,17 @@ export default function JudgeControlPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 sm:px-4 py-2 text-blue-700 text-xs sm:text-sm">{message}</div>
         )}
 
-        {/* Tournament Controls */}
+        {/* Competition Controls */}
         <section className="bg-white rounded-xl shadow p-4 sm:p-6">
-          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.tournamentControl')}</h2>
+          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.competitionControl')}</h2>
           <div className="flex flex-wrap gap-2 sm:gap-3">
-            {tournament.status === 'PENDING' && (
+            {competition.status === 'PENDING' && (
               <button onClick={() => handleAction('start')}
                 className="px-4 sm:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
-                {t('judge.startTournament')}
+                {t('judge.startCompetition')}
               </button>
             )}
-            {tournament.status === 'IN_PROGRESS' && (
+            {competition.status === 'IN_PROGRESS' && (
               <>
                 <button onClick={() => handleAction('pause')}
                   className="px-4 sm:px-6 py-2 sm:py-3 bg-orange-600 hover:bg-orange-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
@@ -110,11 +112,11 @@ export default function JudgeControlPage() {
                 </button>
                 <button onClick={() => handleAction('end')}
                   className="px-4 sm:px-6 py-2 sm:py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
-                  {t('judge.endTournament')}
+                  {t('judge.endCompetition')}
                 </button>
               </>
             )}
-            {tournament.status === 'PAUSED' && (
+            {competition.status === 'PAUSED' && (
               <button onClick={() => handleAction('resume')}
                 className="px-4 sm:px-6 py-2 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors text-sm sm:text-base">
                 {t('judge.resume')}
@@ -127,11 +129,11 @@ export default function JudgeControlPage() {
         <section className="bg-white rounded-xl shadow p-4 sm:p-6">
           <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.roundControl')}</h2>
           <div className="space-y-2 sm:space-y-3">
-            {tournament.rounds?.map((r, i) => (
+            {competition.rounds?.map((r, i) => (
               <div key={r.id} className="border rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex-1">
-                  <h3 className="font-medium text-sm sm:text-base">{t('judge.roundTitle', { n: r.round_number, name: r.name })}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500">{t('judge.roundMeta', { type: r.round_type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}</p>
+                  <h3 className="font-medium text-sm sm:text-base">{t('judge.roundTitle', { n: r.order_number, name: r.name })}</h3>
+                  <p className="text-xs sm:text-sm text-gray-500">{t('judge.roundMeta', { type: r.type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}</p>
                   {r.remaining_seconds != null && r.status === 'IN_PROGRESS' && (
                     <p className="text-base sm:text-lg font-mono mt-1 text-blue-600">{formatTime(r.remaining_seconds)}</p>
                   )}
@@ -143,7 +145,7 @@ export default function JudgeControlPage() {
                     r.status === 'PAUSED' ? 'bg-orange-100 text-orange-700' :
                     'bg-blue-100 text-blue-700'
                   }`}>{t(`common.status.${r.status}`)}</span>
-                  {tournament.status === 'IN_PROGRESS' && r.status === 'NOT_STARTED' && (
+                  {competition.status === 'IN_PROGRESS' && r.status === 'NOT_STARTED' && (
                     <button onClick={() => handleAction('startRound', r.id)}
                       className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs sm:text-sm">
                       {t('judge.startRound')}
@@ -193,7 +195,7 @@ export default function JudgeControlPage() {
         <section className="bg-white rounded-xl shadow p-4 sm:p-6">
           <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.teamScores')}</h2>
           <button onClick={async () => {
-            const res = await api.getTeamScores(tournamentId);
+            const res = await api.getTeamScores(competitionId);
             if (res.code === 200) setRoomStatus(prev => ({ ...prev, scores: res.data }));
           }} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm mb-3 sm:mb-4">
             {t('judge.refreshScores')}

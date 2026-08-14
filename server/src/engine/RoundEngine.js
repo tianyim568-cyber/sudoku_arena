@@ -5,12 +5,12 @@
  *   { result: any, emissions: Emission[] }
  *
  * An Emission is a plain object describing a socket event to emit:
- *   { target: 'tournament' | 'team' | 'user', targetId: number|null, event: string, payload: any }
+ *   { target: 'competition' | 'team' | 'user', targetId: number|null, event: string, payload: any }
  *
  * The GameOrchestrator processes emissions — RoundEngines never touch Socket.io directly.
  */
 
-/** @typedef {{ target: 'tournament'|'team'|'user', targetId: number|null, event: string, payload: any }} Emission */
+/** @typedef {{ target: 'competition'|'team'|'user', targetId: number|null, event: string, payload: any }} Emission */
 
 class RoundEngine {
   /**
@@ -32,13 +32,13 @@ class RoundEngine {
 
   /**
    * Called when a round starts. Distribute puzzles, initialize state.
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @param {Array} teams
    * @param {Array} puzzles
    * @returns {Promise<{ result: any, emissions: Emission[] }>}
    */
-  async setup(tournamentId, roundId, teams, puzzles) {
+  async setup(competitionId, roundId, teams, puzzles) {
     throw new Error('setup() must be implemented by subclass');
   }
 
@@ -47,14 +47,14 @@ class RoundEngine {
   /**
    * Handle a player's answer submission.
    * @param {number} userId
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @param {number} puzzleId
    * @param {string} submissionType
    * @param {{ row?: number, col?: number, value?: number, grid?: number[][] }} data
    * @returns {Promise<{ result: any, emissions: Emission[] }>}
    */
-  async submitAnswer(userId, tournamentId, roundId, puzzleId, submissionType, data) {
+  async submitAnswer(userId, competitionId, roundId, puzzleId, submissionType, data) {
     throw new Error('submitAnswer() must be implemented by subclass');
   }
 
@@ -63,11 +63,11 @@ class RoundEngine {
   /**
    * Return all state a reconnecting player needs to resume.
    * @param {number} userId
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @returns {Promise<object|null>}
    */
-  async getReconnectState(userId, tournamentId, roundId) {
+  async getReconnectState(userId, competitionId, roundId) {
     throw new Error('getReconnectState() must be implemented by subclass');
   }
 
@@ -75,22 +75,22 @@ class RoundEngine {
 
   /**
    * Called when a round ends. Clean up StateRepository entries.
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @returns {Promise<void>}
    */
-  async cleanup(tournamentId, roundId) {
+  async cleanup(competitionId, roundId) {
     throw new Error('cleanup() must be implemented by subclass');
   }
 
   // ─── Helpers for building emissions ───────────────────────────
 
-  _emitTournament(tournamentId, event, payload) {
-    return { target: 'tournament', targetId: tournamentId, event, payload };
+  _emitCompetition(competitionId, event, payload) {
+    return { target: 'competition', targetId: competitionId, event, payload };
   }
 
-  _emitTeam(tournamentId, teamId, event, payload) {
-    return { target: 'team', targetId: { tournamentId, teamId }, event, payload };
+  _emitTeam(competitionId, teamId, event, payload) {
+    return { target: 'team', targetId: { competitionId, teamId }, event, payload };
   }
 
   _emitUser(userId, event, payload) {

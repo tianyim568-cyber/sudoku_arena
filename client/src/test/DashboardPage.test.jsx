@@ -1,8 +1,9 @@
 // Unit tests for DashboardPage (Day-3 task 3.6).
 //
-// The overview page calls api.listTournaments() and displays 4 stat cards:
+// The overview page calls api.listCompetitions() (renamed in Phase 6 from
+// listCompetitions) and displays 4 stat cards:
 // total / in progress / upcoming / finished, plus a top-5 recent list.
-// We verify the counts are correct for a known set of tournaments.
+// We verify the counts are correct for a known set of competitions.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -12,7 +13,7 @@ import DashboardPage from '../pages/DashboardPage';
 import { api } from '../api';
 
 vi.mock('../api', () => ({
-  api: { listTournaments: vi.fn() },
+  api: { listCompetitions: vi.fn() },
   setToken: vi.fn(),
 }));
 
@@ -30,7 +31,7 @@ function renderPage() {
   );
 }
 
-// 6 tournaments with distinct counts per bucket:
+// 6 competitions with distinct counts per bucket:
 //   total = 6, in progress = 2 (IN_PROGRESS + PAUSED),
 //   upcoming = 3 (PENDING), finished = 1.
 // Distinct numbers matter because the page renders them as bare text nodes,
@@ -46,15 +47,15 @@ const SAMPLE = [
 
 describe('DashboardPage', () => {
   it('shows the loading text while fetching', () => {
-    api.listTournaments.mockReturnValue(new Promise(() => {})); // never resolves
+    api.listCompetitions.mockReturnValue(new Promise(() => {})); // never resolves
     renderPage();
     // The page renders the i18n key dashboard.loading while loading is true.
     // Both dictionaries have it; just assert something loading-like is present.
     expect(screen.queryByText(/loading|加载/i)).not.toBeNull();
   });
 
-  it('counts tournaments by status once loaded', async () => {
-    api.listTournaments.mockResolvedValue({ code: 200, data: SAMPLE });
+  it('counts competitions by status once loaded', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: SAMPLE });
     renderPage();
     // total = 6, in progress = IN_PROGRESS + PAUSED = 2,
     // upcoming = PENDING = 3, finished = 1. All distinct.
@@ -66,8 +67,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('1')).toBeInTheDocument(); // finished
   });
 
-  it('lists up to 5 recent tournaments', async () => {
-    api.listTournaments.mockResolvedValue({ code: 200, data: SAMPLE });
+  it('lists up to 5 recent competitions', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: SAMPLE });
     renderPage();
     // The list caps at 5 even though SAMPLE has 6. We assert the first 5
     // names are present.
@@ -80,8 +81,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('E')).toBeInTheDocument();
   });
 
-  it('shows the empty state when there are no tournaments', async () => {
-    api.listTournaments.mockResolvedValue({ code: 200, data: [] });
+  it('shows the empty state when there are no competitions', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: [] });
     renderPage();
     // The empty state renders the dashboard.noCompetitions text + a link to
     // /dashboard/competitions. We assert the link is present.

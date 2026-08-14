@@ -1,13 +1,19 @@
 /**
  * Participant import routes — handles Excel upload, preview, confirm, list, delete.
  * Follows the route factory pattern: createParticipantRouter(repos) returns express.Router().
+ *
+ * Phase 9 of the second migration chantier: re-enabled with /competitions paths,
+ * UUID-safe params (no parseInt), and tenantGuard('competitions') on every route.
  */
 
 const express = require('express');
 const multer = require('multer');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { authMiddleware, roleMiddleware, ADMIN_ROLES } = require('../middleware/auth');
+const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateFileType } = require('../middleware/fileType');
 const { expensiveLimiter } = require('../middleware/rateLimiters');
+const { validateBody } = require('../middleware/validate');
+const { confirmImportSchema } = require('../validations/participants');
 const ParticipantImportService = require('../services/ParticipantImportService');
 const ParticipantExportService = require('../services/ParticipantExportService');
 
@@ -32,22 +38,23 @@ const exportService = new ParticipantExportService();
 function createParticipantRouter(repos) {
   const router = express.Router();
 
-  // POST /api/tournaments/:id/participants/upload
+  // POST /api/competitions/:id/participants/upload
   // Upload Excel, parse & validate, return preview data
   router.post(
-    '/tournaments/:id/participants/upload',
+    '/competitions/:id/participants/upload',
     expensiveLimiter,
     authMiddleware,
-    roleMiddleware('ADMIN'),
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
     upload.single('file'),
     validateFileType(['xlsx', 'xls', 'csv']),
     async (req, res) => {
       try {
-        const tournamentId = parseInt(req.params.id);
+        const competitionId = req.params.id;
 
-        // Check tournament exists
-        const tournament = await repos.tournaments.findById(tournamentId);
-        if (!tournament) {
+        // Check competition exists
+        const competition = await repos.competitions.findById(competitionId);
+        if (!competition) {
           return res.json({ code: 40404, message: '比赛不存在', data: null });
         }
 
@@ -88,43 +95,40 @@ function createParticipantRouter(repos) {
     }
   );
 
-  // POST /api/tournaments/:id/participants/confirm
+  // POST /api/competitions/:id/participants/confirm
   // Confirm import, persist all rows in transaction
   router.post(
-    '/tournaments/:id/participants/confirm',
+    '/competitions/:id/participants/confirm',
     authMiddleware,
-    roleMiddleware('ADMIN'),
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    validateBody(confirmImportSchema),
     async (req, res) => {
       try {
-        const tournamentId = parseInt(req.params.id);
+        const competitionId = req.params.id;
         const { rows } = req.body;
 
-        // Check tournament exists
-        const tournament = await repos.tournaments.findById(tournamentId);
-        if (!tournament) {
+        // Check competition exists
+        const competition = await repos.competitions.findById(competitionId);
+        if (!competition) {
           return res.json({ code: 40404, message: '比赛不存在', data: null });
         }
 
-        // Validate input
-        if (!rows || !Array.isArray(rows) || rows.length === 0) {
-          return res.json({ code: 40003, message: '没有有效的数据行', data: null });
-        }
-
-        // Re-validate every row server-side before inserting (never trust the
-        // client): row validation runs at upload/preview, but /confirm receives
-        // rows straight from the request body and could be called directly.
+        // Zod already verified `rows` is a non-empty array of objects with
+        // name + school. Re-run the service's deeper validation (age range,
+        // etc.) on every row, never trusting the client.
         const { valid, invalid } = importService.validateRows(rows);
         if (invalid.length > 0) {
           return res.json({ code: 40003, message: '存在无效的数据行，无法导入', data: { invalid } });
         }
 
-        // Extract year from tournament creation date
-        const year = tournament.created_at ? new Date(tournament.created_at).getFullYear().toString() : new Date().getFullYear().toString();
+        // Extract year from competition creation date
+        const year = competition.created_at ? new Date(competition.created_at).getFullYear().toString() : new Date().getFullYear().toString();
 
         // Bulk import — all-or-nothing transaction (only re-validated rows)
         let result;
         try {
-          result = await repos.participants.bulkImport(tournamentId, valid, year);
+          result = await repos.participants.bulkImport(competitionId, valid, year);
         } catch (importErr) {
           console.error('Bulk import rolled back:', importErr.message);
           return res.json({ code: 50001, message: '导入所有选手失败，已回滚全部操作', data: null });
@@ -142,23 +146,24 @@ function createParticipantRouter(repos) {
     }
   );
 
-  // GET /api/tournaments/:id/participants
-  // List imported participants for a tournament
+  // GET /api/competitions/:id/participants
+  // List imported participants for a competition
   router.get(
-    '/tournaments/:id/participants',
+    '/competitions/:id/participants',
     authMiddleware,
-    roleMiddleware('ADMIN'),
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
     async (req, res) => {
       try {
-        const tournamentId = parseInt(req.params.id);
+        const competitionId = req.params.id;
 
-        // Check tournament exists
-        const tournament = await repos.tournaments.findById(tournamentId);
-        if (!tournament) {
+        // Check competition exists
+        const competition = await repos.competitions.findById(competitionId);
+        if (!competition) {
           return res.json({ code: 40404, message: '比赛不存在', data: null });
         }
 
-        const participants = await repos.participants.findByTournament(tournamentId);
+        const participants = await repos.participants.findByCompetition(competitionId);
 
         res.json({
           code: 200,
@@ -172,23 +177,24 @@ function createParticipantRouter(repos) {
     }
   );
 
-  // DELETE /api/tournaments/:id/participants
-  // Remove all imported participants for a tournament
+  // DELETE /api/competitions/:id/participants
+  // Remove all imported participants for a competition
   router.delete(
-    '/tournaments/:id/participants',
+    '/competitions/:id/participants',
     authMiddleware,
-    roleMiddleware('ADMIN'),
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
     async (req, res) => {
       try {
-        const tournamentId = parseInt(req.params.id);
+        const competitionId = req.params.id;
 
-        // Check tournament exists
-        const tournament = await repos.tournaments.findById(tournamentId);
-        if (!tournament) {
+        // Check competition exists
+        const competition = await repos.competitions.findById(competitionId);
+        if (!competition) {
           return res.json({ code: 40404, message: '比赛不存在', data: null });
         }
 
-        const count = await repos.participants.deleteByTournament(tournamentId);
+        const count = await repos.participants.deleteByCompetition(competitionId);
 
         res.json({
           code: 200,
@@ -202,24 +208,25 @@ function createParticipantRouter(repos) {
     }
   );
 
-  // GET /api/tournaments/:id/participants/export
+  // GET /api/competitions/:id/participants/export
   // Export participants with credentials as Excel file
   router.get(
-    '/tournaments/:id/participants/export',
+    '/competitions/:id/participants/export',
     authMiddleware,
-    roleMiddleware('ADMIN'),
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
     async (req, res) => {
       try {
-        const tournamentId = parseInt(req.params.id);
+        const competitionId = req.params.id;
 
-        // Check tournament exists
-        const tournament = await repos.tournaments.findById(tournamentId);
-        if (!tournament) {
+        // Check competition exists
+        const competition = await repos.competitions.findById(competitionId);
+        if (!competition) {
           return res.json({ code: 40404, message: '比赛不存在', data: null });
         }
 
         // Get export data
-        const rows = await repos.participants.getExportData(tournamentId);
+        const rows = await repos.participants.getExportData(competitionId);
 
         if (rows.length === 0) {
           return res.json({ code: 40004, message: '没有可导出的选手数据', data: null });
@@ -229,7 +236,7 @@ function createParticipantRouter(repos) {
         const buffer = exportService.generateExportBuffer(rows);
 
         // Set download headers
-        const filename = encodeURIComponent(`${tournament.name}_选手账号密码.xlsx`);
+        const filename = encodeURIComponent(`${competition.name}_选手账号密码.xlsx`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
         res.send(buffer);
