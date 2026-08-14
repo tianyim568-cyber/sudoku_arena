@@ -1,7 +1,14 @@
 const express = require('express');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { authMiddleware, roleMiddleware, ADMIN_ROLES } = require('../middleware/auth');
+const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateBody } = require('../middleware/validate');
 const { submitAnswerSchema } = require('../validations/game');
+
+// Phase 10 of the second migration chantier: re-enabled with /competitions paths,
+// UUID-safe params (no parseInt), and tenantGuard('competitions') on every route
+// that carries a competition :id. The orchestrator method names
+// (startCompetition, pauseCompetition, etc.) are NOT renamed — only the HTTP paths
+// and internal variables change. See JOURNAL_MODIFICATIONS PARTIE 2.
 
 function createGameRouter(repos, orchestrator) {
   const router = express.Router();
@@ -15,7 +22,7 @@ function createGameRouter(repos, orchestrator) {
   }
 
   // List stages with rounds
-  router.get('/competitions/:id/stages', authMiddleware, async (req, res) => {
+  router.get('/competitions/:id/stages', authMiddleware, tenantGuard('competitions'), async (req, res) => {
     try {
       const stages = await orchestrator.listStages(req.params.id);
       res.json({ code: 200, message: 'success', data: stages });
@@ -25,7 +32,7 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Configure stage order and types
-  router.put('/competitions/:id/stages', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  router.put('/competitions/:id/stages', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
       const stages = await orchestrator.configureStages(req.params.id, req.body.stages);
       res.json({ code: 200, message: 'success', data: stages });
@@ -34,10 +41,10 @@ function createGameRouter(repos, orchestrator) {
     }
   });
 
-  // Start tournament
-  router.post('/tournaments/:id/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  // Start competition
+  router.post('/competitions/:id/start', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.startTournament(req.params.id));
+      const result = handleOrchestratorResult(await orchestrator.startCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
@@ -45,7 +52,7 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Start stage
-  router.post('/competitions/:competitionId/stages/:stageId/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  router.post('/competitions/:competitionId/stages/:stageId/start', authMiddleware, tenantGuard('competitions', { param: 'competitionId' }), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
       const result = handleOrchestratorResult(await orchestrator.startStage(req.params.competitionId, req.params.stageId));
       res.json({ code: 200, message: 'success', data: result });
@@ -55,29 +62,29 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Start round
-  router.post('/tournaments/:id/rounds/:roundId/start', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  router.post('/competitions/:id/rounds/:roundId/start', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.startRound(parseInt(req.params.id), parseInt(req.params.roundId)));
+      const result = handleOrchestratorResult(await orchestrator.startRound(req.params.id, req.params.roundId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
     }
   });
 
-  // Pause tournament
-  router.post('/tournaments/:id/pause', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  // Pause competition
+  router.post('/competitions/:id/pause', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.pauseTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.pauseCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
     }
   });
 
-  // Resume tournament
-  router.post('/tournaments/:id/resume', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  // Resume competition
+  router.post('/competitions/:id/resume', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.resumeTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.resumeCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
@@ -85,9 +92,9 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // End round
-  router.post('/tournaments/:id/rounds/:roundId/end', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  router.post('/competitions/:id/rounds/:roundId/end', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.endRound(parseInt(req.params.id), parseInt(req.params.roundId)));
+      const result = handleOrchestratorResult(await orchestrator.endRound(req.params.id, req.params.roundId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
@@ -95,7 +102,7 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Transition to next stage (judge-triggered: after current stage finishes, start the next)
-  router.post('/competitions/:id/stages/next', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  router.post('/competitions/:id/stages/next', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
       const result = handleOrchestratorResult(await orchestrator.startNextStage(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
@@ -104,10 +111,10 @@ function createGameRouter(repos, orchestrator) {
     }
   });
 
-  // End tournament
-  router.post('/tournaments/:id/end', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
+  // End competition
+  router.post('/competitions/:id/end', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {
-      const result = handleOrchestratorResult(await orchestrator.endTournament(parseInt(req.params.id)));
+      const result = handleOrchestratorResult(await orchestrator.endCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
       res.json({ code: 40040, message: e.message, data: null });
@@ -129,13 +136,13 @@ function createGameRouter(repos, orchestrator) {
   // Individual round submission (server-authoritative scoring)
   router.post('/submissions/individual', authMiddleware, roleMiddleware('PLAYER'), async (req, res) => {
     try {
-      const { tournamentId, roundId, puzzleId, grid } = req.body;
+      const { competitionId, roundId, puzzleId, grid } = req.body;
       const { result, emissions } = await orchestrator.submitAnswer(
         req.user.userId,
         roundId,
         puzzleId,
         'INDIVIDUAL',
-        { grid, tournamentId }
+        { grid, competitionId }
       );
       orchestrator.processEmissions(emissions);
       res.json({ code: 200, message: 'success', data: result });
@@ -145,27 +152,36 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Get my scores
-  router.get('/tournaments/:id/scores/my', authMiddleware, roleMiddleware('PLAYER'), async (req, res) => {
-    const scores = await repos.scores.findPlayerScoresByTournament(req.params.id, req.user.userId);
+  router.get('/competitions/:id/scores/my', authMiddleware, tenantGuard('competitions'), roleMiddleware('PLAYER'), async (req, res) => {
+    const scores = await repos.scores.findPlayerScoresByCompetition(req.params.id, req.user.userId);
     res.json({ code: 200, message: 'success', data: scores });
   });
 
   // Get team scores
-  router.get('/tournaments/:id/scores/teams', authMiddleware, async (req, res) => {
-    const scores = await repos.scores.findTeamScoresByTournament(req.params.id);
+  router.get('/competitions/:id/scores/teams', authMiddleware, tenantGuard('competitions'), async (req, res) => {
+    const scores = await repos.scores.findTeamScoresByCompetition(req.params.id);
     res.json({ code: 200, message: 'success', data: scores });
   });
 
   // Get room status
-  router.get('/tournaments/:id/room/status', authMiddleware, roleMiddleware('JUDGE', 'ADMIN'), async (req, res) => {
-    const tournament = await repos.tournaments.findById(req.params.id);
-    if (!tournament) return res.json({ code: 40400, message: '比赛不存在', data: null });
-    const currentRound = await repos.rounds.findByTournamentAndStatus(req.params.id, 'IN_PROGRESS');
-    const teams = await repos.teams.findByTournamentWithMembers(req.params.id);
+  router.get('/competitions/:id/room/status', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
+    const competition = await repos.competitions.findById(req.params.id);
+    if (!competition) return res.json({ code: 40400, message: '比赛不存在', data: null });
+    const currentRound = await repos.rounds.findByCompetitionAndStatus(req.params.id, 'IN_PROGRESS');
+    const teams = await repos.teams.findByCompetitionWithMembers(req.params.id);
+
+    // The judge console reads currentRound.remaining_seconds to show the
+    // countdown. The old schema stored it as a column on `rounds`; the UUID
+    // migration dropped it and moved timing to the application layer, which
+    // left the console permanently blank. Re-attach it from the live timer.
+    if (currentRound) {
+      currentRound.remaining_seconds = await orchestrator.getRemainingSeconds(currentRound.id);
+    }
+
     res.json({
       code: 200, message: 'success', data: {
-        tournamentId: tournament.id,
-        status: tournament.status,
+        competitionId: competition.id,
+        status: competition.status,
         currentRound,
         teams
       }
@@ -173,16 +189,16 @@ function createGameRouter(repos, orchestrator) {
   });
 
   // Get player's current game state (REST fallback for late-join / refresh)
-  router.get('/tournaments/:id/my-state', authMiddleware, roleMiddleware('PLAYER'), async (req, res) => {
-    const tournament = await repos.tournaments.findById(req.params.id);
-    if (!tournament) return res.json({ code: 40400, message: '比赛不存在', data: null });
+  router.get('/competitions/:id/my-state', authMiddleware, tenantGuard('competitions'), roleMiddleware('PLAYER'), async (req, res) => {
+    const competition = await repos.competitions.findById(req.params.id);
+    if (!competition) return res.json({ code: 40400, message: '比赛不存在', data: null });
 
-    const activeRound = await repos.tournaments.findActiveRound(req.params.id);
+    const activeRound = await repos.competitions.findActiveRound(req.params.id);
 
     if (!activeRound) {
       return res.json({
         code: 200, message: 'success', data: {
-          tournamentStatus: tournament.status,
+          competitionStatus: competition.status,
           currentRound: null,
           puzzles: []
         }
@@ -377,7 +393,7 @@ function createGameRouter(repos, orchestrator) {
 
     res.json({
       code: 200, message: 'success', data: {
-        tournamentStatus: tournament.status,
+        competitionStatus: competition.status,
         currentRound: {
           roundId: activeRound.id,
           roundNumber: activeRound.round_number,

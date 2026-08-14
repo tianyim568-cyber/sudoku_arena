@@ -26,4 +26,16 @@ const expensiveLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-module.exports = { authLimiter, expensiveLimiter };
+// Limiter for organization registration (stricter than login: an org is a
+// heavier object to create, and registration is a one-shot action, so we
+// tighten the ceiling to 10 per 15 minutes per IP).
+// 10 requests per 15 minutes per IP.
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { code: 429, message: '注册尝试过于频繁，请15分钟后再试', data: null },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = { authLimiter, expensiveLimiter, registerLimiter };

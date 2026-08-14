@@ -298,22 +298,22 @@ class MemoryStateRepository {
 
   // ─── Active Players ────────────────────────────────────────
 
-  async setActivePlayer(tournamentId, userId, socketId) {
-    if (!this._activePlayers.has(tournamentId)) {
-      this._activePlayers.set(tournamentId, new Map());
+  async setActivePlayer(competitionId, userId, socketId) {
+    if (!this._activePlayers.has(competitionId)) {
+      this._activePlayers.set(competitionId, new Map());
     }
-    this._activePlayers.get(tournamentId).set(userId, socketId);
+    this._activePlayers.get(competitionId).set(userId, socketId);
   }
 
-  async removeActivePlayer(tournamentId, userId) {
-    const players = this._activePlayers.get(tournamentId);
+  async removeActivePlayer(competitionId, userId) {
+    const players = this._activePlayers.get(competitionId);
     if (players) {
       players.delete(userId);
     }
   }
 
-  async getActivePlayers(tournamentId) {
-    const players = this._activePlayers.get(tournamentId);
+  async getActivePlayers(competitionId) {
+    const players = this._activePlayers.get(competitionId);
     if (!players) return {};
     return Object.fromEntries(players);
   }

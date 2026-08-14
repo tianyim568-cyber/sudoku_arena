@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
-export default function ParticipantImport({ tournamentId, onImportComplete }) {
+export default function ParticipantImport({ competitionId, onImportComplete }) {
   const { t } = useLanguage();
   const [phase, setPhase] = useState('upload'); // upload | preview | importing | done
   const [previewData, setPreviewData] = useState(null); // { valid: [], invalid: [], total }
@@ -18,7 +18,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
     setPhase('uploading');
 
     try {
-      const res = await api.uploadParticipants(tournamentId, file);
+      const res = await api.uploadParticipants(competitionId, file);
       if (res.code === 200) {
         setPreviewData(res.data); // { valid: [...], invalid: [...], total }
         setPhase('preview');
@@ -39,7 +39,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
     setError(null);
 
     try {
-      const res = await api.confirmParticipants(tournamentId, previewData.valid);
+      const res = await api.confirmParticipants(competitionId, previewData.valid);
       if (res.code === 200) {
         setResult(res.data);
         setPhase('done');
@@ -54,7 +54,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
         }, 4000);
       } else {
         // Show transaction failure message
-        const failMsg = res.message || t('tournamentDetail.importAllFailed');
+        const failMsg = res.message || t('competitionDetail.importAllFailed');
         setError(failMsg);
         setPhase('preview');
 
@@ -62,7 +62,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
         setTimeout(() => setError(null), 4000);
       }
     } catch (err) {
-      const failMsg = t('tournamentDetail.importAllFailed');
+      const failMsg = t('competitionDetail.importAllFailed');
       setError(failMsg);
       setPhase('preview');
 
@@ -96,14 +96,14 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
   return (
     <div className="bg-white rounded-lg shadow p-4 sm:p-6 space-y-4">
       <h3 className="text-base sm:text-lg font-semibold text-gray-800">
-        {t('tournamentDetail.participantImport')}
+        {t('competitionDetail.participantImport')}
       </h3>
 
       {/* Upload Phase */}
       {phase === 'upload' && (
         <div className="space-y-3">
           <p className="text-xs sm:text-sm text-gray-600">
-            {t('tournamentDetail.participantImportDesc')}
+            {t('competitionDetail.participantImportDesc')}
           </p>
           <div className="flex items-center gap-2 sm:gap-3">
             <input
@@ -126,7 +126,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
       {phase === 'uploading' && (
         <div className="text-center py-4">
           <div className="inline-block animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-xs sm:text-sm text-gray-600">{t('tournamentDetail.uploading')}</p>
+          <p className="mt-2 text-xs sm:text-sm text-gray-600">{t('competitionDetail.uploading')}</p>
         </div>
       )}
 
@@ -135,11 +135,11 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
         <div className="space-y-3 sm:space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded p-2 sm:p-3">
             <p className="text-xs sm:text-sm text-blue-800">
-              <strong>{t('tournamentDetail.validRows')}:</strong> {previewData.valid.length}
+              <strong>{t('competitionDetail.validRows')}:</strong> {previewData.valid.length}
             </p>
             {previewData.invalid.length > 0 && (
               <p className="text-xs sm:text-sm text-orange-700 mt-1">
-                <strong>{t('tournamentDetail.invalidRows')}:</strong> {previewData.invalid.length}
+                <strong>{t('competitionDetail.invalidRows')}:</strong> {previewData.invalid.length}
               </p>
             )}
           </div>
@@ -150,15 +150,15 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
                   <th className="px-1 sm:px-2 py-1 text-left">#</th>
-                  <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('tournamentDetail.province')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left hidden md:table-cell">{t('tournamentDetail.city')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left hidden md:table-cell">{t('tournamentDetail.district')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.school')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.studentName')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('tournamentDetail.age')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left hidden lg:table-cell">{t('tournamentDetail.category')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.teamName')}</th>
-                  <th className="px-1 sm:px-2 py-1 text-left">{t('tournamentDetail.validRows').split(':')[0]}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('competitionDetail.province')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left hidden md:table-cell">{t('competitionDetail.city')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left hidden md:table-cell">{t('competitionDetail.district')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left">{t('competitionDetail.school')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left">{t('competitionDetail.studentName')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left hidden sm:table-cell">{t('competitionDetail.age')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left hidden lg:table-cell">{t('competitionDetail.category')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left">{t('competitionDetail.teamName')}</th>
+                  <th className="px-1 sm:px-2 py-1 text-left">{t('competitionDetail.validRows').split(':')[0]}</th>
                 </tr>
               </thead>
               <tbody>
@@ -201,7 +201,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
               disabled={previewData.valid.length === 0}
               className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-xs sm:text-sm"
             >
-              {t('tournamentDetail.confirmImport')}
+              {t('competitionDetail.confirmImport')}
             </button>
             <button
               onClick={handleCancel}
@@ -217,7 +217,7 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
       {phase === 'importing' && (
         <div className="text-center py-4">
           <div className="inline-block animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-xs sm:text-sm text-gray-600">{t('tournamentDetail.importing')}</p>
+          <p className="mt-2 text-xs sm:text-sm text-gray-600">{t('competitionDetail.importing')}</p>
         </div>
       )}
 
@@ -226,10 +226,10 @@ export default function ParticipantImport({ tournamentId, onImportComplete }) {
         <div className="space-y-3">
           <div className="bg-green-50 border border-green-200 rounded p-3 sm:p-4">
             <p className="text-xs sm:text-sm text-green-800 mb-2">
-              <strong>{t('tournamentDetail.importSuccess')}</strong>
+              <strong>{t('competitionDetail.importSuccess')}</strong>
             </p>
             <p className="text-xs sm:text-sm text-green-700">
-              {t('tournamentDetail.importedCount')}: {result.imported}
+              {t('competitionDetail.importedCount')}: {result.imported}
             </p>
             <p className="text-xs text-gray-500 mt-2 italic">
               Auto-closing in a few seconds...

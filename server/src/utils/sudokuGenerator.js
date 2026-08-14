@@ -2,7 +2,7 @@
  * Professional Sudoku Generator
  * - Backtracking solver to generate valid solutions
  * - Difficulty-controlled cell removal
- * - Three puzzle types for tournament rounds
+ * - Three puzzle types for competition rounds
  */
 
 class SudokuGenerator {

@@ -1,5 +1,7 @@
 # 第七部分：REST API 建议
 
+> ⚠️ **历史文档说明**：本文档中描述的 `/api/tournaments` 系列路径已在「tournament → competition」迁移中全部更名为 `/api/competitions`。当前权威的接口列表请参考 `DEVELOPMENT_PLAN.md` §14。本文件保留作为历史参考与设计原则说明，但其中的具体路径不再有效。
+
 ## 7.1 API 设计原则
 
 1. **RESTful 风格**：资源导向，使用 HTTP 方法语义（GET/POST/PUT/DELETE）

@@ -32,7 +32,7 @@ export default function PuzzleBankPage() {
   };
 
   const loadRounds = async () => {
-    const tRes = await api.listTournaments();
+    const tRes = await api.listCompetitions();
     if (tRes.code === 200 && tRes.data.length > 0) {
       const latest = tRes.data[tRes.data.length - 1];
       const rRes = await api.listRounds(latest.id);
@@ -114,7 +114,7 @@ export default function PuzzleBankPage() {
     if (!selectedRound) return alert(t('puzzleBank.selectRoundAlert'));
     setImporting(true);
     const res = await api.request('POST', '/puzzle-bank/import-to-round', {
-      roundId: parseInt(selectedRound),
+      roundId: selectedRound,
       count: 0,
     });
     if (res.code === 200) {
@@ -219,7 +219,7 @@ export default function PuzzleBankPage() {
               <option value="">{t('puzzleBank.selectRound')}</option>
               {rounds.map(r => (
                 <option key={r.id} value={r.id}>
-                  {t('puzzleBank.roundOption', { n: r.round_number, name: r.name, type: r.round_type })}
+                  {t('puzzleBank.roundOption', { n: r.order_number, name: r.name, type: r.type })}
                 </option>
               ))}
             </select>

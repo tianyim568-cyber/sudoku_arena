@@ -9,16 +9,16 @@ const { z } = require('zod');
 // their shape (see project notes / KNOWN_ISSUES).
 
 // Reusable field rules — mirror the data model, like our HTTP schemas.
-const id = z.coerce.number().int().positive();           // DB SERIAL ids
+const id = z.string().uuid();                             // DB UUID ids
 const cellIndex = z.coerce.number().int().min(0).max(8); // 9x9 grid -> row/col 0-8
 const cellValue = z.coerce.number().int().min(0).max(9); // 0 = empty, 1-9 = digit
 
-const joinRoomSchema = z.object({ tournamentId: id });
+const joinRoomSchema = z.object({ competitionId: id });
 
-const leaveRoomSchema = z.object({ tournamentId: id });
+const leaveRoomSchema = z.object({ competitionId: id });
 
 const cellFillSchema = z.object({
-  tournamentId: id,
+  competitionId: id,
   roundId: id,
   puzzleId: id,
   row: cellIndex,
@@ -35,7 +35,7 @@ const gridSchema = z.array(z.array(cellValue).length(9)).length(9);
 const answerSubmitSchema = z.discriminatedUnion('submissionType', [
   z.object({
     submissionType: z.literal('SINGLE_CELL'),
-    tournamentId: id,
+    competitionId: id,
     roundId: id,
     puzzleId: id,
     row: cellIndex,
@@ -44,7 +44,7 @@ const answerSubmitSchema = z.discriminatedUnion('submissionType', [
   }),
   z.object({
     submissionType: z.literal('FULL_GRID'),
-    tournamentId: id,
+    competitionId: id,
     roundId: id,
     puzzleId: id,
     grid: gridSchema,

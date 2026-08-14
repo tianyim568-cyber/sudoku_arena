@@ -105,6 +105,23 @@ function authMiddleware(req, res, next) {
 }
 
 /**
+ * Roles allowed to administer an organization.
+ *
+ * `ORG_ADMIN` is the tenant administrator — they register an organization and
+ * manage its competitions. `SUPER_ADMIN` is the platform owner with rights
+ * across all organizations, so they pass everywhere an org admin passes.
+ *
+ * The legacy `ADMIN` role was removed when multi-tenancy landed: registration
+ * now creates `ORG_ADMIN`, and the database holds zero `ADMIN` accounts. A
+ * token carrying `role: 'ADMIN'` is therefore rejected by `roleMiddleware`.
+ *
+ * Routes spread this list (`roleMiddleware(...ADMIN_ROLES)`) instead of naming
+ * roles individually, so a future rename is a one-line change here.
+ * Mirrors ADMIN_ROLES in client/src/hooks/useAuth.jsx — keep both in sync.
+ */
+const ADMIN_ROLES = ['ORG_ADMIN', 'SUPER_ADMIN'];
+
+/**
  * Role-based access control middleware.
  * Works with both token types since `req.user.role` is always populated.
  */
@@ -120,4 +137,4 @@ function roleMiddleware(...roles) {
   };
 }
 
-module.exports = { generateToken, generateCompetitionToken, authMiddleware, roleMiddleware };
+module.exports = { generateToken, generateCompetitionToken, authMiddleware, roleMiddleware, ADMIN_ROLES };

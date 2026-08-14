@@ -38,12 +38,27 @@ function translateMessage(json) {
   return json;
 }
 
+// A rejected fetch (server down, DNS failure, connection reset) never produced
+// an envelope, so callers that only inspect `res.code` saw an unhandled
+// rejection and rendered nothing at all. Every failure mode now returns
+// { code, message }, so a caller can always report a reason.
+const NETWORK_ERROR_CODE = 0;
+
+function networkErrorEnvelope(e) {
+  return { code: NETWORK_ERROR_CODE, message: `Network error: ${e.message}`, data: null };
+}
+
 async function request(method, path, body) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(`${API_BASE}${path}`, opts);
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, opts);
+  } catch (e) {
+    return networkErrorEnvelope(e);
+  }
   // Translate server-originated (Chinese) messages to the current language.
   return translateMessage(await parseResponse(res));
 }
@@ -54,7 +69,12 @@ async function uploadFile(path, file) {
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   // Do NOT set Content-Type — browser sets multipart boundary automatically
-  const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
+  } catch (e) {
+    return networkErrorEnvelope(e);
+  }
   return translateMessage(await parseResponse(res));
 }
 
@@ -65,46 +85,70 @@ export const api = {
     request('POST', '/auth/register', { organizationName, adminUsername, password }),
   getMe: () => request('GET', '/auth/me'),
 
-  // Tournaments
-  listTournaments: () => request('GET', '/tournaments'),
-  getTournament: (id) => request('GET', `/tournaments/${id}`),
-  createTournament: (data) => request('POST', '/tournaments', data),
-  updateTournament: (id, data) => request('PUT', `/tournaments/${id}`, data),
-  deleteTournament: (id) => request('DELETE', `/tournaments/${id}`),
+  // Competitions (renamed from "Competitions" in Phase 6 of the migration).
+  // No compatibility aliases — the old names are intentionally gone so that
+  // stale callers fail loudly instead of silently hitting a 404.
+  listCompetitions: () => request('GET', '/competitions'),
+  getCompetition: (id) => request('GET', `/competitions/${id}`),
+  createCompetition: (data) => request('POST', '/competitions', data),
+  updateCompetition: (id, data) => request('PUT', `/competitions/${id}`, data),
+  deleteCompetition: (id) => request('DELETE', `/competitions/${id}`),
 
-  // Rounds
-  listRounds: (tournamentId) => request('GET', `/tournaments/${tournamentId}/rounds`),
-  createRound: (tournamentId, data) => request('POST', `/tournaments/${tournamentId}/rounds`, data),
+  // Stages — a competition is a sequence of stages (INDIVIDUAL / TEAM / PK),
+  // each holding its own rounds.
+  //
+  // configureStages is DECLARATIVE, not incremental: the server compares the
+  // list it receives against what is stored, then creates, updates and DELETES
+  // to match. Always send the complete desired list — sending only the new
+  // stage would wipe every other one, along with its rounds.
+  listStages: (competitionId) => request('GET', `/competitions/${competitionId}/stages`),
+  configureStages: (competitionId, stages) => request('PUT', `/competitions/${competitionId}/stages`, { stages }),
+
+  // Which round types each stage category accepts. Served by the API rather
+  // than duplicated here, so the dropdown cannot offer something the server
+  // would reject. Shape: { TEAM: [...], INDIVIDUAL: [...], PK: [] }.
+  getRoundTypes: () => request('GET', '/round-types'),
+
+  // A round belongs to a stage, never directly to a competition.
+  createStageRound: (competitionId, stageId, data) =>
+    request('POST', `/competitions/${competitionId}/stages/${stageId}/rounds`, data),
+
+  // Rounds — the path now speaks `/competitions`, but the JS parameter keeps
+  // the historical name `competitionId` for now. Renaming it would ripple into
+  // every caller page and is out of scope for Phase 6. See JOURNAL_MODIFICATIONS.
+  listRounds: (competitionId) => request('GET', `/competitions/${competitionId}/rounds`),
 
   // Puzzles
   importPuzzles: (roundId, puzzles) => request('POST', `/rounds/${roundId}/puzzles/import`, { puzzles }),
   listPuzzles: (roundId) => request('GET', `/rounds/${roundId}/puzzles`),
 
   // Teams
-  listTeams: (tournamentId) => request('GET', `/tournaments/${tournamentId}/teams`),
-  createTeam: (tournamentId, name) => request('POST', `/tournaments/${tournamentId}/teams`, { name }),
+  listTeams: (competitionId) => request('GET', `/competitions/${competitionId}/teams`),
+  createTeam: (competitionId, name) => request('POST', `/competitions/${competitionId}/teams`, { name }),
   addTeamMember: (teamId, playerId, position) => request('POST', '/teams/' + teamId + '/members', { playerId, position }),
 
   // Judges
-  assignJudge: (tournamentId, judgeId) => request('POST', `/tournaments/${tournamentId}/judges`, { judgeId }),
+  assignJudge: (competitionId, judgeId) => request('POST', `/competitions/${competitionId}/judges`, { judgeId }),
 
-  // Game control
-  startTournament: (id) => request('POST', `/tournaments/${id}/start`),
-  pauseTournament: (id) => request('POST', `/tournaments/${id}/pause`),
-  resumeTournament: (id) => request('POST', `/tournaments/${id}/resume`),
-  endTournament: (id) => request('POST', `/tournaments/${id}/end`),
-  startRound: (tournamentId, roundId) => request('POST', `/tournaments/${tournamentId}/rounds/${roundId}/start`),
-  endRound: (tournamentId, roundId) => request('POST', `/tournaments/${tournamentId}/rounds/${roundId}/end`),
+  // Game control — Phase 10: paths migrated to /competitions, functions renamed
+  // to match. The orchestrator methods on the server keep their historical
+  // names (startCompetition, etc.) — only the HTTP layer speaks "competition".
+  startCompetition: (id) => request('POST', `/competitions/${id}/start`),
+  pauseCompetition: (id) => request('POST', `/competitions/${id}/pause`),
+  resumeCompetition: (id) => request('POST', `/competitions/${id}/resume`),
+  endCompetition: (id) => request('POST', `/competitions/${id}/end`),
+  startRound: (competitionId, roundId) => request('POST', `/competitions/${competitionId}/rounds/${roundId}/start`),
+  endRound: (competitionId, roundId) => request('POST', `/competitions/${competitionId}/rounds/${roundId}/end`),
 
   // Scores
-  getMyScores: (tournamentId) => request('GET', `/tournaments/${tournamentId}/scores/my`),
-  getTeamScores: (tournamentId) => request('GET', `/tournaments/${tournamentId}/scores/teams`),
+  getMyScores: (competitionId) => request('GET', `/competitions/${competitionId}/scores/my`),
+  getTeamScores: (competitionId) => request('GET', `/competitions/${competitionId}/scores/teams`),
 
   // Room status
-  getRoomStatus: (tournamentId) => request('GET', `/tournaments/${tournamentId}/room/status`),
+  getRoomStatus: (competitionId) => request('GET', `/competitions/${competitionId}/room/status`),
 
   // Player game state (REST fallback)
-  getMyGameState: (tournamentId) => request('GET', `/tournaments/${tournamentId}/my-state`),
+  getMyGameState: (competitionId) => request('GET', `/competitions/${competitionId}/my-state`),
 
   // Puzzle Bank
   generatePuzzles: (roundType, teamsCount) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount }),
@@ -117,23 +161,31 @@ export const api = {
   listUsers: () => request('GET', '/users'),
 
   // Participants (import)
-  uploadParticipants: (tournamentId, file) => uploadFile(`/tournaments/${tournamentId}/participants/upload`, file),
-  confirmParticipants: (tournamentId, rows) => request('POST', `/tournaments/${tournamentId}/participants/confirm`, { rows }),
-  listParticipants: (tournamentId) => request('GET', `/tournaments/${tournamentId}/participants`),
-  deleteParticipants: (tournamentId) => request('DELETE', `/tournaments/${tournamentId}/participants`),
+  uploadParticipants: (competitionId, file) => uploadFile(`/competitions/${competitionId}/participants/upload`, file),
+  confirmParticipants: (competitionId, rows) => request('POST', `/competitions/${competitionId}/participants/confirm`, { rows }),
+  listParticipants: (competitionId) => request('GET', `/competitions/${competitionId}/participants`),
+  deleteParticipants: (competitionId) => request('DELETE', `/competitions/${competitionId}/participants`),
 
-  // Export participants with credentials
-  exportParticipants: async (tournamentId) => {
+  // Export participants with credentials. This endpoint returns a binary XLSX
+  // blob, not JSON, so it cannot go through request() — but we still wrap the
+  // fetch so a network failure (server down, DNS) returns an envelope
+  // { success: false, message } instead of throwing an unhandled rejection.
+  exportParticipants: async (competitionId) => {
     const headers = {};
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/tournaments/${tournamentId}/participants/export`, {
-      method: 'GET',
-      headers,
-    });
+    let res;
+    try {
+      res = await fetch(`${API_BASE}/competitions/${competitionId}/participants/export`, {
+        method: 'GET',
+        headers,
+      });
+    } catch (e) {
+      return { success: false, message: `Network error: ${e.message}` };
+    }
 
     if (!res.ok) {
       const json = await res.json().catch(() => null);
-      throw new Error(json?.message || 'Export failed');
+      return { success: false, message: json?.message || 'Export failed' };
     }
 
     // Get filename from Content-Disposition header or use default
@@ -171,9 +223,6 @@ export const api = {
   generateAccessLink: (competitionId) => request('POST', `/competitions/${competitionId}/access-link`),
   getAccessLink: (competitionId) => request('GET', `/competitions/${competitionId}/access-link`),
   revokeAccessLink: (competitionId) => request('DELETE', `/competitions/${competitionId}/access-link`),
-
-  // Competitions list
-  listCompetitions: () => request('GET', '/competitions'),
 
   // Generic request (for endpoints not covered above)
   request,

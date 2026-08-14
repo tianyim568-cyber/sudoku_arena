@@ -1,24 +1,38 @@
 /**
- * competitions routes — access link generation and management.
+ * competitions routes — CRUD + access link generation and management.
  *
- * Endpoints for ORG_ADMIN to generate, retrieve, and revoke competition
- * entry links. Each link contains a unique 8-character access code that
- * resolves to a specific competition.
+ * CRUD endpoints (create/list/detail/update/delete) were moved here from
+ * routes/competitions.js in Phase 4 of the tournament→competition migration.
+ * They live at the root of this router (mounted on /api/competitions), so
+ * their paths are '/' and '/:id'.
+ *
+ * Access-link endpoints let an ORG_ADMIN generate, retrieve, and revoke
+ * competition entry links. Each link contains a unique 8-character access
+ * code that resolves to a specific competition.
  *
  * Public endpoint allows anyone with the link to view basic competition info
  * (name, status) before logging in.
  *
- * Auth: generate/retrieve/revoke require org-scoped JWT + ORG_ADMIN role.
+ * Auth: CRUD + generate/retrieve/revoke require org-scoped JWT + ADMIN_ROLES.
  *       The info endpoint is public (no auth).
  *
  * Route mounting:
  *   app.use('/api/competitions', createCompetitionRouter(repos));
+ *
+ * Declaration order does not matter here: /by-code/... routes have a
+ * different number of path segments than /:id, so Express cannot confuse
+ * 'by-code' with a value of :id regardless of order.
  */
 
 const express = require('express');
 const crypto = require('crypto');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
+const { authMiddleware, roleMiddleware, ADMIN_ROLES } = require('../middleware/auth');
 const { tenantGuard } = require('../middleware/tenantGuard');
+const { validateBody } = require('../middleware/validate');
+const {
+  createCompetitionSchema,
+  updateCompetitionSchema,
+} = require('../validations/competitions');
 const { getPrisma } = require('../db/prisma');
 const { competitionLogin } = require('../middleware/competitionAuth');
 const config = require('../config');
@@ -49,6 +63,137 @@ function buildEntryUrl(accessCode) {
 
 function createCompetitionRouter(repos) {
   const router = express.Router();
+
+  // ── CRUD endpoints (moved from routes/competitions.js in Phase 4) ──
+  // /by-code/... routes below have a different number of path segments than
+  // /:id, so Express cannot confuse 'by-code' with a value of :id —
+  // declaration order does not matter here.
+
+  /**
+   * POST / — Create a competition.
+   *
+   * tenantGuard() (no resource) asserts the caller belongs to an org and
+   * sets req.organizationId. For SUPER_ADMIN without a target org, the guard
+   * passes but req.organizationId is null → the column is NOT NULL → we
+   * surface a clear 40001 instead of an opaque Prisma error.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   */
+  router.post(
+    '/',
+    authMiddleware,
+    tenantGuard(),
+    roleMiddleware(...ADMIN_ROLES),
+    validateBody(createCompetitionSchema),
+    async (req, res) => {
+      if (!req.organizationId) {
+        return res.json({ code: 40001, message: '缺少组织标识', data: null });
+      }
+      const { name, description, scheduledTime } = req.body;
+      const t = await repos.competitions.create({
+        name,
+        description: description || '',
+        scheduledTime,
+        createdBy: req.user.userId,
+        organizationId: req.organizationId,
+      });
+      res.json({ code: 200, message: 'success', data: t });
+    }
+  );
+
+  /**
+   * GET / — List competitions, scoped to the caller's org.
+   * SUPER_ADMIN (no org) sees all competitions.
+   *
+   * Auth: Bearer token (org-scoped)
+   */
+  router.get(
+    '/',
+    authMiddleware,
+    tenantGuard(),
+    async (req, res) => {
+      const ts = await repos.competitions.findAll(req.organizationId);
+      res.json({ code: 200, message: 'success', data: ts });
+    }
+  );
+
+  /**
+   * GET /:id — Competition detail (rounds, teams, judges).
+   * tenantGuard('competitions') verifies the :id belongs to the caller's org.
+   *
+   * Auth: Bearer token (org-scoped)
+   */
+  router.get(
+    '/:id',
+    authMiddleware,
+    tenantGuard('competitions'),
+    async (req, res) => {
+      const t = await repos.competitions.findById(req.params.id);
+      if (!t) return res.json({ code: 40400, message: '比赛不存在', data: null });
+      const rounds = await repos.rounds.findWithPuzzles(req.params.id);
+      const teams = await repos.teams.findByCompetitionWithMemberCount(req.params.id);
+      for (const tm of teams) {
+        tm.members = await repos.teams.getMembers(tm.id);
+      }
+      const judges = await repos.teams.getJudges(req.params.id);
+      res.json({ code: 200, message: 'success', data: { ...t, rounds, teams, judges } });
+    }
+  );
+
+  /**
+   * PUT /:id — Update a competition (only while PENDING/DRAFT).
+   * tenantGuard('competitions') verifies ownership.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   */
+  router.put(
+    '/:id',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    validateBody(updateCompetitionSchema),
+    async (req, res) => {
+      const t = await repos.competitions.findById(req.params.id);
+      if (!t) return res.json({ code: 40400, message: '比赛不存在', data: null });
+      // Editable while being prepared, frozen once it has started. The guard
+      // used to require status === 'PENDING', a value from the pre-UUID schema
+      // that the server never writes: every competition is created DRAFT, so
+      // renaming one always failed with "already started".
+      if (t.status !== 'DRAFT' && t.status !== 'PUBLISHED') {
+        return res.json({ code: 40041, message: '比赛已开始，无法修改', data: null });
+      }
+      const { name, description, scheduledTime } = req.body;
+      const updated = await repos.competitions.update(req.params.id, { name, description, scheduledTime });
+      res.json({ code: 200, message: 'success', data: updated });
+    }
+  );
+
+  /**
+   * DELETE /:id — Delete a competition unless it is currently running.
+   * tenantGuard('competitions') verifies ownership.
+   *
+   * The guard used to test for IN_PROGRESS / PAUSED — statuses from the
+   * pre-UUID schema that the server never writes any more. A live competition
+   * (status RUNNING, players connected) therefore passed straight through and
+   * could be deleted mid-game.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   */
+  router.delete(
+    '/:id',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      const competition = await repos.competitions.findById(req.params.id);
+      if (!competition) return res.json({ code: 40400, message: '比赛不存在', data: null });
+      if (competition.status === 'RUNNING') {
+        return res.json({ code: 40041, message: '比赛进行中，无法删除，请先结束比赛', data: null });
+      }
+      await repos.competitions.deleteCascade(req.params.id);
+      res.json({ code: 200, message: 'success', data: { deleted: req.params.id } });
+    }
+  );
 
   // ── Protected endpoints (org-scoped auth + ORG_ADMIN) ──
 
