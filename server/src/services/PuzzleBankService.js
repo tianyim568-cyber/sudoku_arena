@@ -246,7 +246,7 @@ class PuzzleBankService {
         // R1: Import ALL available puzzles (not just 10).
         // Team-specific assignment happens at game start via PuzzleAssignmentService.
         // We need enough puzzles for all teams: teamsCount * (9 JOC + 1 FINAL)
-        return await this._importR1Puzzles(roundId, round.tournament_id, pool, teamsCount);
+        return await this._importR1Puzzles(roundId, round.competition_id, pool, teamsCount);
       } else if (type === 'ROUND2_RELAY') {
         return await this._importR2Puzzles(roundId, pool);
       } else if (type === 'ROUND3_COLLABORATE') {
@@ -288,8 +288,8 @@ class PuzzleBankService {
     return { imported: successCount, total: selectedPuzzles.length };
   }
 
-  async _importR1Puzzles(roundId, tournamentId, pool, teamsCount) {
-    const teams = await this.repos.teams.findByTournament(tournamentId);
+  async _importR1Puzzles(roundId, competitionId, pool, teamsCount) {
+    const teams = await this.repos.teams.findByCompetition(competitionId);
     const numTeams = teamsCount || teams.length || 1;
 
     // Validate: need at least numTeams * 9 JOC + numTeams * 1 FINAL

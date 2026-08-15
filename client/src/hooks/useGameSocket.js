@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { connectSocket, disconnectSocket, joinRoom, leaveRoom, onEvent, round2CellUpdate as socketCellUpdate, round3ProposeCell as socketPropose, round3AcceptProposal as socketAccept, round3RejectProposal as socketReject, round3WithdrawProposal as socketWithdraw, round3FocusUpdate as socketFocus } from '../api/socket';
 import { useAuth } from './useAuth';
 
-export function useGameSocket(tournamentId) {
+export function useGameSocket(competitionId) {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [connected, setConnected] = useState(false);
@@ -51,7 +51,7 @@ export function useGameSocket(tournamentId) {
     if (!socket) return;
 
     setConnected(true);
-    if (tournamentId) joinRoom(tournamentId);
+    if (competitionId) joinRoom(competitionId);
 
     const cleanup = onEvent((event) => {
       setEvents(prev => [...prev.slice(-50), event]);
@@ -120,14 +120,14 @@ export function useGameSocket(tournamentId) {
         case 'ROUND_FINISHED':
           setTimerMeta(prev => ({ ...prev, timerStatus: 'FINISHED' }));
           break;
-        case 'TOURNAMENT_PAUSED':
+        case 'COMPETITION_PAUSED':
           setTimerMeta(prev => ({
             ...prev,
             timerStatus: 'PAUSED',
             turnEndsAt: event.payload.turnEndsAt ?? null,
           }));
           break;
-        case 'TOURNAMENT_RESUMED':
+        case 'COMPETITION_RESUMED':
           setTimerMeta(prev => ({
             ...prev,
             timerStatus: 'RUNNING',
@@ -421,14 +421,14 @@ export function useGameSocket(tournamentId) {
     });
 
     return () => {
-      if (tournamentId) leaveRoom(tournamentId);
+      if (competitionId) leaveRoom(competitionId);
       cleanup();
       if (warningTimerRef.current) {
         clearTimeout(warningTimerRef.current);
         warningTimerRef.current = null;
       }
     };
-  }, [user, tournamentId]);
+  }, [user, competitionId]);
 
   const onLetterReveal = (cb) => { callbacksRef.current.onLetterReveal = cb; };
 
@@ -437,24 +437,24 @@ export function useGameSocket(tournamentId) {
   };
 
   // R3 collaboration actions
-  const proposeCell = (tournamentId, roundId, puzzleId, row, col, value) => {
-    socketPropose(tournamentId, roundId, puzzleId, row, col, value);
+  const proposeCell = (competitionId, roundId, puzzleId, row, col, value) => {
+    socketPropose(competitionId, roundId, puzzleId, row, col, value);
   };
 
-  const acceptProposal = (tournamentId, roundId, puzzleId, row, col) => {
-    socketAccept(tournamentId, roundId, puzzleId, row, col);
+  const acceptProposal = (competitionId, roundId, puzzleId, row, col) => {
+    socketAccept(competitionId, roundId, puzzleId, row, col);
   };
 
-  const rejectProposal = (tournamentId, roundId, puzzleId, row, col) => {
-    socketReject(tournamentId, roundId, puzzleId, row, col);
+  const rejectProposal = (competitionId, roundId, puzzleId, row, col) => {
+    socketReject(competitionId, roundId, puzzleId, row, col);
   };
 
-  const withdrawProposal = (tournamentId, roundId, puzzleId, row, col) => {
-    socketWithdraw(tournamentId, roundId, puzzleId, row, col);
+  const withdrawProposal = (competitionId, roundId, puzzleId, row, col) => {
+    socketWithdraw(competitionId, roundId, puzzleId, row, col);
   };
 
-  const focusUpdate = (tournamentId, roundId, puzzleId, row, col) => {
-    socketFocus(tournamentId, roundId, puzzleId, row, col);
+  const focusUpdate = (competitionId, roundId, puzzleId, row, col) => {
+    socketFocus(competitionId, roundId, puzzleId, row, col);
   };
 
   const setRound2FromRest = useCallback((data) => {

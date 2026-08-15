@@ -74,11 +74,11 @@ class Round3CollaborationService {
 
     // Emit to team
     const round = await this.repos.rounds.findById(roundId);
-    const tournamentId = round?.tournament_id;
-    if (tournamentId) {
+    const competitionId = round?.competition_id;
+    if (competitionId) {
       emissions.push({
         target: 'team',
-        targetId: { tournamentId, teamId },
+        targetId: { competitionId, teamId },
         event: 'ROUND3_MOVE_PROPOSED',
         payload: { roundId, puzzleId, row, col, value, playerId, playerName }
       });
@@ -100,10 +100,10 @@ class Round3CollaborationService {
    * @param {string} approverPlayerName
    * @param {number} teamId
    * @param {number} roundId
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @returns {Promise<{success: boolean, accepted: boolean, emissions: Array}>}
    */
-  async acceptProposal(puzzleId, row, col, approverPlayerId, approverPlayerName, teamId, roundId, tournamentId) {
+  async acceptProposal(puzzleId, row, col, approverPlayerId, approverPlayerName, teamId, roundId, competitionId) {
     const emissions = [];
     const key = `${row}-${col}`;
 
@@ -134,7 +134,7 @@ class Round3CollaborationService {
     const votes = await this.state.getRound3SuggestionVotes(puzzleId, key);
 
     // Count required approvals: all online teammates except the proposer
-    const onlinePlayers = await this.state.getActivePlayers(tournamentId);
+    const onlinePlayers = await this.state.getActivePlayers(competitionId);
     const teamMembers = await this.repos.teams.getMembersWithDetails(teamId);
     const onlineTeammateIds = teamMembers
       .map(m => Number(m.player_id))
@@ -146,7 +146,7 @@ class Round3CollaborationService {
     // Emit vote cast event (for UI progress)
     emissions.push({
       target: 'team',
-      targetId: { tournamentId, teamId },
+      targetId: { competitionId, teamId },
       event: 'ROUND3_VOTE_CAST',
       payload: {
         roundId, puzzleId, row, col,
@@ -171,7 +171,7 @@ class Round3CollaborationService {
         // Emit accepted event
         emissions.push({
           target: 'team',
-          targetId: { tournamentId, teamId },
+          targetId: { competitionId, teamId },
           event: 'ROUND3_MOVE_ACCEPTED',
           payload: {
             roundId, puzzleId, row, col,
@@ -185,7 +185,7 @@ class Round3CollaborationService {
         // Emit board updated event
         emissions.push({
           target: 'team',
-          targetId: { tournamentId, teamId },
+          targetId: { competitionId, teamId },
           event: 'ROUND3_BOARD_UPDATED',
           payload: {
             roundId, puzzleId, row, col,
@@ -222,10 +222,10 @@ class Round3CollaborationService {
    * @param {string} rejectorPlayerName
    * @param {number} teamId
    * @param {number} roundId
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @returns {Promise<{success: boolean, emissions: Array}>}
    */
-  async rejectProposal(puzzleId, row, col, rejectorPlayerId, rejectorPlayerName, teamId, roundId, tournamentId) {
+  async rejectProposal(puzzleId, row, col, rejectorPlayerId, rejectorPlayerName, teamId, roundId, competitionId) {
     const emissions = [];
     const key = `${row}-${col}`;
 
@@ -247,7 +247,7 @@ class Round3CollaborationService {
     // Emit rejected event
     emissions.push({
       target: 'team',
-      targetId: { tournamentId, teamId },
+      targetId: { competitionId, teamId },
       event: 'ROUND3_MOVE_REJECTED',
       payload: {
         roundId, puzzleId, row, col,
@@ -270,10 +270,10 @@ class Round3CollaborationService {
    * @param {number} playerId
    * @param {number} teamId
    * @param {number} roundId
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @returns {Promise<{success: boolean, emissions: Array}>}
    */
-  async withdrawProposal(puzzleId, row, col, playerId, teamId, roundId, tournamentId) {
+  async withdrawProposal(puzzleId, row, col, playerId, teamId, roundId, competitionId) {
     const key = `${row}-${col}`;
     const suggestions = await this.state.getRound3Suggestions(puzzleId);
     const suggestion = suggestions[key];
@@ -286,7 +286,7 @@ class Round3CollaborationService {
 
     const emissions = [{
       target: 'team',
-      targetId: { tournamentId, teamId },
+      targetId: { competitionId, teamId },
       event: 'ROUND3_MOVE_REJECTED',
       payload: { roundId, puzzleId, row, col, rejectedBy: playerId, rejectedByName: '(withdrawn)' }
     }];
@@ -299,12 +299,12 @@ class Round3CollaborationService {
   /**
    * Update which cell a player is currently viewing.
    */
-  async updatePlayerFocus(puzzleId, playerId, playerName, row, col, teamId, roundId, tournamentId) {
+  async updatePlayerFocus(puzzleId, playerId, playerName, row, col, teamId, roundId, competitionId) {
     await this.state.setRound3PlayerFocus(puzzleId, playerId, { row, col });
 
     const emissions = [{
       target: 'team',
-      targetId: { tournamentId, teamId },
+      targetId: { competitionId, teamId },
       event: 'ROUND3_FOCUS_UPDATE',
       payload: { roundId, puzzleId, playerId, playerName, row, col }
     }];

@@ -27,7 +27,7 @@ class Round2Engine extends RoundEngine {
 
   // ─── Setup ────────────────────────────────────────────────────
 
-  async setup(tournamentId, roundId, teams, puzzles) {
+  async setup(competitionId, roundId, teams, puzzles) {
     const emissions = [];
 
     for (const team of teams) {
@@ -118,7 +118,7 @@ class Round2Engine extends RoundEngine {
 
   // ─── Submit answer ────────────────────────────────────────────
 
-  async submitAnswer(userId, tournamentId, roundId, puzzleId, submissionType, data) {
+  async submitAnswer(userId, competitionId, roundId, puzzleId, submissionType, data) {
     const emissions = [];
     const round = await this.repos.rounds.findById(roundId);
     if (!round || round.status !== 'IN_PROGRESS') throw new Error('轮次未在进行中');
@@ -174,9 +174,9 @@ class Round2Engine extends RoundEngine {
     await this.repos.playerStates.markTeamAssignmentsCompleted(roundId, puzzleId, assignment.team_id);
 
     if (assignment.team_id) {
-      this.scoring.addTeamPoints(round.tournament_id, roundId, assignment.team_id, pointsEarned);
+      this.scoring.addTeamPoints(round.competition_id, roundId, assignment.team_id, pointsEarned);
     }
-    this.scoring.addPlayerPoints(round.tournament_id, roundId, userId, assignment.team_id, pointsEarned);
+    this.scoring.addPlayerPoints(round.competition_id, roundId, userId, assignment.team_id, pointsEarned);
 
     // Atomically release the player's current puzzle assignment
     await this.state.releaseRound2PlayerPuzzle(roundId, assignment.team_id, userId);
@@ -230,7 +230,7 @@ class Round2Engine extends RoundEngine {
       }
 
       // Broadcast puzzle solved to team
-      const teamScore = this.scoring.findTeamScore(round.tournament_id, roundId, assignment.team_id);
+      const teamScore = this.scoring.findTeamScore(round.competition_id, roundId, assignment.team_id);
       const playerName = await this.repos.users.getDisplayName(userId);
       const solvedCount = solvedPuzzleIds.length;
 
@@ -238,13 +238,13 @@ class Round2Engine extends RoundEngine {
       let completionBonus = 0;
       const currentRemaining = await this.state.getRemainingSeconds(roundId);
       completionBonus = this.scoring.applyRound2CompletionBonus(
-        round.tournament_id, roundId, assignment.team_id,
+        round.competition_id, roundId, assignment.team_id,
         currentRemaining, solvedCount, teamPuzzles.length
       );
 
-      const updatedTeamScore = this.scoring.findTeamScore(round.tournament_id, roundId, assignment.team_id);
+      const updatedTeamScore = this.scoring.findTeamScore(round.competition_id, roundId, assignment.team_id);
 
-      emissions.push(this._emitTeam(round.tournament_id, assignment.team_id, 'ROUND2_PUZZLE_SOLVED', {
+      emissions.push(this._emitTeam(round.competition_id, assignment.team_id, 'ROUND2_PUZZLE_SOLVED', {
         roundId, puzzleId, solvedBy: userId, solvedByName: playerName,
         difficulty, puzzlePoints: pointsEarned,
         teamScore: updatedTeamScore?.total_points || 0,
@@ -292,7 +292,7 @@ class Round2Engine extends RoundEngine {
     const round = await this.repos.rounds.findById(roundId);
     const playerName = await this.repos.users.getDisplayName(userId);
     if (round && teamId) {
-      emissions.push(this._emitTeam(round.tournament_id, teamId, 'ROUND2_PUZZLE_UPDATED', {
+      emissions.push(this._emitTeam(round.competition_id, teamId, 'ROUND2_PUZZLE_UPDATED', {
         roundId, puzzleId, row, col, value,
         updatedBy: userId, updatedByName: playerName, currentGrid
       }));
@@ -303,7 +303,7 @@ class Round2Engine extends RoundEngine {
 
   // ─── Rotation ─────────────────────────────────────────────────
 
-  async rotatePuzzles(tournamentId, roundId, teamId) {
+  async rotatePuzzles(competitionId, roundId, teamId) {
     const emissions = [];
     const teamState = await this.state.getRound2TeamState(roundId, teamId);
     if (!teamState || !teamState.playerOrder || teamState.playerOrder.length === 0) return { result: null, emissions };
@@ -439,7 +439,7 @@ class Round2Engine extends RoundEngine {
     // Reschedule 5-second pre-rotation notification for next rotation
     if (this.r2Notification) {
       this.r2Notification.scheduleRotationNotification(
-        tournamentId, roundId, teamId, nextRotationAt,
+        competitionId, roundId, teamId, nextRotationAt,
         (tournId, rId, tId) => {
           const emission = this._emitTeam(tournId, tId, 'ROUND2_ROTATION_WARNING', {
             roundId: rId, secondsUntilRotation: 5
@@ -451,14 +451,14 @@ class Round2Engine extends RoundEngine {
 
     // Broadcast rotation event
     const playerNames = await this.repos.teams.getPlayerNames(teamId);
-    const teamScore = this.scoring.findTeamScore(tournamentId, roundId, teamId);
+    const teamScore = this.scoring.findTeamScore(competitionId, roundId, teamId);
     const solvedPuzzleIds = await this.repos.submissions.findSolvedPuzzleIds(roundId, teamId);
 
     // Read current assignments for broadcast (reflects any concurrent submitAnswer changes)
     const currentState = await this.state.getRound2TeamState(roundId, teamId);
     const currentAssignments = currentState?.playerPuzzles || {};
 
-    emissions.push(this._emitTeam(tournamentId, teamId, 'ROUND2_ROTATION', {
+    emissions.push(this._emitTeam(competitionId, teamId, 'ROUND2_ROTATION', {
       roundId, playerOrder, playerNames,
       assignments: currentAssignments,
       nextRotationAt,
@@ -471,11 +471,11 @@ class Round2Engine extends RoundEngine {
 
   // ─── Start rotation intervals ─────────────────────────────────
 
-  startRotationIntervals(tournamentId, roundId, teams, onRotate) {
+  startRotationIntervals(competitionId, roundId, teams, onRotate) {
     for (const team of teams) {
       const k = this._r2k(roundId, team.id);
       const rotInterval = setInterval(() => {
-        onRotate(tournamentId, roundId, team.id);
+        onRotate(competitionId, roundId, team.id);
       }, 60000);
       this._rotIntervals.set(k, rotInterval);
 
@@ -483,24 +483,24 @@ class Round2Engine extends RoundEngine {
       if (this.r2Notification) {
         const teamState = this.state.getRound2TeamState(roundId, team.id);
         // Schedule for the first rotation — get nextRotationAt from state
-        this._scheduleNotification(tournamentId, roundId, team.id);
+        this._scheduleNotification(competitionId, roundId, team.id);
       }
     }
   }
 
   /**
    * Schedule rotation notification for a team based on current nextRotationAt.
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @param {number} teamId
    */
-  _scheduleNotification(tournamentId, roundId, teamId) {
+  _scheduleNotification(competitionId, roundId, teamId) {
     if (!this.r2Notification) return;
 
     this.state.getRound2TeamState(roundId, teamId).then(teamState => {
       if (teamState?.nextRotationAt) {
         this.r2Notification.scheduleRotationNotification(
-          tournamentId, roundId, teamId, teamState.nextRotationAt,
+          competitionId, roundId, teamId, teamState.nextRotationAt,
           (tournId, rId, tId) => {
             // Emit ROUND2_ROTATION_WARNING to the team
             const emission = this._emitTeam(tournId, tId, 'ROUND2_ROTATION_WARNING', {
@@ -544,15 +544,15 @@ class Round2Engine extends RoundEngine {
 
   // ─── Reconnect state ──────────────────────────────────────────
 
-  async getReconnectState(userId, tournamentId, roundId) {
-    const member = await this.repos.teams.findMemberTeam(tournamentId, userId);
+  async getReconnectState(userId, competitionId, roundId) {
+    const member = await this.repos.teams.findMemberTeam(competitionId, userId);
     if (!member) return null;
 
     const teamState = await this.state.getRound2TeamState(roundId, member.team_id);
     const teamPuzzles = await this.repos.puzzles.findByRoundAndTeam(roundId, member.team_id);
     const solvedPuzzleIds = await this.repos.submissions.findSolvedPuzzleIds(roundId, member.team_id);
     const solvedIds = new Set(solvedPuzzleIds);
-    const teamScore = this.scoring.findTeamScore(tournamentId, roundId, member.team_id);
+    const teamScore = this.scoring.findTeamScore(competitionId, roundId, member.team_id);
     const playerNames = await this.repos.teams.getPlayerNames(member.team_id);
 
     const playerPuzzles = teamState?.playerPuzzles || {};
@@ -601,8 +601,8 @@ class Round2Engine extends RoundEngine {
 
   // ─── Cleanup ──────────────────────────────────────────────────
 
-  async cleanup(tournamentId, roundId) {
-    const teams = await this.repos.teams.findByTournament(tournamentId);
+  async cleanup(competitionId, roundId) {
+    const teams = await this.repos.teams.findByCompetition(competitionId);
     this.clearRotationIntervals(roundId, teams);
     for (const team of teams) {
       await this.state.deleteRound2TeamState(roundId, team.id);

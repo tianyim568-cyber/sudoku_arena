@@ -1,7 +1,11 @@
 const { loginSchema } = require('../validations/auth');
-const { createTournamentSchema, createRoundSchema } = require('../validations/tournaments');
+const { createCompetitionSchema, createRoundSchema, addTeamMemberSchema, assignJudgeSchema } = require('../validations/competitions');
 const { submitAnswerSchema } = require('../validations/game');
-const { generatePuzzlesSchema, generateBulkSchema } = require('../validations/puzzleBank');
+const { generatePuzzlesSchema, generateBulkSchema, importToRoundSchema } = require('../validations/puzzleBank');
+
+// Valid UUIDs used across tests (v4 format, any value works for Zod .uuid()).
+const UUID_A = '3f2a9c14-1234-4abc-9def-000000000001';
+const UUID_B = 'a1b2c3d4-5678-4abc-9def-000000000002';
 
 describe('Auth validation schemas', () => {
   test('loginSchema accepts valid credentials', () => {
@@ -20,9 +24,9 @@ describe('Auth validation schemas', () => {
   });
 });
 
-describe('Tournament validation schemas', () => {
-  test('createTournamentSchema accepts valid tournament', () => {
-    const result = createTournamentSchema.safeParse({ name: 'Test Cup' });
+describe('Competition validation schemas', () => {
+  test('createCompetitionSchema accepts valid competition', () => {
+    const result = createCompetitionSchema.safeParse({ name: 'Test Cup' });
     expect(result.success).toBe(true);
   });
 
@@ -39,12 +43,32 @@ describe('Tournament validation schemas', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  test('addTeamMemberSchema accepts valid UUID playerId', () => {
+    const result = addTeamMemberSchema.safeParse({ playerId: UUID_A });
+    expect(result.success).toBe(true);
+  });
+
+  test('addTeamMemberSchema rejects integer playerId (legacy SERIAL)', () => {
+    const result = addTeamMemberSchema.safeParse({ playerId: 5 });
+    expect(result.success).toBe(false);
+  });
+
+  test('assignJudgeSchema accepts valid UUID judgeId', () => {
+    const result = assignJudgeSchema.safeParse({ judgeId: UUID_B });
+    expect(result.success).toBe(true);
+  });
+
+  test('assignJudgeSchema rejects non-UUID string judgeId', () => {
+    const result = assignJudgeSchema.safeParse({ judgeId: 'abc' });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('Game validation schemas', () => {
   test('submitAnswerSchema accepts SINGLE_CELL submission', () => {
     const result = submitAnswerSchema.safeParse({
-      submissionType: 'SINGLE_CELL', roundId: 1, puzzleId: 5,
+      submissionType: 'SINGLE_CELL', roundId: UUID_A, puzzleId: UUID_B,
       row: 3, col: 7, value: 4,
     });
     expect(result.success).toBe(true);
@@ -53,14 +77,14 @@ describe('Game validation schemas', () => {
   test('submitAnswerSchema accepts FULL_GRID submission', () => {
     const grid = Array(9).fill(null).map(() => Array(9).fill(1));
     const result = submitAnswerSchema.safeParse({
-      submissionType: 'FULL_GRID', roundId: 1, puzzleId: 5, grid,
+      submissionType: 'FULL_GRID', roundId: UUID_A, puzzleId: UUID_B, grid,
     });
     expect(result.success).toBe(true);
   });
 
   test('submitAnswerSchema rejects row out of range', () => {
     const result = submitAnswerSchema.safeParse({
-      submissionType: 'SINGLE_CELL', roundId: 1, puzzleId: 5,
+      submissionType: 'SINGLE_CELL', roundId: UUID_A, puzzleId: UUID_B,
       row: 999, col: 0, value: 1,
     });
     expect(result.success).toBe(false);
@@ -68,9 +92,25 @@ describe('Game validation schemas', () => {
 
   test('submitAnswerSchema rejects invalid submissionType', () => {
     const result = submitAnswerSchema.safeParse({
-      submissionType: 'HACKED', roundId: 1, puzzleId: 5,
+      submissionType: 'HACKED', roundId: UUID_A, puzzleId: UUID_B,
     });
     expect(result.success).toBe(false);
+  });
+
+  test('submitAnswerSchema rejects integer roundId (legacy SERIAL)', () => {
+    const result = submitAnswerSchema.safeParse({
+      submissionType: 'SINGLE_CELL', roundId: 1, puzzleId: UUID_B,
+      row: 3, col: 7, value: 4,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('submitAnswerSchema accepts integer game values (row/col/value)', () => {
+    const result = submitAnswerSchema.safeParse({
+      submissionType: 'SINGLE_CELL', roundId: UUID_A, puzzleId: UUID_B,
+      row: 3, col: 7, value: 4,
+    });
+    expect(result.success).toBe(true);
   });
 });
 
@@ -93,5 +133,22 @@ describe('PuzzleBank validation schemas', () => {
   test('generateBulkSchema rejects negative teamsCount', () => {
     const result = generateBulkSchema.safeParse({ teamsCount: -3 });
     expect(result.success).toBe(false);
+  });
+
+  test('importToRoundSchema accepts UUID roundId', () => {
+    const result = importToRoundSchema.safeParse({ roundId: UUID_A });
+    expect(result.success).toBe(true);
+  });
+
+  test('importToRoundSchema rejects integer roundId (legacy SERIAL)', () => {
+    const result = importToRoundSchema.safeParse({ roundId: 1 });
+    expect(result.success).toBe(false);
+  });
+
+  test('importToRoundSchema accepts integer count and teamsCount', () => {
+    const result = importToRoundSchema.safeParse({
+      roundId: UUID_A, count: 5, teamsCount: 3,
+    });
+    expect(result.success).toBe(true);
   });
 });

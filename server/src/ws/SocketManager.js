@@ -12,6 +12,18 @@
  * Does NOT:
  *   - Construct late-join state inline (delegates to orchestrator)
  *   - Hold any game logic
+ *
+ * Vocabulary: `competitionId` throughout, matching competitions.id.
+ *
+ * Three naming surfaces had to move together, and none may drift apart:
+ *   1. The wire payload field `competitionId` — written by
+ *      client/src/api/socket.js, validated by validations/socket.js, read
+ *      here. A rename on only one side would not throw; the Zod schema is
+ *      what turns the mismatch into a visible VALIDATION_ERROR.
+ *   2. The Socket.IO room names `competition_<uuid>` and
+ *      `team_<uuid>_<teamId>` — server-internal, never named by the client.
+ *   3. The emission discriminator `target: 'competition'` — produced by
+ *      engine/RoundEngine.js, consumed by _routeEmission below.
  */
 
 const jwt = require('jsonwebtoken');
@@ -50,20 +62,20 @@ class SocketManager {
     const msg = {
       type: e.event,
       timestamp: new Date().toISOString(),
-      tournamentId: null,
+      competitionId: null,
       payload: e.payload
     };
 
-    if (e.target === 'tournament') {
-      msg.tournamentId = e.targetId;
-      this.io.to(`tournament_${e.targetId}`).emit('event', msg);
+    if (e.target === 'competition') {
+      msg.competitionId = e.targetId;
+      this.io.to(`competition_${e.targetId}`).emit('event', msg);
     } else if (e.target === 'team') {
-      msg.tournamentId = e.targetId.tournamentId;
-      this.io.to(`team_${e.targetId.tournamentId}_${e.targetId.teamId}`).emit('event', msg);
+      msg.competitionId = e.targetId.competitionId;
+      this.io.to(`team_${e.targetId.competitionId}_${e.targetId.teamId}`).emit('event', msg);
     } else if (e.target === 'user') {
       this.io.to(`user_${e.targetId}`).emit('event', msg);
     } else if (e.target === 'display') {
-      msg.tournamentId = e.targetId;
+      msg.competitionId = e.targetId;
       this.io.to(`display_${e.targetId}`).emit('event', msg);
     }
   }
@@ -119,42 +131,42 @@ class SocketManager {
       socket.on('join_room', async (data) => {
         const parsed = this._validate(joinRoomSchema, data, socket, 'join_room');
         if (!parsed) return;
-        const { tournamentId } = parsed;
+        const { competitionId } = parsed;
         try {
-          socket.join(`tournament_${tournamentId}`);
-          console.log(`${socket.user.username} joined tournament ${tournamentId}`);
+          socket.join(`competition_${competitionId}`);
+          console.log(`${socket.user.username} joined competition ${competitionId}`);
 
           // If player, also join team room
           let teamId = null;
           if (socket.user.role === 'PLAYER') {
-            const member = await this.repos.teams.findMemberTeam(tournamentId, socket.user.userId);
+            const member = await this.repos.teams.findMemberTeam(competitionId, socket.user.userId);
             if (member) {
-              socket.join(`team_${tournamentId}_${member.team_id}`);
+              socket.join(`team_${competitionId}_${member.team_id}`);
               teamId = member.team_id;
             }
           }
 
           // Track active player
-          await this.orchestrator.state.setActivePlayer(tournamentId, socket.user.userId, socket.id);
+          await this.orchestrator.state.setActivePlayer(competitionId, socket.user.userId, socket.id);
 
           // Start heartbeat for active player tracking
           if (socket.user.role === 'PLAYER') {
             heartbeatInterval = setInterval(async () => {
-              await this.orchestrator.state.setActivePlayer(tournamentId, socket.user.userId, socket.id);
+              await this.orchestrator.state.setActivePlayer(competitionId, socket.user.userId, socket.id);
             }, config.HEARTBEAT_INTERVAL_MS);
           }
 
           // Notify room
-          this.io.to(`tournament_${tournamentId}`).emit('event', {
+          this.io.to(`competition_${competitionId}`).emit('event', {
             type: 'PLAYER_STATUS_CHANGE',
             timestamp: new Date().toISOString(),
-            tournamentId,
+            competitionId,
             payload: { playerId: socket.user.userId, playerName: socket.user.username, online: true }
           });
 
           // Late-join sync via orchestrator
           if (socket.user.role === 'PLAYER') {
-            await this._handleLateJoin(socket, tournamentId);
+            await this._handleLateJoin(socket, competitionId);
           }
         } catch (e) {
           console.error('join_room error:', e.message);
@@ -164,13 +176,13 @@ class SocketManager {
       socket.on('leave_room', (data) => {
         const parsed = this._validate(leaveRoomSchema, data, socket, 'leave_room');
         if (!parsed) return;
-        const { tournamentId } = parsed;
+        const { competitionId } = parsed;
         try {
-          socket.leave(`tournament_${tournamentId}`);
-          // Leave all team rooms for this tournament
+          socket.leave(`competition_${competitionId}`);
+          // Leave all team rooms for this competition
           const rooms = [...socket.rooms];
           for (const room of rooms) {
-            if (room.startsWith(`team_${tournamentId}_`)) {
+            if (room.startsWith(`team_${competitionId}_`)) {
               socket.leave(room);
             }
           }
@@ -178,8 +190,8 @@ class SocketManager {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
           }
-          this.orchestrator.state.removeActivePlayer(tournamentId, socket.user.userId);
-          console.log(`${socket.user.username} left tournament ${tournamentId}`);
+          this.orchestrator.state.removeActivePlayer(competitionId, socket.user.userId);
+          console.log(`${socket.user.username} left competition ${competitionId}`);
         } catch (e) {
           console.error('leave_room error:', e.message);
         }
@@ -191,9 +203,9 @@ class SocketManager {
         const parsed = this._validate(cellFillSchema, data, socket, 'cell_fill');
         if (!parsed) return;
         try {
-          const { tournamentId, roundId, puzzleId, row, col, value } = parsed;
+          const { competitionId, roundId, puzzleId, row, col, value } = parsed;
           const { result, emissions } = await this.orchestrator.handleCellFill(
-            socket.user.userId, tournamentId, roundId, puzzleId, row, col, value
+            socket.user.userId, competitionId, roundId, puzzleId, row, col, value
           );
           this.orchestrator.bus.emitAll(emissions);
           socket.emit('event', {
@@ -214,7 +226,7 @@ class SocketManager {
         const parsed = this._validate(answerSubmitSchema, data, socket, 'answer_submit');
         if (!parsed) return;
         try {
-          const { tournamentId, roundId, puzzleId, submissionType, row, col, value, grid } = parsed;
+          const { competitionId, roundId, puzzleId, submissionType, row, col, value, grid } = parsed;
           const { result, emissions } = await this.orchestrator.submitAnswer(
             socket.user.userId, roundId, puzzleId, submissionType, { row, col, value, grid }
           );
@@ -241,7 +253,7 @@ class SocketManager {
 
           // Find player record
           const player = await prisma.players.findFirst({
-            where: { competition_id: data.tournamentId, user_id: userId },
+            where: { competition_id: data.competitionId, user_id: userId },
           });
           if (!player) {
             socket.emit('event', {
@@ -332,9 +344,9 @@ class SocketManager {
 
       socket.on('round3_propose', async (data) => {
         try {
-          const { tournamentId, roundId, puzzleId, row, col, value } = data;
+          const { competitionId, roundId, puzzleId, row, col, value } = data;
           const { result, emissions } = await this.orchestrator.round3ProposeCell(
-            socket.user.userId, tournamentId, roundId, puzzleId, row, col, value
+            socket.user.userId, competitionId, roundId, puzzleId, row, col, value
           );
           this.orchestrator.bus.emitAll(emissions);
           socket.emit('event', {
@@ -353,9 +365,9 @@ class SocketManager {
 
       socket.on('round3_accept', async (data) => {
         try {
-          const { tournamentId, roundId, puzzleId, row, col } = data;
+          const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3AcceptProposal(
-            socket.user.userId, tournamentId, roundId, puzzleId, row, col
+            socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
           this.orchestrator.bus.emitAll(emissions);
           socket.emit('event', {
@@ -374,9 +386,9 @@ class SocketManager {
 
       socket.on('round3_reject', async (data) => {
         try {
-          const { tournamentId, roundId, puzzleId, row, col } = data;
+          const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3RejectProposal(
-            socket.user.userId, tournamentId, roundId, puzzleId, row, col
+            socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
           this.orchestrator.bus.emitAll(emissions);
           socket.emit('event', {
@@ -395,9 +407,9 @@ class SocketManager {
 
       socket.on('round3_withdraw', async (data) => {
         try {
-          const { tournamentId, roundId, puzzleId, row, col } = data;
+          const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3WithdrawProposal(
-            socket.user.userId, tournamentId, roundId, puzzleId, row, col
+            socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
           this.orchestrator.bus.emitAll(emissions);
           socket.emit('event', {
@@ -416,9 +428,9 @@ class SocketManager {
 
       socket.on('round3_focus', async (data) => {
         try {
-          const { tournamentId, roundId, puzzleId, row, col } = data;
+          const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3FocusUpdate(
-            socket.user.userId, tournamentId, roundId, puzzleId, row, col
+            socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
           this.orchestrator.bus.emitAll(emissions);
         } catch (e) {
@@ -445,13 +457,20 @@ class SocketManager {
 
         // Clean up R3 player focus on disconnect so stale focus doesn't persist
         try {
-          // Find all tournament rooms this socket was in
+          // Find all competition rooms this socket was in.
+          //
+          // This pattern used to be /^tournament_(\d+)$/ followed by
+          // parseInt(). Both halves dated from the SERIAL era: ids are UUIDs,
+          // which \d+ never matches, so this cleanup had been silently dead
+          // since the UUID migration. Renaming the room prefix forced the
+          // pattern to be rewritten, and a pattern that cannot match is not
+          // worth keeping — so it now captures the UUID and passes it through
+          // unconverted.
           const rooms = [...socket.rooms];
           for (const room of rooms) {
-            const match = room.match(/^tournament_(\d+)$/);
+            const match = room.match(/^competition_(.+)$/);
             if (match) {
-              const tid = match[1];
-              this.orchestrator.clearRound3PlayerFocus(socket.user.userId, parseInt(tid));
+              this.orchestrator.clearRound3PlayerFocus(socket.user.userId, match[1]);
             }
           }
         } catch (_) { /* non-critical */ }
@@ -461,19 +480,19 @@ class SocketManager {
 
   // ─── Late-join sync ───────────────────────────────────────────
 
-  async _handleLateJoin(socket, tournamentId) {
+  async _handleLateJoin(socket, competitionId) {
     try {
-      const reconnectState = await this.orchestrator.getReconnectState(socket.user.userId, tournamentId);
+      const reconnectState = await this.orchestrator.getReconnectState(socket.user.userId, competitionId);
       if (!reconnectState || !reconnectState.currentRound) return;
 
       const { currentRound, puzzles, round1Progress, round2State } = reconnectState;
-      const tournamentIdStr = String(tournamentId);
+      const competitionIdStr = String(competitionId);
 
       // 1. Send ROUND_STARTED
       socket.emit('event', {
         type: 'ROUND_STARTED',
         timestamp: new Date().toISOString(),
-        tournamentId: tournamentIdStr,
+        competitionId: competitionIdStr,
         payload: {
           roundId: currentRound.roundId,
           roundNumber: currentRound.roundNumber,
@@ -499,7 +518,7 @@ class SocketManager {
       socket.emit('event', {
         type: 'TIMER_TICK',
         timestamp: new Date().toISOString(),
-        tournamentId: tournamentIdStr,
+        competitionId: competitionIdStr,
         payload: {
           roundId: currentRound.roundId,
           remainingSeconds: currentRound.remainingSeconds,
@@ -536,10 +555,10 @@ class SocketManager {
 
         // Build teamMembers list from team membership + active players
         let teamMembers = [];
-        const member = await this.repos.teams.findMemberTeam(tournamentId, socket.user.userId);
+        const member = await this.repos.teams.findMemberTeam(competitionId, socket.user.userId);
         if (member) {
           const allMembers = await this.repos.teams.getMembersWithDetails(member.team_id);
-          const activePlayers = await this.orchestrator.state.getActivePlayers(tournamentId);
+          const activePlayers = await this.orchestrator.state.getActivePlayers(competitionId);
           teamMembers = (allMembers || []).map(m => ({
             playerId: String(m.player_id),
             playerName: m.display_name || `Player ${m.player_id}`,
@@ -574,7 +593,7 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND1_PUZZLE_SOLVED',
             timestamp: new Date().toISOString(),
-            tournamentId: tournamentIdStr,
+            competitionId: competitionIdStr,
             payload: {
               roundId: currentRound.roundId,
               puzzleId: solved.puzzleId,
@@ -592,7 +611,7 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND1_FINAL_UNLOCKED',
             timestamp: new Date().toISOString(),
-            tournamentId: tournamentIdStr,
+            competitionId: competitionIdStr,
             payload: {
               roundId: currentRound.roundId,
               clues: round1Progress.clues,
@@ -604,12 +623,12 @@ class SocketManager {
 
         // Send score update
         if (round1Progress.teamScore > 0) {
-          const member = await this.repos.teams.findMemberTeam(tournamentId, socket.user.userId);
+          const member = await this.repos.teams.findMemberTeam(competitionId, socket.user.userId);
           if (member) {
             socket.emit('event', {
               type: 'SCORE_UPDATE',
               timestamp: new Date().toISOString(),
-              tournamentId: tournamentIdStr,
+              competitionId: competitionIdStr,
               payload: {
                 roundId: currentRound.roundId,
                 teamId: member.team_id,

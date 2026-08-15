@@ -2,9 +2,9 @@
  * Database repository factory.
  * Creates all repositories backed by a Prisma Client instance.
  *
- * Active repositories: users, players, categories (now using Prisma ORM)
- * Deprecated repositories: kept as require-only for reference, NOT instantiated
- * (they reference tables dropped in migration 018 or renamed in migrations 037-045).
+ * All repositories use Prisma ORM against the new schema (migration 018+).
+ * The repository keys mirror the new table names (repos.competitions,
+ * repos.rounds, repos.teams, etc.) so the route layer reads naturally.
  *
  * Usage:
  *   const { createRepositoryFactory } = require('./db');
@@ -18,14 +18,34 @@ const UserRepository = require('./repositories/UserRepository');
 const PlayerRepository = require('./repositories/PlayerRepository');
 const CategoryRepository = require('./repositories/CategoryRepository');
 const OrganizationRepository = require('./repositories/OrganizationRepository');
+const CompetitionRepository = require('./repositories/CompetitionRepository');
+const RoundRepository = require('./repositories/RoundRepository');
+const TeamRepository = require('./repositories/TeamRepository');
+const ParticipantRepository = require('./repositories/ParticipantRepository');
+const ScoreRepository = require('./repositories/ScoreRepository');
+const PuzzleRepository = require('./repositories/PuzzleRepository');
+const PlayerStateRepository = require('./repositories/PlayerStateRepository');
+const SubmissionRepository = require('./repositories/SubmissionRepository');
+const TeamPuzzleSetRepository = require('./repositories/TeamPuzzleSetRepository');
+const { RankingRepository } = require('./repositories/RankingRepository');
 
 function createRepositoryFactory(prisma) {
   return {
-    // Active repositories (now using Prisma ORM)
+    // Active repositories (Prisma ORM, new schema)
     users: new UserRepository(prisma),
     players: new PlayerRepository(prisma),
     categories: new CategoryRepository(prisma),
     organizations: new OrganizationRepository(prisma),
+    competitions: new CompetitionRepository(prisma),
+    rounds: new RoundRepository(prisma),
+    teams: new TeamRepository(prisma),
+    participants: new ParticipantRepository(prisma),
+    scores: new ScoreRepository(prisma),
+    puzzles: new PuzzleRepository(prisma),
+    playerStates: new PlayerStateRepository(prisma),
+    submissions: new SubmissionRepository(prisma),
+    teamPuzzleSets: new TeamPuzzleSetRepository(prisma),
+    rankings: new RankingRepository(),
 
     // Expose saveDB as no-op for backward compatibility
     saveDB: () => {},

@@ -1,85 +1,135 @@
 /**
- * TeamPuzzleSetRepository — abstracts team_puzzle_sets table operations.
- * Extracted from PuzzleAssignmentService (SRP).
- * All methods are async (PostgreSQL).
- * INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
+ * TeamPuzzleSetRepository — abstracts team-puzzle assignment per round.
  *
- * @deprecated This repository references the legacy `team_puzzle_sets` table (dropped in migration 018).
- * New schema replaces this with `round_puzzles` junction table (UUID PK, round_id FK,
- * puzzle_id FK, order_number, score) for puzzle-to-round assignment, and the
- * `puzzle_sets` + `puzzles` two-table model for puzzle library management.
- * See DEVELOPMENT_PLAN.md Section 13 for the new schema.
+ * NOTE: The legacy `team_puzzle_sets` table was dropped in migration 018.
+ * The new schema replaces it with the `round_puzzles` junction table for
+ * puzzle-to-round assignment. Team-specific puzzle sets are no longer modeled
+ * — all puzzles in a round are shared across teams.
+ *
+ * Legacy → new mapping:
+ *   team_puzzle_sets.tournament_id → (gone)
+ *   team_puzzle_sets.round_id      → round_puzzles.round_id
+ *   team_puzzle_sets.team_id       → (gone — puzzles are shared across teams)
+ *   team_puzzle_sets.word          → (gone — no equivalent; was a team mnemonic)
+ *   team_puzzle_sets.puzzle_ids    → (gone — replaced by one round_puzzles row per puzzle)
+ *
+ * Public method names are kept identical so route handlers keep working.
+ * Where a method's semantics no longer have a target (e.g. team-specific puzzle
+ * sets), it returns a sensible empty/null result with a clear comment.
  */
 
 class TeamPuzzleSetRepository {
-  constructor(db) {
-    this.db = db;
+  constructor(prisma) {
+    this.prisma = prisma;
   }
 
   /**
    * Persist a team-puzzle assignment.
-   * @param {number} tournamentId
-   * @param {number} roundId
-   * @param {number} teamId
-   * @param {string} word
-   * @param {string} puzzleIds - comma-separated puzzle IDs
+   *
+   * The new schema has no team-specific puzzle assignment — puzzles are shared
+   * across all teams in a round. This method is kept for backward compat with
+   * the PuzzleAssignmentService flow: it parses the comma-separated puzzle_ids
+   * and ensures each is linked to the round via `round_puzzles` (idempotent).
+   *
+   * The `competitionId` and `word` parameters are accepted but not persisted.
+   *
+   * @param {string} competitionId - Ignored (no competition_id on round_puzzles).
+   * @param {string} roundId
+   * @param {string} teamId - Ignored (puzzles are shared across teams).
+   * @param {string} word - Ignored (no word column in new schema).
+   * @param {string} puzzleIds - Comma-separated puzzle UUIDs.
    */
-  async persist(tournamentId, roundId, teamId, word, puzzleIds) {
-    await this.db.run(
-      'INSERT INTO team_puzzle_sets (tournament_id, round_id, team_id, word, puzzle_ids) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
-      [tournamentId, roundId, teamId, word, puzzleIds]
-    );
+  async persist(competitionId, roundId, teamId, word, puzzleIds) {
+    if (!puzzleIds) return;
+    const ids = String(puzzleIds)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (ids.length === 0) return;
+
+    for (let i = 0; i < ids.length; i++) {
+      const puzzleId = ids[i];
+      await this.prisma.round_puzzles.upsert({
+        where: {
+          round_puzzles_round_puzzle_unique: {
+            round_id: roundId,
+            puzzle_id: puzzleId,
+          },
+        },
+        create: {
+          round_id: roundId,
+          puzzle_id: puzzleId,
+          order_number: i + 1,
+        },
+        update: {
+          order_number: i + 1,
+        },
+      });
+    }
   }
 
   /**
    * Load all assignments for a round.
-   * @param {number} roundId
-   * @returns {Array<{team_id: number, word: string, puzzle_ids: string}>}
+   *
+   * The new schema has no team_id on round_puzzles. This method returns the
+   * round's puzzle links reshaped to the legacy { team_id, word, puzzle_ids }
+   * format, with team_id = null and word = null (since neither concept exists).
+   * @returns {Promise<Array<{team_id: null, word: null, puzzle_ids: string}>>}
    */
   async loadByRound(roundId) {
-    return this.db.all(
-      'SELECT team_id, word, puzzle_ids FROM team_puzzle_sets WHERE round_id = ?',
-      [roundId]
-    );
+    const links = await this.prisma.round_puzzles.findMany({
+      where: { round_id: roundId },
+      orderBy: { order_number: 'asc' },
+      select: { puzzle_id: true },
+    });
+    if (links.length === 0) return [];
+    return [
+      {
+        team_id: null,
+        word: null,
+        puzzle_ids: links.map((l) => l.puzzle_id).join(','),
+      },
+    ];
   }
 
   /**
    * Get puzzle IDs for a team in a round.
-   * @param {number} roundId
-   * @param {number} teamId
-   * @returns {string|null} comma-separated puzzle IDs
+   *
+   * The new schema shares puzzles across teams, so this returns the same
+   * comma-separated list regardless of teamId.
+   * @returns {Promise<string|null>} comma-separated puzzle UUIDs, or null.
    */
   async getByTeam(roundId, teamId) {
-    const row = await this.db.get(
-      'SELECT puzzle_ids FROM team_puzzle_sets WHERE round_id = ? AND team_id = ?',
-      [roundId, teamId]
-    );
-    return row?.puzzle_ids || null;
+    const rows = await this.prisma.round_puzzles.findMany({
+      where: { round_id: roundId },
+      orderBy: { order_number: 'asc' },
+      select: { puzzle_id: true },
+    });
+    if (rows.length === 0) return null;
+    return rows.map((r) => r.puzzle_id).join(',');
   }
 
   /**
    * Get the word for a team in a round.
-   * @param {number} roundId
-   * @param {number} teamId
-   * @returns {string|null}
+   *
+   * The `word` column was removed in the new schema. Always returns null.
+   * @returns {Promise<null>}
    */
   async getWord(roundId, teamId) {
-    const row = await this.db.get(
-      'SELECT word FROM team_puzzle_sets WHERE round_id = ? AND team_id = ?',
-      [roundId, teamId]
-    );
-    return row?.word || null;
+    return null;
   }
 
   /**
    * Reset all assignments for a round.
-   * @param {number} roundId
+   *
+   * Deletes all round_puzzles links for the round. Affects all teams (since
+   * puzzles are shared), not just one team — callers should be aware of this
+   * semantic change from the legacy behavior.
    */
   async resetByRound(roundId) {
-    await this.db.run(
-      'DELETE FROM team_puzzle_sets WHERE round_id = ?',
-      [roundId]
-    );
+    await this.prisma.round_puzzles.deleteMany({
+      where: { round_id: roundId },
+    });
   }
 }
 

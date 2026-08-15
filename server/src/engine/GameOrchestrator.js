@@ -14,7 +14,17 @@
  * for cross-cutting concerns.
  *
  * Database access: All queries go through Prisma Client via getPrisma().
- * No deprecated repository references (repos.tournaments, repos.rounds, etc.).
+ * No deprecated repository references (repos.competitions, repos.rounds, etc.).
+ *
+ * Vocabulary debt (Phase 14 of the competitions migration — option B):
+ * This file, and the rest of server/src/engine/, server/src/ws/,
+ * server/src/state/, and server/src/services/, still use the identifier
+ * `competitionId` to mean a competition UUID (competitions.id). The
+ * migration renamed the concept everywhere else (routes, repos, client);
+ * here the old name was deliberately kept because this code has no unit
+ * tests, and a silent rename across ~257 untested occurrences on the
+ * heart of the game was judged too risky. The debt is assumed and
+ * documented, not hidden. To be resolved if/when engine tests are added.
  */
 
 const TimerService = require('./TimerService');
@@ -27,7 +37,7 @@ const PuzzleAssignmentService = require('../services/PuzzleAssignmentService');
 const Round2NotificationService = require('../services/Round2NotificationService');
 const Round3CollaborationService = require('../services/Round3CollaborationService');
 const { isIndividualRoundType } = require('./RoundTypes');
-const { TournamentError, RoundError, StageError } = require('./errors');
+const { CompetitionError, RoundError, StageError } = require('./errors');
 
 // Default transition delay between rounds (seconds).
 // Gives clients time to show "next round" screen before preparation countdown starts.
@@ -223,26 +233,26 @@ class GameOrchestrator {
 
   // ─── Competition lifecycle ─────────────────────────────────────
 
-  async startTournament(competitionId) {
+  async startCompetition(competitionId) {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp) throw new TournamentError('比赛不存在');
-    if (comp.status !== 'DRAFT') {
-      throw new TournamentError('比赛状态不允许开始');
+    if (!comp) throw new CompetitionError('比赛不存在');
+    if (comp.status !== 'DRAFT' && comp.status !== 'PUBLISHED') {
+      throw new CompetitionError('比赛状态不允许开始');
     }
 
     // Validate competition structure via StageManager
     const allStages = await this.stages.loadAllStages(competitionId);
-    if (allStages.length === 0) throw new TournamentError('赛事缺少阶段配置');
+    if (allStages.length === 0) throw new CompetitionError('赛事缺少阶段配置');
 
     const allRounds = allStages.flatMap(s => s.rounds);
-    if (allRounds.length < 3) throw new TournamentError('轮次配置不完整');
+    if (allRounds.length < 3) throw new CompetitionError('轮次配置不完整');
 
     const teams = await this._prisma.teams.findMany({
       where: { competition_id: competitionId },
     });
-    if (teams.length === 0) throw new TournamentError('没有队伍');
+    if (teams.length === 0) throw new CompetitionError('没有队伍');
 
     // Update competition to RUNNING
     await this._prisma.competitions.update({
@@ -253,7 +263,7 @@ class GameOrchestrator {
     const firstStage = await this.stages.findFirstStage(competitionId);
 
     const emissions = [{
-      target: 'competition', targetId: competitionId, event: 'TOURNAMENT_STARTED',
+      target: 'competition', targetId: competitionId, event: 'COMPETITION_STARTED',
       payload: {
         competitionName: comp.name, totalRounds: allRounds.length,
         totalStages: allStages.length,
@@ -282,9 +292,9 @@ class GameOrchestrator {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp) throw new TournamentError('比赛不存在');
+    if (!comp) throw new CompetitionError('比赛不存在');
     if (comp.status !== 'RUNNING') {
-      throw new TournamentError('比赛必须先开始才能启动阶段');
+      throw new CompetitionError('比赛必须先开始才能启动阶段');
     }
 
     // Start the stage via StageManager
@@ -310,7 +320,7 @@ class GameOrchestrator {
       where: { id: competitionId },
     });
     if (!competition || competition.status !== 'RUNNING') {
-      throw new TournamentError('比赛未在进行中');
+      throw new CompetitionError('比赛未在进行中');
     }
 
     // Get stage context
@@ -383,11 +393,11 @@ class GameOrchestrator {
 
   // ─── Pause / Resume ──────────────────────────────────────────
 
-  async pauseTournament(competitionId) {
+  async pauseCompetition(competitionId) {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp || comp.status !== 'RUNNING') throw new TournamentError('比赛状态不允许暂停');
+    if (!comp || comp.status !== 'RUNNING') throw new CompetitionError('比赛状态不允许暂停');
 
     const emissions = [];
 
@@ -421,18 +431,18 @@ class GameOrchestrator {
     });
 
     emissions.push({
-      target: 'competition', targetId: competitionId, event: 'TOURNAMENT_PAUSED',
+      target: 'competition', targetId: competitionId, event: 'COMPETITION_PAUSED',
       payload: { competitionId },
     });
 
     return { result: { competitionId, status: 'PAUSED' }, emissions };
   }
 
-  async resumeTournament(competitionId) {
+  async resumeCompetition(competitionId) {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp || comp.status !== 'PAUSED') throw new TournamentError('比赛状态不允许恢复');
+    if (!comp || comp.status !== 'PAUSED') throw new CompetitionError('比赛状态不允许恢复');
 
     const emissions = [];
 
@@ -477,7 +487,7 @@ class GameOrchestrator {
     });
 
     emissions.push({
-      target: 'competition', targetId: competitionId, event: 'TOURNAMENT_RESUMED',
+      target: 'competition', targetId: competitionId, event: 'COMPETITION_RESUMED',
       payload: { competitionId },
     });
 
@@ -811,9 +821,9 @@ class GameOrchestrator {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp) throw new TournamentError('比赛不存在');
+    if (!comp) throw new CompetitionError('比赛不存在');
     if (comp.status === 'RUNNING' || comp.status === 'FINISHED') {
-      throw new TournamentError('比赛进行中或已结束，无法修改阶段配置');
+      throw new CompetitionError('比赛进行中或已结束，无法修改阶段配置');
     }
 
     // Validate input
@@ -906,9 +916,9 @@ class GameOrchestrator {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp) throw new TournamentError('比赛不存在');
+    if (!comp) throw new CompetitionError('比赛不存在');
     if (comp.status !== 'RUNNING' && comp.status !== 'PAUSED') {
-      throw new TournamentError('比赛状态不允许结束阶段');
+      throw new CompetitionError('比赛状态不允许结束阶段');
     }
 
     // Load stage context if needed
@@ -938,9 +948,9 @@ class GameOrchestrator {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp) throw new TournamentError('比赛不存在');
+    if (!comp) throw new CompetitionError('比赛不存在');
     if (comp.status !== 'RUNNING') {
-      throw new TournamentError('比赛状态不允许切换阶段');
+      throw new CompetitionError('比赛状态不允许切换阶段');
     }
 
     // Ensure current stage context is loaded
@@ -971,11 +981,11 @@ class GameOrchestrator {
 
   // ─── End competition ───────────────────────────────────────────
 
-  async endTournament(competitionId) {
+  async endCompetition(competitionId) {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp || comp.status === 'FINISHED') throw new TournamentError('比赛状态不允许结束');
+    if (!comp || comp.status === 'FINISHED') throw new CompetitionError('比赛状态不允许结束');
 
     // Business rule: all rounds must be FINISHED before competition can end
     const unfinishedRounds = await this._prisma.rounds.findMany({
@@ -985,7 +995,7 @@ class GameOrchestrator {
       },
     });
     if (unfinishedRounds.length > 0) {
-      throw new TournamentError('所有轮次必须完成后才能结束比赛');
+      throw new CompetitionError('所有轮次必须完成后才能结束比赛');
     }
 
     const emissions = [];
@@ -994,7 +1004,7 @@ class GameOrchestrator {
       data: { status: 'FINISHED' },
     });
     emissions.push({
-      target: 'competition', targetId: competitionId, event: 'TOURNAMENT_FINISHED',
+      target: 'competition', targetId: competitionId, event: 'COMPETITION_FINISHED',
       payload: { competitionId },
     });
     return { result: { competitionId, status: 'FINISHED' }, emissions };

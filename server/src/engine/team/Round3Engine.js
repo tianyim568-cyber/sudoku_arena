@@ -24,7 +24,7 @@ class Round3Engine extends RoundEngine {
 
   // ─── Setup ────────────────────────────────────────────────────
 
-  async setup(tournamentId, roundId, teams, puzzles) {
+  async setup(competitionId, roundId, teams, puzzles) {
     const emissions = [];
 
     for (const team of teams) {
@@ -77,7 +77,7 @@ class Round3Engine extends RoundEngine {
 
   // ─── Submit answer ────────────────────────────────────────────
 
-  async submitAnswer(userId, tournamentId, roundId, puzzleId, submissionType, data) {
+  async submitAnswer(userId, competitionId, roundId, puzzleId, submissionType, data) {
     const emissions = [];
     const round = await this.repos.rounds.findById(roundId);
     if (!round || round.status !== 'IN_PROGRESS') throw new Error('轮次未在进行中');
@@ -98,14 +98,14 @@ class Round3Engine extends RoundEngine {
 
     if (isCorrect) {
       await this.repos.playerStates.markCompleted(assignment.id);
-      this.scoring.addPlayerPoints(round.tournament_id, roundId, userId, assignment.team_id, pointsEarned);
+      this.scoring.addPlayerPoints(round.competition_id, roundId, userId, assignment.team_id, pointsEarned);
 
       if (assignment.team_id) {
-        this.scoring.addTeamPoints(round.tournament_id, roundId, assignment.team_id, pointsEarned);
+        this.scoring.addTeamPoints(round.competition_id, roundId, assignment.team_id, pointsEarned);
         const team = await this.repos.teams.findById(assignment.team_id);
-        const teamScore = this.scoring.findTeamScore(round.tournament_id, roundId, assignment.team_id);
-        const playerScore = this.scoring.findPlayerScore(round.tournament_id, roundId, userId);
-        emissions.push(this._emitTeam(round.tournament_id, assignment.team_id, 'SCORE_UPDATE', {
+        const teamScore = this.scoring.findTeamScore(round.competition_id, roundId, assignment.team_id);
+        const playerScore = this.scoring.findPlayerScore(round.competition_id, roundId, userId);
+        emissions.push(this._emitTeam(round.competition_id, assignment.team_id, 'SCORE_UPDATE', {
           roundId, teamId: assignment.team_id, teamName: team?.name || '',
           teamTotalPoints: teamScore?.total_points || 0,
           playerId: userId, playerTotalPoints: playerScore?.total_points || 0
@@ -116,7 +116,7 @@ class Round3Engine extends RoundEngine {
 
       // Assign next puzzle for the team
       if (assignment.team_id) {
-        const nextEmissions = await this._assignNextTeamPuzzle(tournamentId, roundId, assignment.team_id);
+        const nextEmissions = await this._assignNextTeamPuzzle(competitionId, roundId, assignment.team_id);
         emissions.push(...nextEmissions);
       }
     } else {
@@ -128,7 +128,7 @@ class Round3Engine extends RoundEngine {
 
   // ─── Cell fill (atomic claim) — kept for backward compat, but R3 prefers propose/accept ──
 
-  async handleCellFill(userId, tournamentId, roundId, puzzleId, row, col, value) {
+  async handleCellFill(userId, competitionId, roundId, puzzleId, row, col, value) {
     const emissions = [];
     const playerName = await this.repos.users.getDisplayName(userId);
 
@@ -163,7 +163,7 @@ class Round3Engine extends RoundEngine {
     // Broadcast to team
     const assignment = await this.repos.playerStates.findAnyAssignment(roundId, userId, puzzleId);
     if (assignment?.team_id) {
-      emissions.push(this._emitTeam(tournamentId, assignment.team_id, 'CELL_BROADCAST', {
+      emissions.push(this._emitTeam(competitionId, assignment.team_id, 'CELL_BROADCAST', {
         roundId, puzzleId, playerId: userId, playerName,
         row, col, value
       }));
@@ -182,37 +182,37 @@ class Round3Engine extends RoundEngine {
     return this.r3Collaboration.proposeCell(puzzleId, row, col, value, playerId, playerName, teamId, roundId);
   }
 
-  async handleCellAccept(puzzleId, row, col, acceptorPlayerId, acceptorPlayerName, teamId, roundId, tournamentId) {
+  async handleCellAccept(puzzleId, row, col, acceptorPlayerId, acceptorPlayerName, teamId, roundId, competitionId) {
     if (!this.r3Collaboration) {
       return { success: false, accepted: false, emissions: [] };
     }
-    return this.r3Collaboration.acceptProposal(puzzleId, row, col, acceptorPlayerId, acceptorPlayerName, teamId, roundId, tournamentId);
+    return this.r3Collaboration.acceptProposal(puzzleId, row, col, acceptorPlayerId, acceptorPlayerName, teamId, roundId, competitionId);
   }
 
-  async handleCellReject(puzzleId, row, col, rejectorPlayerId, rejectorPlayerName, teamId, roundId, tournamentId) {
+  async handleCellReject(puzzleId, row, col, rejectorPlayerId, rejectorPlayerName, teamId, roundId, competitionId) {
     if (!this.r3Collaboration) {
       return { success: false, emissions: [] };
     }
-    return this.r3Collaboration.rejectProposal(puzzleId, row, col, rejectorPlayerId, rejectorPlayerName, teamId, roundId, tournamentId);
+    return this.r3Collaboration.rejectProposal(puzzleId, row, col, rejectorPlayerId, rejectorPlayerName, teamId, roundId, competitionId);
   }
 
-  async handleCellWithdraw(puzzleId, row, col, playerId, teamId, roundId, tournamentId) {
+  async handleCellWithdraw(puzzleId, row, col, playerId, teamId, roundId, competitionId) {
     if (!this.r3Collaboration) {
       return { success: false, emissions: [] };
     }
-    return this.r3Collaboration.withdrawProposal(puzzleId, row, col, playerId, teamId, roundId, tournamentId);
+    return this.r3Collaboration.withdrawProposal(puzzleId, row, col, playerId, teamId, roundId, competitionId);
   }
 
-  async handleFocusUpdate(puzzleId, playerId, playerName, row, col, teamId, roundId, tournamentId) {
+  async handleFocusUpdate(puzzleId, playerId, playerName, row, col, teamId, roundId, competitionId) {
     if (!this.r3Collaboration) {
       return { emissions: [] };
     }
-    return this.r3Collaboration.updatePlayerFocus(puzzleId, playerId, playerName, row, col, teamId, roundId, tournamentId);
+    return this.r3Collaboration.updatePlayerFocus(puzzleId, playerId, playerName, row, col, teamId, roundId, competitionId);
   }
 
   // ─── Assign next puzzle ───────────────────────────────────────
 
-  async _assignNextTeamPuzzle(tournamentId, roundId, teamId) {
+  async _assignNextTeamPuzzle(competitionId, roundId, teamId) {
     const emissions = [];
     const assignedPuzzleIds = await this.repos.playerStates.findAssignedPuzzleIds(roundId, teamId);
     const allPuzzles = await this.repos.puzzles.findByRound(roundId);
@@ -241,7 +241,7 @@ class Round3Engine extends RoundEngine {
           }]
         }));
       }
-      emissions.push(this._emitTeam(tournamentId, teamId, 'TEAM_PUZZLE_NEXT', {
+      emissions.push(this._emitTeam(competitionId, teamId, 'TEAM_PUZZLE_NEXT', {
         roundId, puzzleId: nextPuzzle.id, difficulty, points
       }));
     }
@@ -251,15 +251,15 @@ class Round3Engine extends RoundEngine {
 
   // ─── Reconnect state ──────────────────────────────────────────
 
-  async getReconnectState(userId, tournamentId, roundId) {
-    const member = await this.repos.teams.findMemberTeam(tournamentId, userId);
+  async getReconnectState(userId, competitionId, roundId) {
+    const member = await this.repos.teams.findMemberTeam(competitionId, userId);
     if (!member) return null;
 
     // Get all team puzzles with difficulty/points info
     const teamPuzzles = await this.repos.puzzles.findByRoundAndTeam(roundId, member.team_id);
     const solvedPuzzleIds = await this.repos.submissions.findSolvedPuzzleIds(roundId, member.team_id);
     const solvedIds = new Set(solvedPuzzleIds);
-    const teamScore = this.scoring.findTeamScore(tournamentId, roundId, member.team_id);
+    const teamScore = this.scoring.findTeamScore(competitionId, roundId, member.team_id);
 
     // Get current active assignment
     const assignment = await this.repos.playerStates.findActiveAssignment(roundId, userId, null);
@@ -308,7 +308,7 @@ class Round3Engine extends RoundEngine {
 
   // ─── Cleanup ──────────────────────────────────────────────────
 
-  async cleanup(tournamentId, roundId) {
+  async cleanup(competitionId, roundId) {
     const puzzles = await this.repos.puzzles.findByRound(roundId);
     for (const puzzle of puzzles) {
       await this.state.deleteRound3Cells(puzzle.id);

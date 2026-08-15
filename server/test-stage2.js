@@ -45,20 +45,20 @@ async function test() {
   function judgeApi(m, p, b) { return apiCall(m, p, b, judgeToken); }
   function p1Api(m, p, b) { return apiCall(m, p, b, p1Token); }
 
-  // Setup tournament with 3 rounds
-  const t = await adminApi('POST', '/api/tournaments', { name: 'Timer Test' });
+  // Setup competition with 3 rounds
+  const t = await adminApi('POST', '/api/competitions', { name: 'Timer Test' });
   const tid = t.data.id;
-  const r1 = await adminApi('POST', '/api/tournaments/' + tid + '/rounds', { name: 'R1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600 });
-  const r2 = await adminApi('POST', '/api/tournaments/' + tid + '/rounds', { name: 'R2', roundType: 'ROUND2_RELAY', durationSeconds: 900 });
-  const r3 = await adminApi('POST', '/api/tournaments/' + tid + '/rounds', { name: 'R3', roundType: 'ROUND3_COLLABORATE', durationSeconds: 1200 });
+  const r1 = await adminApi('POST', '/api/competitions/' + tid + '/rounds', { name: 'R1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600 });
+  const r2 = await adminApi('POST', '/api/competitions/' + tid + '/rounds', { name: 'R2', roundType: 'ROUND2_RELAY', durationSeconds: 900 });
+  const r3 = await adminApi('POST', '/api/competitions/' + tid + '/rounds', { name: 'R3', roundType: 'ROUND3_COLLABORATE', durationSeconds: 1200 });
 
-  const team1 = await adminApi('POST', '/api/tournaments/' + tid + '/teams', { name: 'Red' });
-  const team2 = await adminApi('POST', '/api/tournaments/' + tid + '/teams', { name: 'Blue' });
+  const team1 = await adminApi('POST', '/api/competitions/' + tid + '/teams', { name: 'Red' });
+  const team2 = await adminApi('POST', '/api/competitions/' + tid + '/teams', { name: 'Blue' });
   await adminApi('POST', '/api/teams/' + team1.data.id + '/members', { playerId: p1Id, position: 1 });
   await adminApi('POST', '/api/teams/' + team1.data.id + '/members', { playerId: p2Id, position: 2 });
   await adminApi('POST', '/api/teams/' + team2.data.id + '/members', { playerId: p3Id, position: 1 });
   await adminApi('POST', '/api/teams/' + team2.data.id + '/members', { playerId: p4Id, position: 2 });
-  await adminApi('POST', '/api/tournaments/' + tid + '/judges', { judgeId: judgeId });
+  await adminApi('POST', '/api/competitions/' + tid + '/judges', { judgeId: judgeId });
 
   // Import R1 puzzles
   const puzzles1 = [];
@@ -69,11 +69,11 @@ async function test() {
   puzzles1.push({ type: 'FINAL', order: 10, initialGrid: Array(9).fill(null).map(() => Array(9).fill(0)), solution: Array(9).fill(null).map((_, r) => Array(9).fill(null).map((_, c) => (r * 9 + c + 1) % 9 + 1)), points: 200 });
   await adminApi('POST', '/api/rounds/' + r1.data.id + '/puzzles/import', { puzzles: puzzles1 });
 
-  // Start tournament
-  check('Start tournament', await judgeApi('POST', '/api/tournaments/' + tid + '/start'));
+  // Start competition
+  check('Start competition', await judgeApi('POST', '/api/competitions/' + tid + '/start'));
 
   // Start R1
-  const startRes = await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r1.data.id + '/start');
+  const startRes = await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r1.data.id + '/start');
   check('Start R1', startRes);
 
   // Verify turnEndsAt is returned
@@ -88,7 +88,7 @@ async function test() {
   }
 
   // Get state and verify remainingSeconds
-  const state1 = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const state1 = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   check('Get R1 state after start', state1);
   if (state1.code === 200) {
     const remaining = state1.data.currentRound.remainingSeconds;
@@ -98,7 +98,7 @@ async function test() {
 
   // Wait 2 seconds and check state again (timer should tick)
   await new Promise(r => setTimeout(r, 2000));
-  const state2 = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const state2 = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   if (state2.code === 200) {
     const remaining2 = state2.data.currentRound.remainingSeconds;
     console.log('    After 2s, remaining:', remaining2, '(should be ~598)');
@@ -106,10 +106,10 @@ async function test() {
   }
 
   // Pause
-  check('Pause tournament', await judgeApi('POST', '/api/tournaments/' + tid + '/pause'));
+  check('Pause competition', await judgeApi('POST', '/api/competitions/' + tid + '/pause'));
 
   // Check state while paused
-  const statePaused = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const statePaused = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   if (statePaused.code === 200) {
     const remainingPaused = statePaused.data.currentRound.remainingSeconds;
     console.log('    Remaining while paused:', remainingPaused);
@@ -118,7 +118,7 @@ async function test() {
 
   // Wait 3 seconds while paused (remaining should NOT decrease)
   await new Promise(r => setTimeout(r, 3000));
-  const statePaused2 = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const statePaused2 = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   if (statePaused2.code === 200) {
     const remainingPaused2 = statePaused2.data.currentRound.remainingSeconds;
     const diff = statePaused.data.currentRound.remainingSeconds - remainingPaused2;
@@ -127,11 +127,11 @@ async function test() {
   }
 
   // Resume
-  check('Resume tournament', await judgeApi('POST', '/api/tournaments/' + tid + '/resume'));
+  check('Resume competition', await judgeApi('POST', '/api/competitions/' + tid + '/resume'));
 
   // Wait 2 seconds after resume (timer should tick again)
   await new Promise(r => setTimeout(r, 2000));
-  const stateResumed = await p1Api('GET', '/api/tournaments/' + tid + '/my-state');
+  const stateResumed = await p1Api('GET', '/api/competitions/' + tid + '/my-state');
   if (stateResumed.code === 200) {
     const remainingResumed = stateResumed.data.currentRound.remainingSeconds;
     const beforeResume = statePaused2.data.currentRound.remainingSeconds;
@@ -140,9 +140,9 @@ async function test() {
   }
 
   // Cleanup
-  check('End round 1', await judgeApi('POST', '/api/tournaments/' + tid + '/rounds/' + r1.data.id + '/end'));
-  check('End tournament', await judgeApi('POST', '/api/tournaments/' + tid + '/end'));
-  await adminApi('DELETE', '/api/tournaments/' + tid);
+  check('End round 1', await judgeApi('POST', '/api/competitions/' + tid + '/rounds/' + r1.data.id + '/end'));
+  check('End competition', await judgeApi('POST', '/api/competitions/' + tid + '/end'));
+  await adminApi('DELETE', '/api/competitions/' + tid);
 
   console.log('');
   console.log('=== Results: ' + pass + ' passed, ' + fail + ' failed ===');

@@ -27,13 +27,13 @@ function buildRepos(overrides = {}) {
       // (user not found) or a different row.
       findByUsername: overrides.findByUsername || (async (username) => {
         if (username === 'admin') {
-          return { id: 1, username: 'admin', password_hash: ADMIN_HASH, role: 'ADMIN', display_name: '管理员' };
+          return { id: 1, username: 'admin', password_hash: ADMIN_HASH, role: 'ORG_ADMIN', display_name: '管理员' };
         }
         return null;
       }),
       findById: overrides.findById || (async (id) => {
         if (id === 1) {
-          return { id: 1, username: 'admin', role: 'ADMIN', display_name: '管理员' };
+          return { id: 1, username: 'admin', role: 'ORG_ADMIN', display_name: '管理员' };
         }
         return null;
       }),
@@ -58,7 +58,7 @@ describe('POST /api/auth/login', () => {
     expect(res.body.code).toBe(200);
     expect(res.body.data.token).toBeDefined();
     expect(res.body.data.user.username).toBe('admin');
-    expect(res.body.data.user.role).toBe('ADMIN');
+    expect(res.body.data.user.role).toBe('ORG_ADMIN');
     // Password must NEVER be in the response.
     expect(res.body.data.user.password_hash).toBeUndefined();
   });
@@ -97,7 +97,7 @@ describe('POST /api/auth/login', () => {
     const repos = buildRepos({
       findByUsername: async (username) => {
         receivedUsername = username;
-        return { id: 1, username, password_hash: ADMIN_HASH, role: 'ADMIN', display_name: 'x' };
+        return { id: 1, username, password_hash: ADMIN_HASH, role: 'ORG_ADMIN', display_name: 'x' };
       },
     });
     const app = buildApp(repos);

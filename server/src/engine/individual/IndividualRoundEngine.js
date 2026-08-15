@@ -33,13 +33,13 @@ class IndividualRoundEngine extends RoundEngine {
 
   // ─── Setup ────────────────────────────────────────────────────
 
-  async setup(tournamentId, roundId, teams, puzzles) {
+  async setup(competitionId, roundId, teams, puzzles) {
     const emissions = [];
     const prisma = this._prisma;
 
     // Get all players in this competition (not team-based)
     const players = await prisma.players.findMany({
-      where: { competition_id: tournamentId },
+      where: { competition_id: competitionId },
       include: { users: { select: { id: true, username: true } } },
     });
 
@@ -129,7 +129,7 @@ class IndividualRoundEngine extends RoundEngine {
 
   // ─── Submit answer (server-authoritative scoring) ─────────────
 
-  async submitAnswer(userId, tournamentId, roundId, puzzleId, submissionType, data) {
+  async submitAnswer(userId, competitionId, roundId, puzzleId, submissionType, data) {
     const emissions = [];
     const prisma = this._prisma;
 
@@ -142,7 +142,7 @@ class IndividualRoundEngine extends RoundEngine {
 
     // Find player record
     const player = await prisma.players.findFirst({
-      where: { competition_id: tournamentId, user_id: userId },
+      where: { competition_id: competitionId, user_id: userId },
     });
     if (!player) throw new Error('未找到参赛者记录');
 
@@ -244,7 +244,7 @@ class IndividualRoundEngine extends RoundEngine {
     // Emit score update to competition
     emissions.push({
       target: 'competition',
-      targetId: tournamentId,
+      targetId: competitionId,
       event: 'SCORE_UPDATE',
       payload: {
         roundId,
@@ -269,11 +269,11 @@ class IndividualRoundEngine extends RoundEngine {
 
   // ─── Reconnect state ──────────────────────────────────────────
 
-  async getReconnectState(userId, tournamentId, roundId) {
+  async getReconnectState(userId, competitionId, roundId) {
     const prisma = this._prisma;
 
     const player = await prisma.players.findFirst({
-      where: { competition_id: tournamentId, user_id: userId },
+      where: { competition_id: competitionId, user_id: userId },
     });
     if (!player) return null;
 
@@ -330,7 +330,7 @@ class IndividualRoundEngine extends RoundEngine {
 
   // ─── Cleanup ──────────────────────────────────────────────────
 
-  async cleanup(tournamentId, roundId) {
+  async cleanup(competitionId, roundId) {
     // Individual rounds have no special state to clean up
     // puzzle_answers and player_round_sessions persist for scoring
   }

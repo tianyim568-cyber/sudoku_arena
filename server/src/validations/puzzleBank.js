@@ -1,6 +1,6 @@
 const { z } = require('zod');
 
-const id = z.coerce.number().int().positive();
+const id = z.string().uuid();
 
 // Zod schema for POST /api/puzzle-bank/generate
 const generatePuzzlesSchema = z.object({

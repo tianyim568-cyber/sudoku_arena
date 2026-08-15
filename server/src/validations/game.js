@@ -1,6 +1,6 @@
 const { z } = require('zod');
 
-const id = z.coerce.number().int().positive();
+const id = z.string().uuid();
 const cellIndex = z.coerce.number().int().min(0).max(8);
 const cellValue = z.coerce.number().int().min(0).max(9);
 const gridSchema = z.array(z.array(cellValue).length(9)).length(9);

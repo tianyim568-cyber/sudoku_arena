@@ -19,13 +19,13 @@ class Round2NotificationService {
   /**
    * Schedule a 5-second pre-rotation warning for a team.
    *
-   * @param {number} tournamentId
+   * @param {number} competitionId
    * @param {number} roundId
    * @param {number} teamId
    * @param {number} nextRotationAt - Unix ms when rotation occurs
-   * @param {Function} onNotify - callback(tournamentId, roundId, teamId) when warning fires
+   * @param {Function} onNotify - callback(competitionId, roundId, teamId) when warning fires
    */
-  scheduleRotationNotification(tournamentId, roundId, teamId, nextRotationAt, onNotify) {
+  scheduleRotationNotification(competitionId, roundId, teamId, nextRotationAt, onNotify) {
     // Clear any existing notification for this team
     this._clearTeamNotification(roundId, teamId);
 
@@ -41,7 +41,7 @@ class Round2NotificationService {
     const key = `${roundId}:${teamId}`;
     const timeoutId = setTimeout(() => {
       this._notificationTimeouts.delete(key);
-      onNotify(tournamentId, roundId, teamId);
+      onNotify(competitionId, roundId, teamId);
     }, delay);
 
     this._notificationTimeouts.set(key, timeoutId);

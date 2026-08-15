@@ -12,10 +12,10 @@ const { createDisplayRouter } = require('./routes/display');
 // TODO: These routes are disabled until rewritten for the new UUID-based schema (migration 018+).
 // The deprecated repositories they depend on query tables that were dropped.
 // Re-enable after creating new route files backed by updated repositories.
-// const { createTournamentRouter } = require('./routes/tournaments');
-// const { createGameRouter } = require('./routes/game');
-// const { createPuzzleBankRouter } = require('./routes/puzzleBank');
-// const { createParticipantRouter } = require('./routes/participants');
+const { createCompetitionSetupRouter } = require('./routes/competitionSetup');
+const { createGameRouter } = require('./routes/game');
+const { createPuzzleBankRouter } = require('./routes/puzzleBank');
+const { createParticipantRouter } = require('./routes/participants');
 const EmissionBus = require('./ws/EmissionBus');
 const SocketManager = require('./ws/SocketManager');
 const GameOrchestrator = require('./engine/GameOrchestrator');
@@ -94,8 +94,9 @@ async function main() {
   app.use('/api/users', createUserRouter(repos));
   app.use('/api/competitions', createCompetitionRouter(repos));
 
-  // TODO: Disabled until rewritten for new UUID-based schema.
-  // app.use('/api', createTournamentRouter(repos));
+  // Competition setup routes (rounds, puzzles, teams, judges). The CRUD
+  // competition routes live in routes/competitions.js (mounted above).
+  app.use('/api', createCompetitionSetupRouter(repos));
 
   // Create EmissionBus and GameOrchestrator
   const bus = new EmissionBus();
@@ -105,9 +106,9 @@ async function main() {
   // Mount display routes
   app.use('/api', createDisplayRouter(displayManager));
 
-  // app.use('/api', createGameRouter(repos, orchestrator));
-  // app.use('/api', createPuzzleBankRouter(repos));
-  // app.use('/api', createParticipantRouter(repos));
+  app.use('/api', createGameRouter(repos, orchestrator));
+  app.use('/api', createPuzzleBankRouter(repos));
+  app.use('/api', createParticipantRouter(repos));
 
   // Setup WebSocket via SocketManager (replaces socketHandler)
   new SocketManager(io, repos, orchestrator, bus);
@@ -133,6 +134,24 @@ async function main() {
       return res.sendFile(indexHtml);
     }
     return res.status(404).json({ error: 'Frontend not built' });
+  });
+
+  // Last-resort error handler. Express 4 does not catch rejections thrown by
+  // async route handlers, so any handler that awaits without a try/catch
+  // produces an unhandled rejection — which, since Node 15, terminates the
+  // process. One failing request would take the whole server down: a bad
+  // DELETE really did kill it. Handlers that call next(err) land here; the
+  // guard below covers the rest.
+  app.use((err, req, res, next) => {
+    console.error(`[api] ${req.method} ${req.path} failed:`, err.message);
+    if (res.headersSent) return next(err);
+    res.status(500).json({ code: 50000, message: '服务器内部错误', data: null });
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    // Log and keep serving. Crashing on one bad request is worse than
+    // answering the next one.
+    console.error('[server] unhandled rejection:', reason instanceof Error ? reason.message : reason);
   });
 
   const PORT = config.PORT;

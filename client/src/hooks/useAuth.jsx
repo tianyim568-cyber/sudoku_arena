@@ -14,13 +14,22 @@ import { api, setToken as setApiToken } from '../api';
 //   • ORG — the regular login (admins, judges, players). Like a house key:
 //     yours, opens every door.
 //   • COMPETITION — a participant enters via /competition/:identifier to
-//     join ONE tournament. Like a hotel room key: works only for that room,
+//     join ONE competition. Like a hotel room key: works only for that room,
 //     only for this stay. The token carries `competitionId` to mark this.
 //
 // We tell them apart by looking for `competitionId` in the token's claims.
 // `authType` ("ORG" vs "COMPETITION") lets pages branch without re-decoding.
 
 const AuthContext = createContext(null);
+
+// Roles recognized as administrators on the client.
+// `ORG_ADMIN` is the tenant administrator; `SUPER_ADMIN` is the platform owner
+// with cross-organization rights. The legacy `ADMIN` role was removed when
+// multi-tenancy landed — a token carrying it is rejected by the server.
+// Single source of truth — pages read `isAdmin` from the context instead of
+// comparing role strings themselves.
+// Mirrors ADMIN_ROLES in server/src/middleware/auth.js — keep both in sync.
+export const ADMIN_ROLES = ['ORG_ADMIN', 'SUPER_ADMIN'];
 
 // The server returns the user with `id`; the game UI reads `user.userId`
 // everywhere. Normalize so `userId` is always available.
@@ -177,6 +186,10 @@ export function AuthProvider({ children }) {
   // Which world this session belongs to — lets pages branch without re-decoding.
   const authType = user?.competitionId != null ? 'COMPETITION' : user ? 'ORG' : null;
 
+  // Pages ask "is this an administrator?" instead of comparing role strings,
+  // so a future role rename only has to change ADMIN_ROLES above.
+  const isAdmin = ADMIN_ROLES.includes(user?.role);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -186,6 +199,7 @@ export function AuthProvider({ children }) {
       competitionLogin,
       logout,
       authType,
+      isAdmin,
       competitionId: user?.competitionId ?? null,
     }}>
       {children}

@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const rateLimit = require('express-rate-limit');
 const { generateToken, authMiddleware } = require('../middleware/auth');
+const { authLimiter, registerLimiter } = require('../middleware/rateLimiters');
 const { getPrisma } = require('../db/prisma');
 const { validateBody, z } = require('../middleware/validate');
 
@@ -20,23 +20,9 @@ function createAuthRouter(repos) {
     password: z.string().min(1, '密码不能为空'),
   });
 
-  // Rate limit login attempts: 30 requests per 15 minutes per IP
-  const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 30,
-    message: { code: 429, message: '登录尝试过于频繁，请15分钟后再试', data: null },
-    standardHeaders: true,
-    legacyHeaders: false
-  });
-
-  // Rate limit registration: 10 requests per 15 minutes per IP
-  const registerLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    message: { code: 429, message: '注册尝试过于频繁，请15分钟后再试', data: null },
-    standardHeaders: true,
-    legacyHeaders: false
-  });
+  // Rate limiters are imported from middleware/rateLimiters.js (single source
+  // of truth). authLimiter: 30 req/15min for login; registerLimiter: 10
+  // req/15min for registration.
 
   /**
    * POST /register — Public registration for new organizations.
@@ -109,7 +95,7 @@ function createAuthRouter(repos) {
     }
   });
 
-  router.post('/login', loginLimiter, validateBody(loginSchema), async (req, res) => {
+  router.post('/login', authLimiter, validateBody(loginSchema), async (req, res) => {
     const { username, password } = req.body;
     const user = await repos.users.findByUsername(username);
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {

@@ -34,7 +34,7 @@ function seedAdmin() {
     btoa(unescape(encodeURIComponent(JSON.stringify(o))))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const token = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({
-    userId: 1, role: 'ADMIN', displayName: 'Alice Admin', exp: Math.floor(Date.now() / 1000) + 3600,
+    userId: 1, role: 'ORG_ADMIN', displayName: 'Alice Admin', exp: Math.floor(Date.now() / 1000) + 3600,
   })}.sig`;
   localStorage.setItem('token', token);
 }

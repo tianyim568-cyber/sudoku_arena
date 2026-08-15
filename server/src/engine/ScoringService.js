@@ -20,9 +20,9 @@ class ScoringService {
    * Add points to a team's round score (idempotent upsert).
    * @returns {number} updated total
    */
-  async addTeamPoints(tournamentId, roundId, teamId, points) {
-    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, points);
-    const score = await this.scoreRepo.findTeamScore(tournamentId, roundId, teamId);
+  async addTeamPoints(competitionId, roundId, teamId, points) {
+    await this.scoreRepo.addTeamPoints(competitionId, roundId, teamId, points);
+    const score = await this.scoreRepo.findTeamScore(competitionId, roundId, teamId);
     return score?.total_points || 0;
   }
 
@@ -30,28 +30,28 @@ class ScoringService {
    * Add points to a player's round score (idempotent upsert).
    * @returns {number} updated total
    */
-  async addPlayerPoints(tournamentId, roundId, playerId, teamId, points) {
-    await this.scoreRepo.addPlayerPoints(tournamentId, roundId, playerId, teamId, points);
-    const score = await this.scoreRepo.findPlayerScore(tournamentId, roundId, playerId);
+  async addPlayerPoints(competitionId, roundId, playerId, teamId, points) {
+    await this.scoreRepo.addPlayerPoints(competitionId, roundId, playerId, teamId, points);
+    const score = await this.scoreRepo.findPlayerScore(competitionId, roundId, playerId);
     return score?.total_points || 0;
   }
 
   // ─── Queries ──────────────────────────────────────────────────
 
-  async findTeamScore(tournamentId, roundId, teamId) {
-    return await this.scoreRepo.findTeamScore(tournamentId, roundId, teamId);
+  async findTeamScore(competitionId, roundId, teamId) {
+    return await this.scoreRepo.findTeamScore(competitionId, roundId, teamId);
   }
 
-  async findPlayerScore(tournamentId, roundId, playerId) {
-    return await this.scoreRepo.findPlayerScore(tournamentId, roundId, playerId);
+  async findPlayerScore(competitionId, roundId, playerId) {
+    return await this.scoreRepo.findPlayerScore(competitionId, roundId, playerId);
   }
 
-  async findTeamScoresByTournament(tournamentId) {
-    return await this.scoreRepo.findTeamScoresByTournament(tournamentId);
+  async findTeamScoresByCompetition(competitionId) {
+    return await this.scoreRepo.findTeamScoresByCompetition(competitionId);
   }
 
-  async findPlayerScoresByTournament(tournamentId, playerId) {
-    return await this.scoreRepo.findPlayerScoresByTournament(tournamentId, playerId);
+  async findPlayerScoresByCompetition(competitionId, playerId) {
+    return await this.scoreRepo.findPlayerScoresByCompetition(competitionId, playerId);
   }
 
   // ─── Round 1 time bonus ───────────────────────────────────────
@@ -59,7 +59,7 @@ class ScoringService {
   /**
    * Round 1 time bonus: +3 points per full minute remaining.
    * Applied only when all puzzles in the round are completed.
-   * @param {string} tournamentId
+   * @param {string} competitionId
    * @param {number} roundId
    * @param {number} teamId
    * @param {number} remainingSeconds
@@ -67,14 +67,14 @@ class ScoringService {
    * @param {number} totalPuzzles
    * @returns {number} bonus points applied (0 if none)
    */
-  async applyRound1TimeBonus(tournamentId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
+  async applyRound1TimeBonus(competitionId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
     if (solvedCount < totalPuzzles || totalPuzzles === 0 || remainingSeconds <= 0) return 0;
 
     const bonusMinutes = Math.floor(remainingSeconds / 60);
     const timeBonus = bonusMinutes * 3;
     if (timeBonus <= 0) return 0;
 
-    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, timeBonus);
+    await this.scoreRepo.addTeamPoints(competitionId, roundId, teamId, timeBonus);
     return timeBonus;
   }
 
@@ -93,7 +93,7 @@ class ScoringService {
 
   /**
    * Round 2 completion bonus: +3 pts/min remaining when all puzzles solved.
-   * @param {string} tournamentId
+   * @param {string} competitionId
    * @param {number} roundId
    * @param {number} teamId
    * @param {number} remainingSeconds
@@ -101,14 +101,14 @@ class ScoringService {
    * @param {number} totalPuzzles
    * @returns {number} bonus points applied (0 if none)
    */
-  async applyRound2CompletionBonus(tournamentId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
+  async applyRound2CompletionBonus(competitionId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
     if (solvedCount < totalPuzzles || totalPuzzles === 0 || remainingSeconds <= 0) return 0;
 
     const bonusMinutes = Math.floor(remainingSeconds / 60);
     const completionBonus = bonusMinutes * 3;
     if (completionBonus <= 0) return 0;
 
-    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, completionBonus);
+    await this.scoreRepo.addTeamPoints(competitionId, roundId, teamId, completionBonus);
     return completionBonus;
   }
 
@@ -127,7 +127,7 @@ class ScoringService {
 
   /**
    * Round 3 completion bonus: +5 pts/min remaining when all puzzles solved.
-   * @param {string} tournamentId
+   * @param {string} competitionId
    * @param {number} roundId
    * @param {number} teamId
    * @param {number} remainingSeconds
@@ -135,14 +135,14 @@ class ScoringService {
    * @param {number} totalPuzzles
    * @returns {number} bonus points applied (0 if none)
    */
-  async applyRound3CompletionBonus(tournamentId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
+  async applyRound3CompletionBonus(competitionId, roundId, teamId, remainingSeconds, solvedCount, totalPuzzles) {
     if (solvedCount < totalPuzzles || totalPuzzles === 0 || remainingSeconds <= 0) return 0;
 
     const bonusMinutes = Math.floor(remainingSeconds / 60);
     const completionBonus = bonusMinutes * 5;
     if (completionBonus <= 0) return 0;
 
-    await this.scoreRepo.addTeamPoints(tournamentId, roundId, teamId, completionBonus);
+    await this.scoreRepo.addTeamPoints(competitionId, roundId, teamId, completionBonus);
     return completionBonus;
   }
 
