@@ -5,6 +5,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
 import ParticipantImport from '../components/ParticipantImport';
+import AccessLinkSection from '../components/AccessLinkSection';
 
 export default function CompetitionDetailPage() {
   const { id } = useParams();
@@ -538,6 +539,14 @@ export default function CompetitionDetailPage() {
             <p className="text-gray-400 text-xs sm:text-sm">{t('competitionDetail.noJudges')}</p>
           )}
         </section>
+
+        {/* Access link — the server already generates/reads/revokes the entry
+            code; this block is the missing UI. Shown to admins only because
+            the underlying routes are gated on ORG_ADMIN / SUPER_ADMIN. A judge
+            on this page never sees it, so they never hit a 403. */}
+        {isAdmin && (
+          <AccessLinkSection competitionId={id} />
+        )}
       </main>
     </div>
   );

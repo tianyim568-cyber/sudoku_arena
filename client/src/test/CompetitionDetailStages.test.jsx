@@ -27,6 +27,12 @@ vi.mock('../api', () => ({
     listUsers: vi.fn(),
     getRoundTypes: vi.fn(),
     createStageRound: vi.fn(),
+    // AccessLinkSection renders on the admin view and calls these on mount.
+    // They are not asserted in this file, but must exist as mocks so the
+    // GET does not throw an unhandled rejection inside the test runner.
+    getAccessLink: vi.fn().mockResolvedValue({ code: 200, data: { accessCode: null, entryUrl: null } }),
+    generateAccessLink: vi.fn(),
+    revokeAccessLink: vi.fn(),
   },
   setToken: vi.fn(),
 }));

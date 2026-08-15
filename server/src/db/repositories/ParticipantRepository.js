@@ -159,7 +159,10 @@ class ParticipantRepository {
    * @param {Object} params
    * @param {string} params.competitionId - Competition UUID.
    * @param {string} params.participantId - Player UUID.
-   * @param {string} [params.teamName] - Ignored (team membership is via team_members).
+   * @param {string} [params.teamName] - Ignored here. Team membership is created
+   *   in bulkImport, which has the transaction context and the dedup logic
+   *   needed to turn a column of names into one team per distinct value. The
+   *   parameter is kept so callers that already pass it keep compiling.
    * @param {object} [tx]
    * @returns {Promise<object|null>} The updated player, or null if already linked.
    */
@@ -260,10 +263,18 @@ class ParticipantRepository {
    * columns; we generate a username + hashed password on the `users` table
    * instead, and link each player to the competition via `competition_id`.
    *
+   * Teams: the Excel `teamName` column used to be read here and then thrown
+   * away (see linkToCompetition's JSDoc). It is now honoured: one team per
+   * distinct name is created inside the competition, and each participant is
+   * attached via `team_members`. Rows with no team name are valid (individual
+   * competitions) and skip team creation entirely. Re-importing the same file
+   * is idempotent: existing teams are found by name, existing memberships are
+   * skipped — nothing is duplicated.
+   *
    * @param {string} competitionId - Competition UUID.
    * @param {object[]} rows - each: { province, city, district, school, name, age, category, teamName }
    * @param {string} [year] - Ignored in new schema (was used for account string).
-   * @returns {Promise<{imported: number}>}
+   * @returns {Promise<{imported: number, teamsCreated: number, membersLinked: number}>}
    */
   async bulkImport(competitionId, rows, year = null) {
     return this.prisma.$transaction(async (tx) => {
@@ -271,7 +282,24 @@ class ParticipantRepository {
       const allUsers = await tx.users.findMany({ select: { username: true } });
       const existingUsernames = new Set(allUsers.map((u) => u.username));
 
+      // Team lookup cache: normalized name → team row. Seeded with the teams
+      // that already exist for this competition, so a re-import finds them
+      // instead of creating duplicates. Two rows "Red" and " red " must land
+      // in the same team, so the cache key is the name trimmed and lowercased.
+      // The original casing is kept on the team row from the FIRST row that
+      // introduced the name — subsequent rows reuse that team as-is.
+      const teamCache = new Map();
+      const existingTeams = await tx.teams.findMany({
+        where: { competition_id: competitionId },
+        select: { id: true, name: true },
+      });
+      for (const t of existingTeams) {
+        teamCache.set(t.name.trim().toLowerCase(), t);
+      }
+
       let imported = 0;
+      let teamsCreated = 0;
+      let membersLinked = 0;
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -306,17 +334,46 @@ class ParticipantRepository {
 
         // linkToCompetition is a near-no-op in the new schema (competition_id is
         // already set on the player). Kept for parity with legacy flow.
-        const link = await this.linkToCompetition(
+        await this.linkToCompetition(
           { competitionId, participantId: participant.id, teamName: row.teamName || null },
           tx
         );
 
-        // In the new schema, `link` is null (already linked via competition_id).
-        // Count as imported as long as the player row exists and is attached.
-        if (participant) imported++;
+        // Attach the participant to their team, if the row named one. A row
+        // without a team name is an individual entry — valid, no team is
+        // created. The membership check uses the composite PK so re-importing
+        // the same file is a no-op rather than a unique-constraint violation.
+        const rawTeamName = row.teamName ? String(row.teamName).trim() : '';
+        if (rawTeamName) {
+          const cacheKey = rawTeamName.toLowerCase();
+          let team = teamCache.get(cacheKey);
+          if (!team) {
+            team = await tx.teams.create({
+              data: { competition_id: competitionId, name: rawTeamName },
+              select: { id: true, name: true },
+            });
+            teamCache.set(cacheKey, team);
+            teamsCreated++;
+          }
+
+          const alreadyMember = await tx.team_members.findUnique({
+            where: {
+              team_id_participant_id: { team_id: team.id, participant_id: participant.id },
+            },
+            select: { team_id: true },
+          });
+          if (!alreadyMember) {
+            await tx.team_members.create({
+              data: { team_id: team.id, participant_id: participant.id },
+            });
+            membersLinked++;
+          }
+        }
+
+        imported++;
       }
 
-      return { imported };
+      return { imported, teamsCreated, membersLinked };
     });
   }
 
