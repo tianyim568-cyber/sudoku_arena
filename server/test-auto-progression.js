@@ -237,7 +237,7 @@ async function test2_StageAutoFinish() {
   });
   await prisma.competition_stages.update({
     where: { id: testStage1.id },
-    data: { status: 'STAGE_STARTED' },
+    data: { status: 'RUNNING' },
   });
 
   const state = new MemoryStateRepository();
@@ -265,7 +265,7 @@ async function test2_StageAutoFinish() {
   const stage1 = await prisma.competition_stages.findUnique({
     where: { id: testStage1.id },
   });
-  assert.strictEqual(stage1.status, 'STAGE_FINISHED', 'Stage 1 should be auto-finished');
+  assert.strictEqual(stage1.status, 'FINISHED', 'Stage 1 should be auto-finished');
 
   console.log('✓ Stage auto-finish works correctly\n');
 }
@@ -325,7 +325,7 @@ async function test3_StageToStageProgression() {
   const stage2 = await prisma.competition_stages.findUnique({
     where: { id: testStage2.id },
   });
-  assert.strictEqual(stage2.status, 'STAGE_STARTED', 'Stage 2 should be started');
+  assert.strictEqual(stage2.status, 'RUNNING', 'Stage 2 should be started');
 
   // Cleanup stage 2 round
   await prisma.round_puzzles.deleteMany({ where: { round_id: stage2Round.id } });

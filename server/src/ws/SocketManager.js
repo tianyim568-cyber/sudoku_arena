@@ -255,18 +255,29 @@ class SocketManager {
           // Get current grid from state repository
           let grid = await this.orchestrator.state.getIndividualPlayerGrid(roundId, player.id, puzzleId);
 
-          // If no grid exists yet, fetch from puzzle_answers
+          // If no grid exists yet, fetch from puzzle_answers using actual session UUID
           if (!grid) {
-            const answer = await prisma.puzzle_answers.findFirst({
+            const session = await prisma.player_round_sessions.findUnique({
               where: {
-                session_id: `${roundId}_${player.id}`,
-                puzzle_id: puzzleId,
+                round_id_participant_id: {
+                  round_id: roundId,
+                  participant_id: player.id,
+                },
               },
             });
-            if (answer) {
-              grid = typeof answer.current_grid === 'string'
-                ? JSON.parse(answer.current_grid)
-                : answer.current_grid;
+
+            if (session) {
+              const answer = await prisma.puzzle_answers.findFirst({
+                where: {
+                  session_id: session.id,
+                  puzzle_id: puzzleId,
+                },
+              });
+              if (answer) {
+                grid = typeof answer.current_grid === 'string'
+                  ? JSON.parse(answer.current_grid)
+                  : answer.current_grid;
+              }
             }
           }
 

@@ -78,7 +78,7 @@ export default function DashboardCompetitionsPage() {
 
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{t('tournamentList.listTitle')}</h2>
-        {user?.role === 'ADMIN' && (
+        {user?.role === 'ORG_ADMIN' && (
           <button onClick={() => setShowCreate(!showCreate)}
             className="px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors">
             {t('tournamentList.newTournament')}

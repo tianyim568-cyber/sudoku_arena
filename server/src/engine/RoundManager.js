@@ -9,7 +9,7 @@
  *   - Provide round-aware context to GameOrchestrator
  *
  * Does NOT:
- *   - Handle stage-level lifecycle (WAITING, STAGE_STARTED, STAGE_FINISHED) — that's StageManager's job
+ *   - Handle stage-level lifecycle (WAITING, RUNNING, FINISHED) — that's StageManager's job
  *   - Handle competition-level lifecycle (DRAFT, RUNNING, FINISHED) — that's GameOrchestrator's job
  *   - Contain puzzle/gameplay logic (delegated to round engines)
  *   - Perform scoring calculations (delegated to ScoringService)

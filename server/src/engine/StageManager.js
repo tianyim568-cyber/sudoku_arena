@@ -3,7 +3,7 @@
  *
  * Responsibilities:
  *   - Track current stage context (which stage, type, configuration)
- *   - Manage stage lifecycle state transitions (WAITING → STAGE_STARTED → STAGE_FINISHED)
+ *   - Manage stage lifecycle state transitions (WAITING → RUNNING → FINISHED)
  *   - Coordinate movement between stages (transitionToNextStage)
  *   - Provide stage-aware context to GameOrchestrator
  *
@@ -36,8 +36,8 @@ const StageType = Object.freeze({
 
 const StageState = Object.freeze({
   WAITING: 'WAITING',
-  STAGE_STARTED: 'STAGE_STARTED',
-  STAGE_FINISHED: 'STAGE_FINISHED',
+  RUNNING: 'RUNNING',
+  FINISHED: 'FINISHED',
 });
 
 class StageManager {
@@ -154,7 +154,7 @@ class StageManager {
 
   /**
    * Start a stage.
-   * Validates stage exists and is in WAITING state, then transitions to STAGE_STARTED.
+   * Validates stage exists and is in WAITING state, then transitions to RUNNING.
    *
    * @param {string} competitionId
    * @param {string} stageId
@@ -175,16 +175,16 @@ class StageManager {
     // Update database
     await this._prisma.competition_stages.update({
       where: { id: stageId },
-      data: { status: StageState.STAGE_STARTED },
+      data: { status: StageState.RUNNING },
     });
 
     // Update local context
-    this._context.stageStatus = StageState.STAGE_STARTED;
+    this._context.stageStatus = StageState.RUNNING;
 
     const result = {
       stageId,
       competitionId,
-      status: StageState.STAGE_STARTED,
+      status: StageState.RUNNING,
       totalRounds: this.getTotalRounds(),
     };
 
@@ -205,7 +205,7 @@ class StageManager {
 
   /**
    * Finish the current stage.
-   * Validates all rounds are FINISHED, then transitions stage to STAGE_FINISHED.
+   * Validates all rounds are FINISHED, then transitions stage to FINISHED.
    *
    * @returns {Promise<{result: Object, emissions: Array}>}
    * @throws {StageError} if stage cannot be finished
@@ -216,7 +216,7 @@ class StageManager {
     }
 
     // Validate stage state
-    if (this._context.stageStatus !== StageState.STAGE_STARTED) {
+    if (this._context.stageStatus !== StageState.RUNNING) {
       throw new StageError(`Cannot finish stage: current status is ${this._context.stageStatus}`);
     }
 
@@ -235,16 +235,16 @@ class StageManager {
     // Update database
     await this._prisma.competition_stages.update({
       where: { id: this._context.stageId },
-      data: { status: StageState.STAGE_FINISHED },
+      data: { status: StageState.FINISHED },
     });
 
     // Update local context
-    this._context.stageStatus = StageState.STAGE_FINISHED;
+    this._context.stageStatus = StageState.FINISHED;
 
     const result = {
       stageId: this._context.stageId,
       competitionId: this._context.competitionId,
-      status: StageState.STAGE_FINISHED,
+      status: StageState.FINISHED,
       totalRounds: this.getTotalRounds(),
     };
 

@@ -163,9 +163,20 @@ class IndividualRoundEngine extends RoundEngine {
     // Get player's current grid from data or puzzle_answers
     let playerGrid = data.grid;
     if (!playerGrid) {
+      // Look up actual session UUID
+      const session = await prisma.player_round_sessions.findUnique({
+        where: {
+          round_id_participant_id: {
+            round_id: roundId,
+            participant_id: player.id,
+          },
+        },
+      });
+      if (!session) throw new Error('未找到答题会话');
+
       const answer = await prisma.puzzle_answers.findFirst({
         where: {
-          session_id: `${roundId}_${player.id}`,
+          session_id: session.id,
           puzzle_id: puzzleId,
         },
       });
@@ -180,35 +191,43 @@ class IndividualRoundEngine extends RoundEngine {
     const maxPoints = puzzle.score || 100;
     const puzzleScore = Math.round(maxPoints * completion.completionRatio);
 
-    // Update puzzle_answers with final score
-    await prisma.puzzle_answers.updateMany({
+    // Update puzzle_answers with final score using actual session UUID
+    const session = await prisma.player_round_sessions.findUnique({
       where: {
-        session_id: `${roundId}_${player.id}`,
-        puzzle_id: puzzleId,
-      },
-      data: {
-        current_grid: playerGrid,
-        correct_cells: completion.correctlyFilledCells,
-        total_empty_cells: completion.totalOriginallyEmptyCells,
-        progress_percentage: completion.completionRatio * 100,
-      },
-    });
-
-    // Update player_round_session status if all puzzles completed
-    const allAnswers = await prisma.puzzle_answers.findMany({
-      where: {
-        session_id: `${roundId}_${player.id}`,
-      },
-    });
-    const allCompleted = allAnswers.every(a => a.progress_percentage >= 100);
-    if (allCompleted) {
-      await prisma.player_round_sessions.updateMany({
-        where: {
+        round_id_participant_id: {
           round_id: roundId,
           participant_id: player.id,
         },
-        data: { status: 'SUBMITTED' },
+      },
+    });
+
+    if (session) {
+      await prisma.puzzle_answers.updateMany({
+        where: {
+          session_id: session.id,
+          puzzle_id: puzzleId,
+        },
+        data: {
+          current_grid: playerGrid,
+          correct_cells: completion.correctlyFilledCells,
+          total_empty_cells: completion.totalOriginallyEmptyCells,
+          progress_percentage: completion.completionRatio * 100,
+        },
       });
+
+      // Update player_round_session status if all puzzles completed
+      const allAnswers = await prisma.puzzle_answers.findMany({
+        where: {
+          session_id: session.id,
+        },
+      });
+      const allCompleted = allAnswers.every(a => a.progress_percentage >= 100);
+      if (allCompleted) {
+        await prisma.player_round_sessions.update({
+          where: { id: session.id },
+          data: { status: 'SUBMITTED' },
+        });
+      }
     }
 
     // Emit score update

@@ -228,7 +228,7 @@ class GameOrchestrator {
       where: { id: competitionId },
     });
     if (!comp) throw new TournamentError('比赛不存在');
-    if (comp.status !== 'DRAFT' && comp.status !== 'PUBLISHED') {
+    if (comp.status !== 'DRAFT') {
       throw new TournamentError('比赛状态不允许开始');
     }
 
@@ -299,7 +299,7 @@ class GameOrchestrator {
     }
 
     return {
-      result: { competitionId, stageId, status: 'STAGE_STARTED' },
+      result: { competitionId, stageId, status: 'RUNNING' },
       emissions,
     };
   }
@@ -577,14 +577,28 @@ class GameOrchestrator {
         let totalRoundScore = 0;
         let solvedCount = 0;
 
+        // Look up the actual player_round_sessions UUID (not a composite string)
+        const session = await this._prisma.player_round_sessions.findUnique({
+          where: {
+            round_id_participant_id: {
+              round_id: roundId,
+              participant_id: player.id,
+            },
+          },
+        });
+
+        if (!session) {
+          // No session found — player may not have started; skip scoring
+          continue;
+        }
+
         for (const rp of roundPuzzles) {
           const puzzle = rp.puzzles;
-          const sessionId = `${roundId}_${player.id}`;
 
           // Flush in-memory grid to puzzle_answers
           const inMemoryGrid = await this.state.getIndividualPlayerGrid(roundId, player.id, puzzle.id);
           const answer = await this._prisma.puzzle_answers.findFirst({
-            where: { session_id: sessionId, puzzle_id: puzzle.id },
+            where: { session_id: session.id, puzzle_id: puzzle.id },
           });
 
           let playerGrid = inMemoryGrid || (answer?.current_grid
@@ -605,16 +619,16 @@ class GameOrchestrator {
           const maxPoints = puzzle.score || 100;
           const puzzleScore = Math.round(maxPoints * completion.completionRatio);
 
-          // Update puzzle_answers with final state
+          // Update puzzle_answers with final state using the real session UUID
           await this._prisma.puzzle_answers.upsert({
             where: {
-              session_id_puzzle_id_unique: {
-                session_id: sessionId,
+              session_id_puzzle_id: {
+                session_id: session.id,
                 puzzle_id: puzzle.id,
               },
             },
             create: {
-              session_id: sessionId,
+              session_id: session.id,
               puzzle_id: puzzle.id,
               current_grid: playerGrid,
               correct_cells: completion.correctlyFilledCells,
@@ -787,7 +801,7 @@ class GameOrchestrator {
    * - If id is omitted: create a new stage.
    * - Stages not in the array but present in DB are deleted.
    *
-   * Only allowed when competition is DRAFT or PUBLISHED.
+   * Only allowed when competition is DRAFT.
    *
    * @param {string} competitionId
    * @param {Array<{id?: string, type: string, orderNumber: number}>} stageConfigs

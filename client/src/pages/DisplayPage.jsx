@@ -30,8 +30,10 @@ const STATUS_BADGE = {
 };
 
 const STAGE_STATUS_BADGE = {
-  PENDING: { label: '待开始', color: 'text-gray-400' },
+  WAITING: { label: '待开始', color: 'text-gray-400' },
+  RUNNING: { label: '进行中', color: 'text-green-400' },
   IN_PROGRESS: { label: '进行中', color: 'text-green-400' },
+  PAUSED: { label: '已暂停', color: 'text-yellow-400' },
   FINISHED: { label: '已结束', color: 'text-blue-400' },
 };
 

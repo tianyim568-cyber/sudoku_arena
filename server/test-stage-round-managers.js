@@ -216,13 +216,13 @@ async function testStageManager() {
   // Test 5: startStage
   console.log('\nTest: startStage');
   const startResult = await stageManager.startStage(TEST_IDS.competitionId, TEST_IDS.stageId);
-  assert(startResult.result.status === 'STAGE_STARTED', 'startStage returns STAGE_STARTED status');
+  assert(startResult.result.status === 'RUNNING', 'startStage returns RUNNING status');
   assert(startResult.emissions.length === 1, 'startStage emits 1 event');
   assert(startResult.emissions[0].event === 'STAGE_STARTED', 'startStage emits STAGE_STARTED event');
 
   // Verify DB updated
   const stageInDb = await prisma.competition_stages.findUnique({ where: { id: TEST_IDS.stageId } });
-  assert(stageInDb.status === 'STAGE_STARTED', 'Stage status updated in DB');
+  assert(stageInDb.status === 'RUNNING', 'Stage status updated in DB');
 
   // Test 6: Cannot start already started stage
   console.log('\nTest: Cannot start already started stage');
@@ -258,13 +258,13 @@ async function testStageManager() {
   // Test 9: finishStage (with finished rounds - should succeed)
   console.log('\nTest: finishStage with finished rounds');
   const finishResult = await stageManager.finishStage();
-  assert(finishResult.result.status === 'STAGE_FINISHED', 'finishStage returns STAGE_FINISHED status');
+  assert(finishResult.result.status === 'FINISHED', 'finishStage returns FINISHED status');
   assert(finishResult.emissions.length === 1, 'finishStage emits 1 event');
   assert(finishResult.emissions[0].event === 'STAGE_FINISHED', 'finishStage emits STAGE_FINISHED event');
 
   // Verify DB updated
   const finishedStageInDb = await prisma.competition_stages.findUnique({ where: { id: TEST_IDS.stageId } });
-  assert(finishedStageInDb.status === 'STAGE_FINISHED', 'Stage status updated to FINISHED in DB');
+  assert(finishedStageInDb.status === 'FINISHED', 'Stage status updated to FINISHED in DB');
 
   // Test 10: transitionToNextStage (no next stage exists)
   console.log('\nTest: transitionToNextStage (no next stage)');
