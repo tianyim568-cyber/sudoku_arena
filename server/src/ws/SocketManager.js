@@ -43,10 +43,19 @@ class SocketManager {
    * @param {import('../engine/GameOrchestrator')} orchestrator
    * @param {import('./EmissionBus')} bus
    */
-  constructor(io, repos, orchestrator, bus) {
+  constructor(io, repos, orchestrator, bus, presenceService) {
     this.io = io;
     this.repos = repos;
     this.orchestrator = orchestrator;
+    this.presenceService = presenceService; // optional, for monitoring
+
+    // Throttle map for PLAYER_GRID_UPDATE: key = `${competitionId}:${playerId}`, value = timestamp
+    this._gridUpdateThrottle = new Map();
+    this._gridUpdateThrottleIntervalMs = 500; // Max 2 updates/sec per player
+
+    // Rate limit config (per-connection token bucket)
+    this._rateLimitMax = config.WS_RATE_LIMIT; // max tokens (events per second)
+    this._rateLimitRefillRate = config.WS_RATE_LIMIT; // tokens refilled per second
 
     // Subscribe to EmissionBus — both queued and immediate emissions
     bus.on('emission', (e) => this._routeEmission(e));
@@ -59,6 +68,16 @@ class SocketManager {
   // ─── Emission routing ─────────────────────────────────────────
 
   _routeEmission(e) {
+    // When a participant status changes (from PresenceService sweep or explicit emit),
+    // trigger a full list update to judges — this is the judge-only PARTICIPANT_LIST_STATE_UPDATE.
+    if (e.event === 'PARTICIPANT_STATUS_CHANGE') {
+      const compId = typeof e.targetId === 'string' ? e.targetId : e.payload?.competitionId;
+      if (compId) {
+        // Fire-and-forget; errors are caught inside _emitParticipantListUpdate
+        this._emitParticipantListUpdate(compId);
+      }
+    }
+
     const msg = {
       type: e.event,
       timestamp: new Date().toISOString(),
@@ -78,6 +97,161 @@ class SocketManager {
       msg.competitionId = e.targetId;
       this.io.to(`display_${e.targetId}`).emit('event', msg);
     }
+  }
+
+  /**
+   * Emit PARTICIPANT_LIST_STATE_UPDATE to all judges for a competition.
+   * Fetches current participant list with online status and sends to each judge's user room.
+   * @param {string} competitionId
+   */
+  async _emitParticipantListUpdate(competitionId) {
+    try {
+      // Get all judges for this competition
+      const judges = await this.repos.teams.getJudges(competitionId);
+      if (!judges || judges.length === 0) return;
+
+      // Get all participants with team info
+      const participants = await this.repos.participants.findByCompetition(competitionId);
+
+      // Get online status from state repository
+      const activePlayers = await this.orchestrator.state.getActivePlayers(competitionId);
+
+      // Build participant list with status
+      const participantList = participants.map(p => {
+        const activeData = activePlayers[p.user_id];
+        const online = !!activeData;
+        return {
+          id: p.id,
+          name: p.name,
+          school: p.school || null,
+          teamId: p.team_members?.[0]?.team_id || null,
+          teamName: p.team_name || null,
+          online,
+          lastHeartbeatAt: activeData ? activeData.lastHeartbeatAt : null
+        };
+      });
+
+      // Build the event message
+      const msg = {
+        type: 'PARTICIPANT_LIST_STATE_UPDATE',
+        timestamp: new Date().toISOString(),
+        competitionId,
+        payload: {
+          participants: participantList,
+          summary: {
+            total: participantList.length,
+            online: participantList.filter(p => p.online).length,
+            offline: participantList.filter(p => !p.online).length
+          }
+        }
+      };
+
+      // Send to each judge's user room
+      for (const judge of judges) {
+        this.io.to(`user_${judge.user_id}`).emit('event', msg);
+      }
+    } catch (err) {
+      // Log but don't crash — monitoring updates are non-critical
+      console.error(`[SocketManager] Failed to emit PARTICIPANT_LIST_STATE_UPDATE for ${competitionId}:`, err.message);
+    }
+  }
+
+  /**
+   * Emit PLAYER_GRID_UPDATE to judges for a specific player, throttled to max 2/sec per player.
+   * @param {string} competitionId
+   * @param {string} playerId - Participant UUID
+   * @param {string} puzzleId
+   * @param {object} grid - Current grid state
+   */
+  async _emitPlayerGridUpdate(competitionId, playerId, puzzleId, grid) {
+    const throttleKey = `${competitionId}:${playerId}`;
+    const now = Date.now();
+    const lastEmit = this._gridUpdateThrottle.get(throttleKey) || 0;
+
+    // Throttle: max 2 updates/sec (500ms interval)
+    if (now - lastEmit < this._gridUpdateThrottleIntervalMs) {
+      return;
+    }
+    this._gridUpdateThrottle.set(throttleKey, now);
+
+    try {
+      // Get all judges for this competition
+      const judges = await this.repos.teams.getJudges(competitionId);
+      if (!judges || judges.length === 0) return;
+
+      // Build the event message
+      const msg = {
+        type: 'PLAYER_GRID_UPDATE',
+        timestamp: new Date().toISOString(),
+        competitionId,
+        payload: {
+          playerId,
+          puzzleId,
+          grid
+        }
+      };
+
+      // Send to each judge's user room
+      for (const judge of judges) {
+        this.io.to(`user_${judge.user_id}`).emit('event', msg);
+      }
+    } catch (err) {
+      // Log but don't crash — grid updates are non-critical
+      console.error(`[SocketManager] Failed to emit PLAYER_GRID_UPDATE for ${playerId}:`, err.message);
+    }
+  }
+
+  // ─── Rate limiting ───────────────────────────────────────────
+
+  /**
+   * Create a per-connection token bucket rate limiter.
+   * Returns an object with a `consume()` method that returns true if the event
+   * is allowed, false if rate-limited.
+   * @returns {{ consume: () => boolean }}
+   */
+  _createRateLimiter() {
+    const maxTokens = this._rateLimitMax;
+    const refillRate = this._rateLimitRefillRate; // tokens per second
+    let tokens = maxTokens;
+    let lastRefill = Date.now();
+
+    return {
+      consume() {
+        const now = Date.now();
+        const elapsed = (now - lastRefill) / 1000; // seconds
+        tokens = Math.min(maxTokens, tokens + elapsed * refillRate);
+        lastRefill = now;
+
+        if (tokens >= 1) {
+          tokens -= 1;
+          return true;
+        }
+        return false;
+      }
+    };
+  }
+
+  /**
+   * Check rate limit for a socket event. If exceeded, emit RATE_LIMIT_EXCEEDED
+   * and return false. Otherwise return true.
+   * @param {{ consume: () => boolean }} limiter
+   * @param {object} socket
+   * @param {string} eventName
+   * @returns {boolean}
+   */
+  _checkRateLimit(limiter, socket, eventName) {
+    if (!limiter.consume()) {
+      socket.emit('event', {
+        type: 'RATE_LIMIT_EXCEEDED',
+        timestamp: new Date().toISOString(),
+        payload: {
+          event: eventName,
+          message: 'Too many requests, please slow down'
+        }
+      });
+      return false;
+    }
+    return true;
   }
 
   // ─── Message validation ───────────────────────────────────────
@@ -126,6 +300,9 @@ class SocketManager {
       // Heartbeat interval for active player tracking
       let heartbeatInterval = null;
 
+      // Per-connection rate limiter (token bucket)
+      const rateLimiter = this._createRateLimiter();
+
       // ─── Room management ─────────────────────────────────────
 
       socket.on('join_room', async (data) => {
@@ -152,17 +329,25 @@ class SocketManager {
           // Start heartbeat for active player tracking
           if (socket.user.role === 'PLAYER') {
             heartbeatInterval = setInterval(async () => {
-              await this.orchestrator.state.setActivePlayer(competitionId, socket.user.userId, socket.id);
+              await this.orchestrator.state.refreshHeartbeat(competitionId, socket.user.userId);
             }, config.HEARTBEAT_INTERVAL_MS);
           }
 
-          // Notify room
+          // Notify room of status change (legacy + new monitoring event)
           this.io.to(`competition_${competitionId}`).emit('event', {
             type: 'PLAYER_STATUS_CHANGE',
             timestamp: new Date().toISOString(),
             competitionId,
             payload: { playerId: socket.user.userId, playerName: socket.user.username, online: true }
           });
+
+          // Register with PresenceService for stale-heartbeat monitoring
+          if (this.presenceService) {
+            this.presenceService.addCompetition(competitionId);
+          }
+
+          // Emit full participant list update to judges
+          await this._emitParticipantListUpdate(competitionId);
 
           // Late-join sync via orchestrator
           if (socket.user.role === 'PLAYER') {
@@ -173,7 +358,7 @@ class SocketManager {
         }
       });
 
-      socket.on('leave_room', (data) => {
+      socket.on('leave_room', async (data) => {
         const parsed = this._validate(leaveRoomSchema, data, socket, 'leave_room');
         if (!parsed) return;
         const { competitionId } = parsed;
@@ -190,7 +375,19 @@ class SocketManager {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
           }
-          this.orchestrator.state.removeActivePlayer(competitionId, socket.user.userId);
+          await this.orchestrator.state.removeActivePlayer(competitionId, socket.user.userId);
+
+          // Emit offline status change for monitoring
+          this.io.to(`competition_${competitionId}`).emit('event', {
+            type: 'PARTICIPANT_STATUS_CHANGE',
+            timestamp: new Date().toISOString(),
+            competitionId,
+            payload: { userId: socket.user.userId, status: 'offline' }
+          });
+
+          // Emit full participant list update to judges
+          await this._emitParticipantListUpdate(competitionId);
+
           console.log(`${socket.user.username} left competition ${competitionId}`);
         } catch (e) {
           console.error('leave_room error:', e.message);
@@ -200,6 +397,7 @@ class SocketManager {
       // ─── Game actions ────────────────────────────────────────
 
       socket.on('cell_fill', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'cell_fill')) return;
         const parsed = this._validate(cellFillSchema, data, socket, 'cell_fill');
         if (!parsed) return;
         try {
@@ -223,6 +421,7 @@ class SocketManager {
       });
 
       socket.on('answer_submit', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'answer_submit')) return;
         const parsed = this._validate(answerSubmitSchema, data, socket, 'answer_submit');
         if (!parsed) return;
         try {
@@ -246,6 +445,7 @@ class SocketManager {
       });
 
       socket.on('player_move', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'player_move')) return;
         try {
           const { roundId, puzzleId, row, col, value } = data;
           const userId = socket.user.userId;
@@ -303,6 +503,9 @@ class SocketManager {
               timestamp: new Date().toISOString(),
               payload: { success: true, row, col, value }
             });
+
+            // Emit throttled PLAYER_GRID_UPDATE to judges for real-time monitoring
+            this._emitPlayerGridUpdate(data.competitionId, player.id, puzzleId, grid);
           } else {
             socket.emit('event', {
               type: 'PLAYER_MOVE_ERROR',
@@ -320,6 +523,7 @@ class SocketManager {
       });
 
       socket.on('round2_cell_update', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'round2_cell_update')) return;
         try {
           const { roundId, puzzleId, row, col, value } = data;
           const { result, emissions } = await this.orchestrator.round2CellUpdate(
@@ -343,6 +547,7 @@ class SocketManager {
       // ─── Round 3 collaboration events ──────────────────────────>
 
       socket.on('round3_propose', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'round3_propose')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col, value } = data;
           const { result, emissions } = await this.orchestrator.round3ProposeCell(
@@ -364,6 +569,7 @@ class SocketManager {
       });
 
       socket.on('round3_accept', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'round3_accept')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3AcceptProposal(
@@ -385,6 +591,7 @@ class SocketManager {
       });
 
       socket.on('round3_reject', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'round3_reject')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3RejectProposal(
@@ -406,6 +613,7 @@ class SocketManager {
       });
 
       socket.on('round3_withdraw', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'round3_withdraw')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3WithdrawProposal(
@@ -427,6 +635,7 @@ class SocketManager {
       });
 
       socket.on('round3_focus', async (data) => {
+        if (!this._checkRateLimit(rateLimiter, socket, 'round3_focus')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
           const { result, emissions } = await this.orchestrator.round3FocusUpdate(
@@ -453,7 +662,9 @@ class SocketManager {
           heartbeatInterval = null;
         }
         // Note: we don't immediately remove active player on disconnect
-        // because the player may reconnect shortly. The TTL will clean up.
+        // because the player may reconnect shortly. The PresenceService
+        // sweep will detect stale heartbeats and emit PARTICIPANT_STATUS_CHANGE
+        // offline events once the TTL expires.
 
         // Clean up R3 player focus on disconnect so stale focus doesn't persist
         try {

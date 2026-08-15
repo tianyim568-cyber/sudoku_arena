@@ -327,9 +327,25 @@ class StateRepository {
   /**
    * Get all active players for a competition.
    * @param {number} competitionId
-   * @returns {Promise<Object<number, string>>} userId -> socketId
+   * @returns {Promise<Object<string, {socketId: string, lastHeartbeatAt: number}>>}
    */
   async getActivePlayers(competitionId) { throw new Error('Not implemented'); }
+
+  /**
+   * Refresh heartbeat timestamp for an active player.
+   * @param {number} competitionId
+   * @param {number} userId
+   * @returns {Promise<void>}
+   */
+  async refreshHeartbeat(competitionId, userId) { throw new Error('Not implemented'); }
+
+  /**
+   * Get players whose heartbeat has exceeded the TTL.
+   * @param {number} competitionId
+   * @param {number} ttlMs — max age in ms before a player is considered stale
+   * @returns {Promise<Array<{userId: string|number, socketId: string}>>}
+   */
+  async getStalePlayers(competitionId, ttlMs) { throw new Error('Not implemented'); }
 }
 
 module.exports = StateRepository;

@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>阅享绘本趣闯关 · 快乐萌娃大冒险｜乐考闯关测评</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#4a3624;
+  --ink-soft:#7a6350;
+  --paper:#fff8ef;
+  --card:#fffdf8;
+  --line:#f0dfc8;
+  --shadow:0 10px 28px rgba(122,86,48,.14);
+  --radius:20px;
+  --g1:#e8875a; --g2:#3e8e8e; --g3:#e0b04a;
+  --s-yuwen:#ef6a5a; --s-shuxue:#2fa4a4; --s-kexue:#4c8bdb;
+  --s-meishu:#9b72cf; --s-yinyue:#e86a9e; --s-tiyu:#66a84c; --s-laodong:#e8a23d;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'ZCOOL KuaiLe','Yuanti SC','YouYuan','PingFang SC',sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(1200px 500px at 85% -10%, rgba(232,183,74,.22), transparent 60%),
+    radial-gradient(900px 420px at -10% 30%, rgba(62,142,142,.14), transparent 55%),
+    var(--paper);
+  min-height:100vh;
+  font-size:16px;
+}
+body::before{ /* 纸张噪点 */
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:radial-gradient(rgba(120,90,50,.06) 1px, transparent 1.4px);
+  background-size:14px 14px;
+}
+#app{position:relative;z-index:1;max-width:840px;margin:0 auto;padding:14px 14px 40px}
+
+/* ---------- 通用 ---------- */
+.view{display:none;animation:pop .32s ease}
+.view.active{display:block}
+@keyframes pop{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.hidden{display:none!important}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:12px 20px;border-radius:16px;font-size:16px;font-weight:700;
+  box-shadow:0 6px 0 rgba(0,0,0,.08);transition:transform .08s,box-shadow .08s;
+  user-select:none;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.08)}
+.btn-primary{background:var(--g2);color:#fff}
+.btn-warm{background:var(--g1);color:#fff}
+.btn-gold{background:var(--g3);color:#5a3d00}
+.btn-ghost{background:#fff;border:2px solid var(--line);color:var(--ink-soft);box-shadow:none}
+.btn-sm{padding:8px 13px;font-size:14px;border-radius:12px}
+.chip{
+  display:inline-flex;align-items:center;gap:4px;padding:4px 11px;border-radius:99px;
+  font-size:13px;font-weight:700;color:#fff;
+}
+.headbar{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+.headbar .back{font-size:22px;width:42px;height:42px;border-radius:14px;background:#fff;border:2px solid var(--line);display:flex;align-items:center;justify-content:center}
+.headbar h2{font-size:22px;letter-spacing:1px}
+.subtitle{color:var(--ink-soft);font-size:14px}
+.toast{
+  position:fixed;left:50%;bottom:46px;transform:translateX(-50%) translateY(20px);
+  background:#3d2c1c;color:#fff;padding:11px 20px;border-radius:99px;font-size:15px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:.25s;z-index:99;max-width:82vw;text-align:center;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---------- 首页 ---------- */
+.hero{
+  position:relative;overflow:hidden;border-radius:28px;padding:30px 22px 26px;color:#fff;
+  background:linear-gradient(135deg,#f2a05e 0%,#e8875a 45%,#d96f4c 100%);
+  box-shadow:var(--shadow);margin-bottom:18px;text-align:center;
+}
+.hero.g2{background:linear-gradient(135deg,#8fbf6b 0%,#6aa356 50%,#4f8a44 100%)}
+.hero .float{position:absolute;font-size:26px;opacity:.85;animation:float 3.4s ease-in-out infinite}
+.hero .eyebrow{font-size:14px;letter-spacing:3px;opacity:.92;margin-bottom:8px}
+.hero h1{font-size:30px;line-height:1.3;letter-spacing:1px;text-shadow:0 3px 0 rgba(0,0,0,.12)}
+.hero .book{display:inline-block;margin-top:10px;background:rgba(255,255,255,.22);padding:5px 14px;border-radius:99px;font-size:14px}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.grade-cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grade-card{
+  position:relative;border-radius:24px;padding:20px 16px;color:#fff;text-align:center;overflow:hidden;
+  box-shadow:var(--shadow);transition:transform .15s;
+}
+.grade-card:active{transform:scale(.97)}
+.grade-card .big{font-size:44px;margin-bottom:6px}
+.grade-card .t1{font-size:22px;letter-spacing:2px}
+.grade-card .t2{font-size:13px;opacity:.92;margin-top:4px}
+.grade-card .tag{position:absolute;top:12px;right:12px;background:rgba(255,255,255,.28);font-size:12px;padding:3px 9px;border-radius:99px}
+.g1-card{background:linear-gradient(150deg,#5ba7a0,#3e8e8e)}
+.g2-card{background:linear-gradient(150deg,#8fbf6b,#5f9149)}
+.quick-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.quick-item{background:#fff;border:2px solid var(--line);border-radius:18px;padding:14px 6px;text-align:center;box-shadow:0 4px 12px rgba(122,86,48,.08)}
+.quick-item .qi{font-size:24px}
+.quick-item .qt{font-size:13px;margin-top:6px;color:var(--ink-soft)}
+.foot-note{margin-top:22px;text-align:center;color:var(--ink-soft);font-size:13px;line-height:1.7}
+
+/* ---------- 枢纽 ---------- */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+.mode-card{background:var(--card);border:2px solid var(--line);border-radius:22px;padding:22px 16px;text-align:center;box-shadow:var(--shadow)}
+.mode-card .mi{font-size:40px}
+.mode-card .mt{font-size:19px;margin-top:8px}
+.mode-card .md{font-size:13px;color:var(--ink-soft);margin-top:5px;line-height:1.6}
+.mode-card:active{transform:scale(.97)}
+.banner-mini{border-radius:20px;padding:16px 18px;color:#fff;margin-bottom:6px;display:flex;align-items:center;gap:12px}
+.banner-mini .bb{font-size:34px}
+.banner-mini .bt{font-size:19px;letter-spacing:1px}
+.banner-mini .bs{font-size:13px;opacity:.92;margin-top:2px}
+
+/* ---------- 闯关地图 ---------- */
+.map-tools{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.map-tools select,.map-tools input{
+  font-family:inherit;font-size:15px;border:2px solid var(--line);border-radius:14px;padding:9px 12px;background:#fff;color:var(--ink);flex:1;min-width:0;
+}
+.path{padding-left:8px}
+.node{display:flex;gap:0;position:relative}
+.node-rail{width:44px;flex:none;display:flex;flex-direction:column;align-items:center}
+.node-dot{
+  width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:16px;font-weight:800;box-shadow:0 4px 0 rgba(0,0,0,.15);flex:none;margin-top:2px;border:3px solid #fff;
+}
+.node-line{flex:1;width:3px;background:repeating-linear-gradient(#e5c9a6 0 8px,transparent 8px 16px);margin:4px 0;border-radius:3px}
+.node:last-child .node-line{display:none}
+.node-card{
+  flex:1;background:var(--card);border:2px solid var(--line);border-radius:18px;padding:12px 14px;margin:0 0 12px 2px;
+  box-shadow:0 5px 14px rgba(122,86,48,.08);transition:transform .12s;
+}
+.node-card:active{transform:scale(.99)}
+.node-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.node-name{font-size:17px;flex:1;min-width:120px}
+.node-stars{font-size:14px;color:#d99a2b;white-space:nowrap}
+.node-rules{font-size:13px;color:var(--ink-soft);margin-top:7px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.node-done{outline:3px solid rgba(102,168,76,.35)}
+.sumline{background:#fff;border:2px dashed var(--line);border-radius:16px;padding:10px 14px;font-size:14px;color:var(--ink-soft);margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* ---------- 底部弹层 ---------- */
+.mask{position:fixed;inset:0;background:rgba(60,40,20,.45);z-index:50;opacity:0;pointer-events:none;transition:.22s}
+.mask.show{opacity:1;pointer-events:auto}
+.sheet{
+  position:fixed;left:50%;bottom:0;transform:translateX(-50%) translateY(102%);
+  width:100%;max-width:840px;background:var(--paper);border-radius:26px 26px 0 0;z-index:51;
+  padding:18px 18px calc(18px + env(safe-area-inset-bottom));transition:transform .26s cubic-bezier(.2,.9,.3,1);
+  max-height:86vh;overflow-y:auto;box-shadow:0 -12px 40px rgba(0,0,0,.2);
+}
+.sheet.show{transform:translateX(-50%) translateY(0)}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:#e2cdb0;margin:0 auto 14px}
+.sheet .s-title{font-size:21px;letter-spacing:.5px;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.sheet .s-sub{font-size:14px;color:var(--ink-soft);margin-bottom:14px}
+.sheet .sec-title{font-size:15px;color:var(--ink-soft);margin:14px 0 6px;display:flex;align-items:center;gap:6px}
+.detail-box{background:#fff;border:2px solid var(--line);border-radius:14px;padding:11px 13px;font-size:14px;line-height:1.7;color:#5a4634}
+.crit-item{background:#fff;border:2px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:9px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:.12s}
+.crit-item:active{transform:scale(.985)}
+.crit-item .cs{font-size:16px;color:#e0a63a;flex:none;width:30px;text-align:center;padding-top:1px}
+.crit-item .ct{font-size:14px;line-height:1.55;color:#5a4634}
+.crit-item.on{border-color:#66a84c;background:#f4fbe9;box-shadow:0 0 0 3px rgba(102,168,76,.18)}
+.check-item{display:flex;gap:10px;align-items:flex-start;background:#fff;border:2px solid var(--line);border-radius:14px;padding:11px 13px;margin-bottom:9px;cursor:pointer}
+.check-item .box{width:24px;height:24px;border-radius:8px;border:2px solid #c9b294;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;background:#fff}
+.check-item.on{border-color:#66a84c;background:#f4fbe9}
+.check-item.on .box{background:#66a84c;border-color:#66a84c}
+.crit-score-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.big-stars{display:flex;gap:4px;font-size:30px;cursor:pointer}
+.big-stars span{color:#e6d6bd;transition:.12s;transform:scale(1)}
+.big-stars span.on{color:#f0a93b;text-shadow:0 0 12px rgba(240,169,59,.5)}
+.big-stars span:active{transform:scale(1.25)}
+.score-preview{font-size:14px;color:var(--ink-soft);background:#fff;border:2px solid var(--line);border-radius:14px;padding:9px 12px;margin-top:10px;line-height:1.6;min-height:20px}
+
+/* ---------- 教师评分 ---------- */
+.stu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+.stu-chip{background:#fff;border:2px solid var(--line);border-radius:15px;padding:10px 8px;text-align:center;font-size:15px;transition:.12s;position:relative}
+.stu-chip .st{display:block;font-size:12px;color:#d99a2b;margin-top:3px}
+.stu-chip.sel{border-color:var(--g2);background:#eef7f6;box-shadow:0 0 0 3px rgba(62,142,142,.18)}
+.sta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:4px}
+.sta-card{background:#fff;border:2px solid var(--line);border-radius:16px;padding:11px 10px;font-size:14px;transition:.12s;position:relative}
+.sta-card:active{transform:scale(.97)}
+.sta-card .sc-top{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.sta-card .sc-name{font-size:14px;line-height:1.35}
+.sta-card .sc-stars{position:absolute;top:10px;right:10px;font-size:12px;color:#d99a2b}
+.sta-card.sel{border-color:var(--g2);background:#eef7f6}
+.sta-card .sc-done{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:#66a84c;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.stu-empty{text-align:center;color:var(--ink-soft);padding:30px 0;font-size:15px;line-height:2}
+.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-row input{flex:1;font-family:inherit;font-size:15px;border:2px solid var(--line);border-radius:13px;padding:9px 12px;background:#fff}
+.tab-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.tab{background:#fff;border:2px solid var(--line);border-radius:99px;padding:7px 14px;font-size:14px;color:var(--ink-soft)}
+.tab.sel{background:var(--g2);color:#fff;border-color:var(--g2)}
+
+/* ---------- 统计 ---------- */
+.stats-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat-card{background:#fff;border:2px solid var(--line);border-radius:16px;padding:12px;text-align:center}
+.stat-card .sv{font-size:24px;color:var(--g2);font-weight:800}
+.stat-card .sl{font-size:12px;color:var(--ink-soft);margin-top:3px}
+.table-wrap{background:#fff;border:2px solid var(--line);border-radius:16px;overflow:auto;margin-bottom:14px}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th,td{border-bottom:1px solid #f3e5d0;padding:8px 7px;text-align:center;font-size:13px;white-space:nowrap}
+th{background:#fff6ea;color:#8a6a4a;font-weight:700;position:sticky;top:0}
+td.s-name{text-align:left;font-weight:700;color:#5a4634}
+td.tot{background:#fff6ea;font-weight:800;color:var(--g2)}
+.star-cell{color:#e0a63a}
+.star-cell.gray{color:#e6d6bd}
+.tool-row{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px}
+.act-row{display:flex;gap:9px;flex-wrap:wrap}
+
+/* ---------- 名单管理 ---------- */
+.roster-editor{background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px;margin-top:8px}
+.roster-editor textarea{width:100%;height:220px;border:2px solid var(--line);border-radius:12px;font-family:inherit;font-size:15px;padding:10px;line-height:1.9;resize:vertical;color:var(--ink)}
+.roster-count{font-size:13px;color:var(--ink-soft);margin-top:6px}
+
+/* ---------- 打印闯关卡 ---------- */
+#print-area{display:none}
+@media print{
+  body{background:#fff}
+  body::before,#app,.mask,.sheet,.toast{display:none!important}
+  #print-area{display:block}
+  @page{margin:12mm}
+}
+.passport{font-family:'Yuanti SC','PingFang SC',sans-serif;color:#2c1e12;max-width:760px;margin:0 auto}
+.passport .p-head{text-align:center;border-bottom:3px double #c98f3a;padding-bottom:10px;margin-bottom:12px}
+.passport .p-title{font-size:22px;letter-spacing:3px}
+.passport .p-sub{font-size:13px;color:#6b5340;margin-top:4px}
+.passport .p-info{display:flex;justify-content:center;gap:26px;margin-top:8px;font-size:14px}
+.passport .p-info span{border-bottom:1px solid #333;padding:0 8px}
+.passport .p-sec{margin:12px 0 6px;font-size:15px;font-weight:700;color:#8a5a1e;border-left:4px solid #e0a63a;padding-left:8px}
+.passport .p-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px dashed #e2cdb0;font-size:13px}
+.passport .p-row .nm{flex:1}
+.passport .p-row .st{font-size:15px;letter-spacing:2px;color:#d99a2b}
+.passport .p-row .st .off{color:#e6d6bd}
+.passport .p-foot{display:flex;justify-content:space-between;margin-top:16px;font-size:13px;color:#6b5340}
+.passport .p-total{margin-top:10px;text-align:right;font-size:15px;font-weight:700}
+
+/* ---------- 通用响应 ---------- */
+@media (max-width:520px){
+  .grade-cards{grid-template-columns:1fr}
+  .quick-row{grid-template-columns:repeat(4,1fr)}
+  .mode-grid{grid-template-columns:1fr}
+  .hero h1{font-size:25px}
+  .stats-cards{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="mask" id="mask" onclick="closeSheet()"></div>
+<div class="sheet" id="sheet"></div>
+<div class="toast" id="toast"></div>
+<div id="print-area"></div>
+
+<script>
+/* =========================================================
+   数据：关卡配置（依据瓯北第三小学无纸化测评方案）
+   ========================================================= */
+const SUBJECT_META = {
+  '语文':{color:'#ef6a5a',icon:'📖'},
+  '数学':{color:'#2fa4a4',icon:'🔢'},
+  '科学':{color:'#4c8bdb',icon:'🔬'},
+  '美术':{color:'#9b72cf',icon:'🎨'},
+  '音乐':{color:'#e86a9e',icon:'🎵'},
+  '体育':{color:'#66a84c',icon:'⚽'},
+  '劳动':{color:'#e8a23d',icon:'🧺'}
+};
+const THEME = {
+  1:{key:'y1',tone:'g1',title:'小猫探长逛童话路',book:'绘本《一句话专卖店》',emoji:'🐱',
+     bannerBg:'linear-gradient(135deg,#5ba7a0,#3e8e8e)',accent:'#3e8e8e',
+     intro:'跟着小猫探长走一走童话路，认词语、诵课文、算算术、探科学……集齐星星吧！'},
+  2:{key:'y2',tone:'g2',title:'一粒米的奇妙旅行',book:'绘本《盘中餐》',emoji:'🌾',
+     bannerBg:'linear-gradient(135deg,#8fbf6b,#5f9149)',accent:'#5f9149',
+     intro:'和小米粒一起，从播种到丰收，闯过一个个有趣关卡，收获满满星星吧！'}
+};
+
+const ST1=[
+{id:'y1-cn1',subject:'语文',name:'词语认读·挑选种子',icon:'🌱',rules:'学生随机抽取一组词语，准确认读课本重点生字、词语，读音标准、口齿清晰、无错读漏读。重点考查平翘舌、前后鼻音、轻声的准确读法。',materials:'平板3台（希望学）；语文老师确认考察字范围，3套题抽其中一套进行认读。',criteria:[{star:5,text:'认读全部正确，字音标准、响亮'},{star:4,text:'错读、漏读1—2个'},{star:3,text:'错读、漏读3—4个'},{star:2,text:'认读错误较多，字音不标准'}]},
+{id:'y1-cn2',subject:'语文',name:'课文朗诵·浇灌雨露',icon:'💧',rules:'学生随机抽取篇目片段，站立大声朗读，要求坐姿端正、吐字清晰、停顿合理，读出课文的童真与画面感，不添字、不漏字、不唱读。',materials:'平板3台；语文老师确认课内重点朗读片段，抽其中一套进行朗读。',criteria:[{star:5,text:'朗读流利无卡顿，停顿节奏准确，语气自然'},{star:4,text:'朗读基本流利，少量卡顿，节奏基本恰当'},{star:3,text:'存在多次卡顿、添字漏字，需轻微提示'},{star:2,text:'朗读生疏，语句不通顺，依赖提示'}]},
+{id:'y1-cn3',subject:'语文',name:'积累背诵·生根发芽',icon:'🌿',rules:'学生随机抽取2个背诵内容，独立完整背诵，要求无错字、无漏句、顺序正确，背诵熟练自然。',materials:'平板3台；语文老师确认背诵片段，平板自动滑动出题（各抽1个）。',criteria:[{star:5,text:'背诵完整流畅，无错字漏句，熟练自然'},{star:4,text:'背诵基本完整，1—2处卡顿'},{star:3,text:'背诵不连贯，内容遗漏较多'},{star:2,text:'无法独立完成背诵，知识点掌握薄弱'}]},
+{id:'y1-cn4',subject:'语文',name:'口语交际·破土而出',icon:'🌸',rules:'学生随机抽取一题，思考10秒后即兴表达，至少说出3句完整通顺的话，大胆自信、礼貌发言，内容贴合主题、逻辑清晰即可，鼓励童真创意表达，不限制固定答案。',materials:'平板3台；语文老师确认口语交际主题，平板自动滑动出题。',criteria:[{star:5,text:'表达完整通顺，内容贴合主题'},{star:4,text:'表达基本完整，逻辑清晰'},{star:3,text:'能简单表达，内容较单薄'},{star:2,text:'不敢表达、表达混乱，无法紧扣主题发言'}]},
+{id:'y1-labor',subject:'劳动',name:'劳动实践·茁壮成长',icon:'🧣',rules:'模拟操作，结合一年级下册劳动学习内容，正确佩戴、整理红领巾。',materials:'红领巾若干条（教师准备）。',criteria:[{star:5,text:'表述清晰完整，步骤讲解准确，举止大方自然'},{star:4,text:'能讲清主要内容，步骤基本正确，表达较为流畅'},{star:3,text:'回答内容简单，步骤表述有遗漏，经简单提示可补充'},{star:2,text:'表述混乱，步骤掌握不足'}]},
+{id:'y1-math1',subject:'数学',name:'美味速算大比拼',icon:'🍰',rules:'考查学生对20以内退位加法和100以内加减法计算的掌握情况。',materials:'平板3台；数学老师确认题目，平板自动滑动出题。',criteria:[{star:5,text:'能正确说出答案并熟练地表达算理'},{star:4,text:'能正确说出答案，并能正确表达算理，但不熟练'},{star:3,text:'能正确说出答案，提示后能基本正确表达算理'},{star:2,text:'需多次提示，仍无法正确说出答案与算理'}]},
+{id:'y1-math2',subject:'数学',name:'拼搭美味造型',icon:'🧩',rules:'利用七巧板拼三角形、长方形、正方形。',materials:'写有三角形、长方形、正方形的三张卡片；七巧板5套（教师准备）。',criteria:[{star:5,text:'能正确快速摆出相应的图形'},{star:4,text:'能正确摆出图形，但不熟练'},{star:3,text:'提示后，能正确摆出图形'},{star:2,text:'经多次提示，仍无法正确摆出图形'}]},
+{id:'y1-math3',subject:'数学',name:'美食生活小智囊',icon:'🧠',rules:'考查学生100以内加减法简单问题的应用。任意抽取一题卡，说出解题思路。',materials:'平板3台；数学老师确认题目，平板自动滑动出题。',criteria:[{star:5,text:'能正确熟练地说出解题思路'},{star:4,text:'能正确说出解题思路，但不熟练'},{star:3,text:'提示后，能基本正确说出解题思路'},{star:2,text:'需多次提示，仍无法说出解题思路'}]},
+{id:'y1-sci1',subject:'科学',name:'“秘密专卖店”',icon:'🎁',rules:'观察常见物体的特征。对应教材：第一单元第1课《观察物体的特征》、第2课《给物体分类》。',materials:'神秘布袋，内装：木块、海绵、玻璃球、棉花、石块、羽毛（教师准备）。',checklist:['能用触觉感知物体特征','能按给定标准对物体分类','能用完整句子描述一个物体的特征']},
+{id:'y1-sci2',subject:'科学',name:'水的秘密',icon:'💧',rules:'观察水的特征。对应教材：第一单元第5课《观察一瓶水》、第6课《哪个流动得快》。',materials:'一杯清水、一杯牛奶、一杯食用油、空杯子、小勺子、滴管（教师准备）。',checklist:['能用多种感官观察水的特征','能说出水的三个以上特征（无色、无味、透明、会流动）','能比较水和食用油流动速度的差异']},
+{id:'y1-sci3',subject:'科学',name:'消失的秘密·溶解',icon:'🫧',rules:'观察溶解现象。对应教材：第一单元第7课《它们去哪里了》。',materials:'盐、红糖、小石子、三个透明水杯、水、勺子、放大镜（教师准备）。',checklist:['能使用放大镜进行观察','能描述溶解前后的变化（颗粒变小→分散→看不见）','能理解溶解是物质分散在水中，没有真正消失']},
+{id:'y1-art',subject:'美术',name:'美的秘密',icon:'✂️',rules:'红纸剪窗花，感受对称美。',materials:'剪刀、正方形红纸若干（教师准备）。',criteria:[{star:5,text:'花纹丰富，裁剪流畅，窗花完整对称，剪刀使用规范'},{star:4,text:'能独立剪出漂亮花纹，下次折纸再对齐一点会更完美'},{star:3,text:'两种花纹，少量毛边，窗花无断裂'},{star:2,text:'花纹单一，小幅剪断，需老师帮忙展开'},{star:1,text:'窗花整体剪断，无法独立裁剪'}]},
+{id:'y1-music',subject:'音乐',name:'友谊的笑声',icon:'🎤',rules:'两人合作清唱歌曲《拉勾勾》，感受好朋友之间约定、守信的快乐。',materials:'音乐书一本（教师准备）。',criteria:[{star:5,text:'有感情地完整演唱歌曲'},{star:4,text:'演唱完整但不太流畅'},{star:3,text:'基本完成演唱'},{star:2,text:'能完成大部分歌曲，音准不好'},{star:1,text:'无法完成歌曲'}]},
+{id:'y1-pe',subject:'体育',name:'快乐运球·直线冲刺',icon:'⚽',rules:'1.学生在起点准备，听口令出发。2.全程只用正脚背直线运球前进。3.运球过程尽量走直线、球不离脚。4.顺利到达终点即为闯关成功。5.无摔倒、无带球乱跑、无出边线。',materials:'4号足球4个、标志桶4个、20米直线跑道4条（教师准备）。',criteria:[{star:3,text:'优秀：动作标准、全程正脚背、直线平稳、控球极好'},{star:2,text:'良好：基本用正脚背、路线轻微偏移、控球稳定'},{star:1,text:'合格：能完成全程，动作不够标准、偶尔带球过大'}]}
+];
+
+const ST2=[
+{id:'y2-cn1',subject:'语文',name:'一起来播种·字词连连看',icon:'🌱',rules:'一、种子找朋友：选取一个种子包，认读里面的词语种子，并把两颗词语种子配配对，组成“的”字短语。二、让种子长大：用上“的”字短语，让种子长成美丽的句子。',materials:'平板3台；种子配配对用连线形式完成（6个选1个做）；“的”字短语在配配对里选。',criteria:[{star:5,text:'能独立完成任务，正确认读词语和配对，按句式说话说清楚完整'},{star:4,text:'能正确认读词语和配对，偶有读音或配对错误，需1次提醒后纠正'},{star:3,text:'需多次提醒能完成2次任务，认读配对和造句有明显错误，但在提示后纠正'},{star:2,text:'提示后仍无法完成2项及以上任务，认读和配对错误较多，无法完成造句（可二次闯关）'}]},
+{id:'y2-cn2',subject:'语文',name:'禾苗节节高·美文声声读',icon:'🌾',rules:'随机选取一株小禾苗，大声朗读对应的课文段落。单段朗读1—2分钟，超时会提醒停止。',materials:'平板3台；语文老师确认背诵片段，平板自动滑动出题。',criteria:[{star:5,text:'声音响亮，正确流利朗读，语速、停顿恰当，语气语调贴合文本情感，错误少于2处'},{star:4,text:'声音响亮，较正确朗读，语速、停顿基本合理，错误少于4处'},{star:3,text:'基本正确朗读，语调平淡，情感不足，错误4处以上'},{star:2,text:'多次提示后仍无法完成整个片段的朗读'}]},
+{id:'y2-cn3',subject:'语文',name:'种植小百科·阅读我理解',icon:'📚',rules:'一、农耕文朋友：阅读种植水稻片段，根据问题进行回答。二、农耕小贴士：阅读“种植小贴士”，猜读生字并查字典验证。',materials:'“种植小百科”“种植小贴士”材料（教师准备）。',criteria:[{star:5,text:'能独立完成2项任务，准确提取信息，规范正确使用字典识字验证，并借助句式表达清楚、完整'},{star:4,text:'完成2项任务，规范正确使用字典识字验证，需1次提醒后表达基本清楚'},{star:3,text:'多次提醒能完成2次任务，无法独立使用字典，表达不清晰，提示后可补充'},{star:2,text:'提示后仍无法完成任务，无法提取信息，表达混乱（可二次闯关）'}]},
+{id:'y2-cn4',subject:'语文',name:'稻谷慢慢长·巧嘴会说话',icon:'💬',rules:'看图讲述稻谷成长之旅，按画面顺序轮流发言。可借助提示句式、词语大胆表达，依次说说稻谷从种子、小苗、生长到丰收的变化。认真观察、发挥想象，声音响亮、语句通顺。',materials:'看图讲述材料（做成题目一样）。',criteria:[{star:5,text:'声音响亮、语句通顺完整，合理运用提示词语与句式，想象丰富，情感自然，能准确表达珍惜粮食的感悟'},{star:4,text:'声音清楚，能用上大部分句式和词语，表达基本连贯，有简单想象，明白要爱惜粮食'},{star:3,text:'敢于开口表达，能套用基础句式，语句大体通顺，可简单说出画面内容'},{star:2,text:'需多次提示引导才能简单开口，句式运用生硬零散，语句多处不通顺（可二次闯关）'}]},
+{id:'y2-labor',subject:'劳动',name:'我们丰收啦·巧手编辫乐',icon:'🧶',rules:'立秋至秋分是水稻丰收的关键时节，秋收过后，农民伯伯会利用废弃稻草搓绳编辫。让我们也来学编三股辫，珍惜这来之不易的收成。',materials:'花绳（教师准备）。',criteria:[{star:5,text:'编织手法熟练连贯，花绳紧实均匀，纹路清晰'},{star:4,text:'编织手法较为连贯，花绳有少许松散，有少许瑕疵'},{star:3,text:'编织手法较为生疏，花绳松散，还存在交叉错误'},{star:2,text:'动手操作困难，绳线缠绕杂乱，多处严重交叉、打结错乱，无法成型'}]},
+{id:'y2-math1',subject:'数学',name:'种子分拣大作战',icon:'🌰',rules:'1.抽取题包：从四个题包(A、B、C、D)中各随机抽取一道题。2.口答闯关：大声说出答案，并简单解释思考过程（可写、可拨计数器）。3.一次换题权：遇到不会的题，可申请换抽同题包的另一道平行题（仅一次机会）。4.全部完成：四道题全部答完后，由老师根据正确题数评定等级。',materials:'教师准备题库。',criteria:[{star:5,text:'能独立完成全部4项任务，无提醒，列式正确，表达清晰完整'},{star:4,text:'能完成3项任务，或有1项需要换题后答对，偶有计算错误经提示能改正'},{star:3,text:'能完成2项任务，或在提示下完成3项，有明显错误但能纠正'},{star:2,text:'只能完成1项或0项任务，经多次提示仍无法正确列式和口答（可二次闯关）'}]},
+{id:'y2-math2',subject:'数学',name:'数智丰收交易会',icon:'🧮',rules:'1.抽取题包：从三个题包(A、B、C)中各随机抽取一道题。2.口答闯关：大声说出答案，并能在计数器或算盘上正确拨出要拨的数。3.一次换题权：遇到不会的题，可申请换抽同题包的另一道平行题（仅一次机会）。4.全部完成：三个题包全部答完后，由老师根据正确题数评定等级。',materials:'教师准备题库。',criteria:[{star:5,text:'能独立完成全部3项任务，无提醒，表达清晰完整'},{star:4,text:'能完成2项任务，无提醒，表达比较完整'},{star:3,text:'能完成1项任务，有错误但能纠正'},{star:2,text:'只能在提醒下完成1项或0项任务，经多次提示仍无法正确口答（可二次闯关）'}]},
+{id:'y2-math3',subject:'数学',name:'时光灌溉实验室',icon:'⏰',rules:'1.抽取题包：从三个题包(A、B、C）中各随机抽取一道题。2.口答闯关：大声说出答案，并能在钟表模型上正确拨出时间。3.一次换题权：遇到不会的题，可申请换抽同题包的另一道平行题（仅一次机会）。4.全部完成：三道题全部答完后，由老师根据正确题数评定等级。',materials:'教师准备题库。',criteria:[{star:5,text:'能独立完成全部3项任务，无提醒，表达清晰完整'},{star:4,text:'能完成2项任务，无提醒，表达比较完整'},{star:3,text:'能完成1项任务，有错误但能纠正'},{star:2,text:'只能在提醒下完成1项或0项任务，经多次提示仍无法正确口答（可二次闯关）'}]},
+{id:'y2-sci',subject:'科学',name:'“护稻小卫士”',icon:'🛡️',rules:'1.抽取题包：从三个题包中随机抽取一个。2.动手探究：按照任务要求进行观察、操作、实验。3.说出发现：用简单的科学语言描述观察到的现象。4.一次换题权：遇到不会的题，可申请换抽同题包的另一道平行题（仅一次机会）。5.老师根据探究过程和表达情况评定等级。',materials:'老师准备材料。',criteria:[{star:5,text:'能独立完成全部3项任务，无提醒，表达清晰完整'},{star:4,text:'能完成2项任务，无提醒，表达比较完整'},{star:3,text:'能完成1项任务，有错误但能纠正'},{star:2,text:'只能在提醒下完成1项或0项任务，经多次提示仍无法正确口答（可二次闯关）'}]},
+{id:'y2-art',subject:'美术',name:'“果园小画家”',icon:'🎨',rules:'藤蔓上的瓜果掉了，请你抓住不同瓜果的特征进行绘画补充，合理添加。完成后由老师在通关卡上评级。',materials:'老师准备材料。',criteria:[{star:5,text:'造型生动、色彩丰富饱满、有创意细节（花纹装饰），态度认真专注'},{star:4,text:'造型清晰、涂色均匀、完成度高，画面干净'},{star:3,text:'能独立画出瓜果的基本形状，涂上简单的颜色'},{star:2,text:'能在老师引导下，画出1—2个简单瓜果轮廓，愿意参与创作'}]},
+{id:'y2-music',subject:'音乐',name:'“丰收小百灵”',icon:'🎵',rules:'三首歌曲《我的家在日喀则》《共产儿童团歌》《金孔雀轻轻跳》，每组现场抽签，抽中哪首即演唱哪首。',materials:'二年级下册音乐书、多媒体设备（教师准备）。',criteria:[{star:5,text:'有感情地完整演唱歌曲'},{star:4,text:'演唱完整但不太流畅'},{star:3,text:'基本完成演唱'},{star:2,text:'能完成大部分歌曲，音准不好'},{star:1,text:'无法完成歌曲'}]},
+{id:'y2-pe',subject:'体育',name:'“米粒搬运工”',icon:'⚽',rules:'1.起点带球出发，脚内侧轻轻运球绕杆。2.杆子不碰、不倒、不跨杆。3.绕完全部杆子后，直线带球到射门区。4.完成一脚射门进球即闯关结束。5.全程不着急、不掉球、不乱跑即可得分。',materials:'4号足球4个、标志杆5根、简易小球门4个（教师准备）。',criteria:[{star:5,text:'超级小射手：全程流畅、不掉球、不碰杆、射门成功，动作规范认真'},{star:4,text:'优秀小球员：基本顺利绕杆，轻微掉球可追回，射门成功或打在门框范围'},{star:3,text:'勇敢小战士：能独立完成全程绕杆射门，有停顿、掉球但坚持完成'}]}
+];
+const STATIONS={1:ST1,2:ST2};
+const CLASSES={1:[],2:[]};
+for(let g=1;g<=2;g++){for(let n=1;n<=10;n++){CLASSES[g].push((g===1?'一':'二')+'('+n+')班');}}
+
+/* =========================================================
+   本地存储
+   ========================================================= */
+const STORE_KEY='obx_lekao_v1';
+let DB=load();
+function load(){
+  try{const raw=localStorage.getItem(STORE_KEY);if(raw)return JSON.parse(raw);}catch(e){}
+  return {roster:{},scores:{}};
+}
+function save(){try{localStorage.setItem(STORE_KEY,JSON.stringify(DB));}catch(e){toast('⚠️ 数据保存失败（存储空间不足）');}}
+function rosterOf(cls){if(!DB.roster[cls])DB.roster[cls]=[];return DB.roster[cls];}
+function scoreKey(g,cls,stu,stId){return g+'|'+cls+'|'+stu+'|'+stId;}
+function getScore(g,cls,stu,stId){return DB.scores[scoreKey(g,cls,stu,stId)]||null;}
+function setScore(g,cls,stu,stId,val){DB.scores[scoreKey(g,cls,stu,stId)]=val;save();}
+function getStar(g,cls,stu,stId){
+  const sc=getScore(g,cls,stu,stId);if(!sc)return 0;
+  return sc.stars||0;
+}
+function maxStars(st){
+  if(st.checklist)return st.checklist.length;
+  const mx=Math.max.apply(null,st.criteria.map(c=>c.star));
+  return mx;
+}
+
+/* =========================================================
+   全局状态
+   ========================================================= */
+const S={grade:1,mode:'home',cls:'',student:'',station:'',viewTab:'list',search:''};
+
+/* =========================================================
+   工具
+   ========================================================= */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function $(id){return document.getElementById(id);}
+function toast(msg){
+  const t=$('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('show'),1600);
+}
+function starHTML(n,max,size){
+  let h='';
+  for(let i=1;i<=max;i++){h+=(i<=n)?'★':'<span class="off">★</span>';}
+  return h;
+}
+function go(view){S.mode=view;render();window.scrollTo(0,0);}
+function closeSheet(){
+  $('mask').classList.remove('show');$('sheet').classList.remove('show');
+  S.station='';
+}
+function openSheet(html){
+  $('sheet').innerHTML=html;
+  $('mask').classList.add('show');$('sheet').classList.add('show');
+}
+function subjectChip(sub){
+  const m=SUBJECT_META[sub]||{color:'#999',icon:'📌'};
+  return '<span class="chip" style="background:'+m.color+'">'+m.icon+' '+esc(sub)+'</span>';
+}
+
+/* =========================================================
+   渲染入口
+   ========================================================= */
+function render(){
+  const app=$('app');
+  switch(S.mode){
+    case 'home':app.innerHTML=renderHome();break;
+    case 'hub':app.innerHTML=renderHub();break;
+    case 'map':app.innerHTML=renderMap();break;
+    case 'score':app.innerHTML=renderScore();break;
+    case 'stats':app.innerHTML=renderStats();break;
+    case 'roster':app.innerHTML=renderRoster();break;
+  }
+}
+
+/* ---------- 首页 ---------- */
+function renderHome(){
+  const th=THEME[1],th2=THEME[2];
+  return `
+  <div class="hero">
+    <span class="float" style="top:18px;left:16px">🐱</span>
+    <span class="float" style="top:60px;right:22px;animation-delay:.6s">⭐</span>
+    <span class="float" style="bottom:18px;left:26%;animation-delay:1.1s">🎈</span>
+    <div class="eyebrow">瓯北第三小学 · 一二年级期末乐考</div>
+    <h1>阅享绘本趣闯关<br>快乐萌娃大冒险</h1>
+    <div class="book">📖 无纸笔 · 项目式 · 沉浸测评</div>
+  </div>
+  <div class="grade-cards">
+    <div class="grade-card g1-card" onclick="S.grade=1;go('hub')">
+      <span class="tag">一年级</span>
+      <div class="big">🐱</div>
+      <div class="t1">${esc(th.title)}</div>
+      <div class="t2">${esc(th.book)} · 共14关</div>
+    </div>
+    <div class="grade-card g2-card" onclick="S.grade=2;go('hub')">
+      <span class="tag">二年级</span>
+      <div class="big">🌾</div>
+      <div class="t1">${esc(th2.title)}</div>
+      <div class="t2">${esc(th2.book)} · 共12关</div>
+    </div>
+  </div>
+  <div class="quick-row">
+    <div class="quick-item" onclick="S.grade=1;go('hub')"><div class="qi">🐱</div><div class="qt">一年级</div></div>
+    <div class="quick-item" onclick="S.grade=2;go('hub')"><div class="qi">🌾</div><div class="qt">二年级</div></div>
+    <div class="quick-item" onclick="S.grade=1;S.cls='';go('map')"><div class="qi">🗺️</div><div class="qt">闯关地图</div></div>
+    <div class="quick-item" onclick="S.grade=1;S.cls='';S.student='';go('score')"><div class="qi">⭐</div><div class="qt">教师评分</div></div>
+  </div>
+  <div class="foot-note">语文 · 数学 · 科学 · 美术 · 音乐 · 体育 · 劳动<br>玩中学 · 学中乐 · 乐中长</div>`;
+}
+
+/* ---------- 模式枢纽 ---------- */
+function renderHub(){
+  const th=THEME[S.grade];
+  const stations=STATIONS[S.grade];
+  return `
+  <div class="headbar">
+    <button class="back" onclick="go('home')">‹</button>
+    <h2>${S.grade===1?'一年级':'二年级'} · ${esc(th.title)}</h2>
+  </div>
+  <div class="banner-mini" style="background:${th.bannerBg}">
+    <div class="bb">${th.emoji}</div>
+    <div><div class="bt">${esc(th.book)}</div><div class="bs">共 ${stations.length} 个闯关 · ${th.intro}</div></div>
+  </div>
+  <div class="mode-grid">
+    <div class="mode-card" onclick="go('map')"><div class="mi">🗺️</div><div class="mt">学生闯关地图</div><div class="md">看童话路线、点关卡了解规则，查看闯关进度</div></div>
+    <div class="mode-card" onclick="S.cls='';S.student='';go('score')"><div class="mi">⭐</div><div class="mt">教师评分</div><div class="md">按班级、学生逐关打星，自动累计成绩</div></div>
+    <div class="mode-card" onclick="S.cls='';go('stats')"><div class="mi">📊</div><div class="mt">统计与导出</div><div class="md">班级成绩表、导出CSV、打印闯关卡</div></div>
+    <div class="mode-card" onclick="S.cls='';go('roster')"><div class="mi">📋</div><div class="mt">班级名单管理</div><div class="md">录入/修改各班学生名单</div></div>
+  </div>`;
+}
+
+/* ---------- 闯关地图 ---------- */
+function renderMap(){
+  const th=THEME[S.grade];
+  const stations=STATIONS[S.grade];
+  const classes=CLASSES[S.grade];
+  let clsOpts='<option value="">— 未选择班级 —</option>';
+  classes.forEach(c=>{clsOpts+='<option value="'+esc(c)+'"'+(c===S.cls?' selected':'')+'>'+esc(c)+'</option>';});
+  let stuOpts='<option value="">— 未选择学生 —</option>';
+  if(S.cls){rosterOf(S.cls).forEach(nm=>{stuOpts+='<option value="'+esc(nm)+'"'+(nm===S.student?' selected':'')+'>'+esc(nm)+'</option>';});}
+
+  let doneCount=0,doneStars=0,maxStarsTotal=0;
+  stations.forEach(st=>{maxStarsTotal+=maxStars(st);});
+  if(S.cls&&S.student){
+    stations.forEach(st=>{const s=getStar(S.grade,S.cls,S.student,st.id);if(s>0)doneCount++;doneStars+=s;});
+  }
+  const sumline = (S.cls&&S.student)
+    ? `<div class="sumline">🌟 ${esc(S.student)} 已闯 <b>${doneCount}/${stations.length}</b> 关，共获 <b>${doneStars}</b> 星（满分 ${maxStarsTotal}）</div>`
+    : `<div class="sumline">🕹️ 选择班级和学生后，可查看个人闯关进度与星星</div>`;
+
+  let nodes='';
+  stations.forEach((st,idx)=>{
+    const m=SUBJECT_META[st.subject];
+    const isCheck=!!st.checklist;
+    let starStr='';
+    if(S.cls&&S.student){
+      const s=getStar(S.grade,S.cls,S.student,st.id);
+      if(s>0)starStr= isCheck ? ('✅ '+s+'/'+maxStars(st)) : starHTML(s,maxStars(st));
+      else starStr='<span style="color:#cbb9a0">未闯</span>';
+    } else {
+      starStr='<span style="color:#cbb9a0">#'+ (idx+1) +'</span>';
+    }
+    nodes+=`
+    <div class="node">
+      <div class="node-rail">
+        <div class="node-dot" style="background:${m.color}">${idx+1}</div>
+        <div class="node-line"></div>
+      </div>
+      <div class="node-card" onclick="showStationDetail('${st.id}')">
+        <div class="node-top">
+          ${subjectChip(st.subject)}
+          <span class="node-name">${st.icon} ${esc(st.name)}</span>
+          <span class="node-stars">${starStr}</span>
+        </div>
+        <div class="node-rules">${esc(st.rules)}</div>
+      </div>
+    </div>`;
+  });
+
+  return `
+  <div class="headbar">
+    <button class="back" onclick="go('hub')">‹</button>
+    <h2>${esc(th.title)}</h2>
+  </div>
+  <div class="banner-mini" style="background:${th.bannerBg}">
+    <div class="bb">${th.emoji}</div>
+    <div><div class="bt">${S.grade===1?'一年级':'二年级'}闯关路线</div><div class="bs">点击关卡查看任务与评价标准</div></div>
+  </div>
+  <div class="map-tools">
+    <select onchange="S.cls=this.value;S.student='';render()">${clsOpts}</select>
+    <select onchange="S.student=this.value;render()">${stuOpts}</select>
+  </div>
+  ${sumline}
+  <div class="path">${nodes}</div>`;
+}
+
+/* ---------- 关卡详情弹层 ---------- */
+function showStationDetail(stId){
+  const st=STATIONS[S.grade].find(x=>x.id===stId);if(!st)return;
+  const m=SUBJECT_META[st.subject];
+  let critHtml='';
+  if(st.checklist){
+    critHtml=`<div class="sec-title">📌 达标观察项（共 ${st.checklist.length} 项）</div>`;
+    st.checklist.forEach((c,i)=>{
+      critHtml+=`<div class="detail-box" style="margin-bottom:8px">${i+1}. ${esc(c)}</div>`;
+    });
+  }else{
+    critHtml=`<div class="sec-title">⭐ 星级评价标准</div>`;
+    const sorted=st.criteria.slice().sort((a,b)=>b.star-a.star);
+    sorted.forEach(c=>{
+      critHtml+=`<div class="detail-box" style="margin-bottom:8px"><b style="color:#e0a63a">${c.star}★</b>　${esc(c.text)}</div>`;
+    });
+  }
+  openSheet(`
+    <div class="grab"></div>
+    <div class="s-title"><span style="font-size:26px">${st.icon}</span> ${esc(st.name)}</div>
+    <div class="s-sub">${subjectChip(st.subject)}<span style="margin-left:8px">第 ${STATIONS[S.grade].indexOf(st)+1} 关</span></div>
+    <div class="sec-title">📜 闯关任务</div>
+    <div class="detail-box">${esc(st.rules)}</div>
+    <div class="sec-title">🧰 材料准备</div>
+    <div class="detail-box">${esc(st.materials)}</div>
+    ${critHtml}
+    <div style="height:14px"></div>
+    <button class="btn btn-ghost" style="width:100%" onclick="closeSheet()">收 起</button>
+  `);
+}
+
+/* ---------- 教师评分 ---------- */
+function renderScore(){
+  const th=THEME[S.grade];
+  const classes=CLASSES[S.grade];
+  const stations=STATIONS[S.grade];
+  // 班级 tab
+  let tabs=`<div class="tab-row">`;
+  classes.forEach(c=>{tabs+=`<button class="tab${c===S.cls?' sel':''}" onclick="S.cls='${esc(c)}';S.student='';S.station='';S.viewTab='list';render()">${esc(c)}</button>`;});
+  tabs+=`</div>`;
+
+  let body='';
+  if(!S.cls){
+    body=`<div class="stu-empty">👆 请先选择班级<br>然后选择学生，逐关为ta打星</div>`;
+  }else if(S.viewTab==='list'){
+    const list=rosterOf(S.cls);
+    if(list.length===0){
+      body=`<div class="stu-empty">📋 该班还没有学生名单<br><button class="btn btn-sm btn-gold" style="margin-top:8px" onclick="go('roster')">去录入名单</button></div>`;
+    }else{
+      body=`<div class="search-row"><input placeholder="🔍 搜索学生姓名…" value="${esc(S.search)}" oninput="S.search=this.value;render()"></div>`;
+      body+=`<div class="stu-grid">`;
+      list.forEach(nm=>{
+        if(S.search && !nm.includes(S.search))return;
+        const myStations=stations.filter(st=>getStar(S.grade,S.cls,nm,st.id)>0);
+        let total=0;stations.forEach(st=>{total+=getStar(S.grade,S.cls,nm,st.id);});
+        const allDone=myStations.length===stations.length;
+        body+=`<div class="stu-chip${nm===S.student?' sel':''}" onclick="S.student='${esc(nm)}';S.station='';S.viewTab='sta';render()">
+          ${esc(nm)}<span class="st">${allDone?'🎉 ':'⭐ '}${total}星 · ${myStations.length}/${stations.length}关</span>
+        </div>`;
+      });
+      body+=`</div>`;
+    }
+  }else if(S.viewTab==='sta'){
+    if(!S.student){body=`<div class="stu-empty">👆 请先选择学生</div>`;}
+    else{
+      const list=rosterOf(S.cls);
+      let idx=list.indexOf(S.student);
+      let total=0,doneCnt=0;
+      stations.forEach(st=>{const s=getStar(S.grade,S.cls,S.student,st.id);total+=s;if(s>0)doneCnt++;});
+      body=`
+      <div class="sumline" style="margin-bottom:6px">👧 ${esc(S.student)} · ${esc(S.cls)} · ⭐ ${total} 星 · 已闯 ${doneCnt}/${stations.length} 关</div>
+      <div class="tab-row" style="margin-bottom:8px">
+        <button class="tab" onclick="S.viewTab='list';render()">← 返回学生列表</button>
+        <button class="tab sel">选择关卡</button>
+      </div>
+      <div class="sta-grid">
+        ${stations.map((st,i)=>{
+          const s=getStar(S.grade,S.cls,S.student,st.id);
+          const m=SUBJECT_META[st.subject];
+          const isCheck=!!st.checklist;
+          return `<div class="sta-card" onclick="S.station='${st.id}';openScoreSheet()">
+            <div class="sc-top">${subjectChip(st.subject)}</div>
+            <div class="sc-name">${st.icon} ${esc(st.name)}</div>
+            ${s>0?`<div class="sc-done">✓</div>`:''}
+            <div class="sc-stars" style="margin-top:5px">${isCheck?(s>0?('✅ '+s+'/'+maxStars(st)):'未闯'):starHTML(s,maxStars(st))}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      ${idx>=0?`
+      <div class="act-row" style="margin-top:14px">
+        <button class="btn btn-ghost btn-sm" onclick="switchStudent(${idx-1})">‹ 上一学生</button>
+        <button class="btn btn-ghost btn-sm" onclick="switchStudent(${idx+1})">下一学生 ›</button>
+      </div>`:''}`;
+    }
+  }
+  return `
+  <div class="headbar">
+    <button class="back" onclick="go('hub')">‹</button>
+    <h2>教师评分 · ${S.grade===1?'一年级':'二年级'}</h2>
+  </div>
+  <div class="banner-mini" style="background:${th.bannerBg}">
+    <div class="bb">${th.emoji}</div>
+    <div><div class="bt">${esc(th.title)}</div><div class="bs">选择班级 → 选择学生 → 逐关打星</div></div>
+  </div>
+  ${tabs}
+  ${body}`;
+}
+function switchStudent(idx){
+  const list=rosterOf(S.cls);
+  if(idx>=0&&idx<list.length){S.student=list[idx];S.station='';render();window.scrollTo(0,0);}
+  else toast(idx<0?'已是第一位学生':'已是最后一位学生');
+}
+
+/* ---------- 评分弹层 ---------- */
+function openScoreSheet(){
+  const st=STATIONS[S.grade].find(x=>x.id===S.station);if(!st)return;
+  const m=SUBJECT_META[st.subject];
+  const cur=getScore(S.grade,S.cls,S.student,st.id)||{stars:0,checked:[],note:''};
+  let inner='';
+  if(st.checklist){
+    inner=`<div class="sec-title">📌 达标项（打勾后保存）</div>`;
+    st.checklist.forEach((c,i)=>{
+      const on=cur.checked&&cur.checked[i]?' on':'';
+      inner+=`<div class="check-item${on}" onclick="toggleCheck(${i})"><div class="box">✓</div><div class="ct">${esc(c)}</div></div>`;
+    });
+    inner+=`<div class="score-preview">已达标：<b id="ck-total">${cur.checked?cur.checked.filter(Boolean).length:0}</b> / ${st.checklist.length} 项</div>`;
+  }else{
+    const max=Math.max.apply(null,st.criteria.map(c=>c.star));
+    let stars='';
+    for(let i=1;i<=5;i++){
+      if(i>max){stars+=`<span style="opacity:.25">★</span>`;continue;}
+      stars+=`<span id="bs-${i}" class="${cur.stars>=i?'on':''}" onclick="pickStar(${i})">★</span>`;
+    }
+    inner=`<div class="sec-title">⭐ 点星星打等级（${max}★ 为最高）</div>
+    <div class="crit-score-row"><div class="big-stars">${stars}</div></div>
+    <div class="score-preview" id="star-desc">${descForStar(st,cur.stars)}</div>`;
+  }
+  openSheet(`
+    <div class="grab"></div>
+    <div class="s-title"><span style="font-size:26px">${st.icon}</span> ${esc(st.name)}</div>
+    <div class="s-sub">${subjectChip(st.subject)} · ${esc(S.student)} · ${esc(S.cls)}</div>
+    <details style="margin-bottom:8px">
+      <summary style="font-size:14px;color:var(--ink-soft);cursor:pointer">📜 查看任务与评价标准</summary>
+      <div class="detail-box" style="margin-top:8px">${esc(st.rules)}</div>
+      <div class="detail-box" style="margin-top:6px"><b>材料：</b>${esc(st.materials)}</div>
+    </details>
+    ${inner}
+    <div class="act-row" style="margin-top:14px">
+      <button class="btn btn-warm btn-sm" onclick="clearScore()">清除评分</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeSheet()">关闭</button>
+    </div>
+  `);
+}
+function descForStar(st,star){
+  if(!star)return '👆 点击星星为这位同学评定等级';
+  const c=st.criteria.filter(x=>x.star<=star).sort((a,b)=>b.star-a.star)[0];
+  return c?('☆ '.repeat(Math.max(0,c.star-1))+'★ '.repeat(1)+'　'+esc(c.text)):'该等级暂无说明，可手动参考关卡评价标准';
+}
+function pickStar(n){
+  const st=STATIONS[S.grade].find(x=>x.id===S.station);if(!st)return;
+  const max=Math.max.apply(null,st.criteria.map(c=>c.star));
+  if(n>max){toast('该关最高 '+max+'★');return;}
+  for(let i=1;i<=5;i++){const b=$('bs-'+i);if(b)b.className=i<=n?'on':'';}
+  const d=$('star-desc');if(d)d.innerHTML=descForStar(st,n);
+  setScore(S.grade,S.cls,S.student,st.id,{stars:n,checked:[],note:''});
+  toast('已记录 '+n+'★');
+}
+function toggleCheck(i){
+  const st=STATIONS[S.grade].find(x=>x.id===S.station);if(!st)return;
+  let cur=getScore(S.grade,S.cls,S.student,st.id)||{stars:0,checked:[],note:''};
+  cur.checked=cur.checked||[];
+  cur.checked[i]=!cur.checked[i];
+  const n=cur.checked.filter(Boolean).length;
+  cur.stars=n;
+  setScore(S.grade,S.cls,S.student,st.id,cur);
+  // 刷新界面勾选态
+  openScoreSheet();
+}
+function clearScore(){
+  if(!confirm('确定清除 ' + S.student + ' 在「'+ (STATIONS[S.grade].find(x=>x.id===S.station)||{}).name +'」的评分吗？'))return;
+  delete DB.scores[scoreKey(S.grade,S.cls,S.student,S.station)];
+  save();
+  closeSheet();
+  render();
+  toast('已清除该关评分');
+}
+
+/* ---------- 统计 ---------- */
+function renderStats(){
+  const th=THEME[S.grade];
+  const classes=CLASSES[S.grade];
+  const stations=STATIONS[S.grade];
+  let tabs=`<div class="tab-row">`;
+  classes.forEach(c=>{tabs+=`<button class="tab${c===S.cls?' sel':''}" onclick="S.cls='${esc(c)}';render()">${esc(c)}</button>`;});
+  tabs+=`</div>`;
+  let body='';
+  if(!S.cls){
+    body=`<div class="stu-empty">👆 请先选择班级查看成绩统计</div>`;
+  }else{
+    const list=rosterOf(S.cls);
+    const totalMax=stations.reduce((a,s)=>a+maxStars(s),0);
+    if(list.length===0){
+      body=`<div class="stu-empty">📋 该班还没有学生名单<br><button class="btn btn-sm btn-gold" style="margin-top:8px" onclick="go('roster')">去录入名单</button></div>`;
+    }else{
+      // 汇总卡片
+      let classTotal=0,classMax=0;
+      list.forEach(nm=>{let t=0;stations.forEach(st=>t+=getStar(S.grade,S.cls,nm,st.id));classTotal+=t;classMax+=totalMax;});
+      const avg=(classTotal/list.length).toFixed(1);
+      let doneAll=0;list.forEach(nm=>{let d=0;stations.forEach(st=>{if(getStar(S.grade,S.cls,nm,st.id)>0)d++;});if(d===stations.length)doneAll++;});
+      body=`<div class="stats-cards">
+        <div class="stat-card"><div class="sv">${classTotal}</div><div class="sl">全班总星数</div></div>
+        <div class="stat-card"><div class="sv">${avg}</div><div class="sl">人均星数</div></div>
+        <div class="stat-card"><div class="sv">${doneAll}/${list.length}</div><div class="sl">全部闯完人数</div></div>
+      </div>`;
+      // 表格
+      body+=`<div class="table-wrap"><table>
+        <tr><th>学生</th>${stations.map(st=>`<th title="${esc(st.name)}">${st.subject[0]}</th>`).join('')}<th>总星</th><th>进度</th></tr>`;
+      list.forEach(nm=>{
+        let tot=0,dn=0;
+        body+=`<tr><td class="s-name">${esc(nm)}</td>`;
+        stations.forEach(st=>{
+          const s=getStar(S.grade,S.cls,nm,st.id);tot+=s;if(s>0)dn++;
+          const isCheck=!!st.checklist;
+          body+=`<td class="star-cell${s>0?'':' gray'}">${isCheck?(s+'/'+maxStars(st)):starHTML(s,maxStars(st))}</td>`;
+        });
+        body+=`<td class="tot">${tot}</td><td style="color:var(--ink-soft)">${dn}/${stations.length}</td></tr>`;
+      });
+      body+=`</table></div>`;
+      // 操作按钮
+      body+=`<div class="tool-row">
+        <button class="btn btn-primary btn-sm" onclick="exportCSV()">⬇️ 导出CSV成绩表</button>
+        <button class="btn btn-gold btn-sm" onclick="printPassport()">🖨️ 打印本班闯关卡</button>
+        <button class="btn btn-ghost btn-sm" onclick="printBlankPassport()">🖨️ 打印空白闯关卡</button>
+      </div>`;
+      body+=`<div class="act-row">
+        <button class="btn btn-ghost btn-sm" onclick="exportJSON()">📦 备份数据</button>
+        <button class="btn btn-ghost btn-sm" onclick="importJSON()">📥 恢复数据</button>
+        <button class="btn btn-ghost btn-sm" style="color:#c0504d" onclick="resetAll()">🗑️ 清空全部数据</button>
+      </div>`;
+      body+=`<div class="foot-note" style="margin-top:14px">提示：统计结果仅保存在当前设备的浏览器中，建议导出CSV存档。可到「名单管理」补录/修改学生。</div>`;
+    }
+  }
+  return `
+  <div class="headbar">
+    <button class="back" onclick="go('hub')">‹</button>
+    <h2>统计与导出</h2>
+  </div>
+  <div class="banner-mini" style="background:${th.bannerBg}">
+    <div class="bb">📊</div>
+    <div><div class="bt">${S.grade===1?'一年级':'二年级'} · ${esc(th.title)}</div><div class="bs">选择班级查看成绩汇总</div></div>
+  </div>
+  ${tabs}
+  ${body}`;
+}
+
+/* ---------- 名单管理 ---------- */
+function renderRoster(){
+  const th=THEME[S.grade];
+  const classes=CLASSES[S.grade];
+  let tabs=`<div class="tab-row">`;
+  classes.forEach(c=>{tabs+=`<button class="tab${c===S.cls?' sel':''}" onclick="S.cls='${esc(c)}';render()">${esc(c)}</button>`;});
+  tabs+=`</div>`;
+  let body='';
+  if(!S.cls){
+    body=`<div class="stu-empty">👆 请先选择班级，再编辑学生名单</div>`;
+  }else{
+    const list=rosterOf(S.cls);
+    body=`<div class="roster-editor">
+      <div style="font-size:15px;margin-bottom:6px">📝 ${esc(S.cls)} 学生名单</div>
+      <textarea id="roster-ta" placeholder="每行一个学生姓名，例如：&#10;王小明&#10;李小红&#10;张 三">${list.map(esc).join('\n')}</textarea>
+      <div class="roster-count">当前共 <b id="rcount">${list.length}</b> 人</div>
+      <div class="act-row" style="margin-top:10px">
+        <button class="btn btn-primary btn-sm" onclick="saveRoster()">💾 保存名单</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadSample()">✨ 填入示例名单</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearRoster()">🗑️ 清空名单</button>
+      </div>
+    </div>
+    <div class="foot-note" style="margin-top:12px">姓名会作为评分记录的标识，改名/删除会影响已录入的成绩，请谨慎操作。</div>`;
+  }
+  return `
+  <div class="headbar">
+    <button class="back" onclick="go('hub')">‹</button>
+    <h2>班级名单管理</h2>
+  </div>
+  <div class="banner-mini" style="background:${th.bannerBg}">
+    <div class="bb">📋</div>
+    <div><div class="bt">${S.grade===1?'一年级':'二年级'} · ${esc(th.title)}</div><div class="bs">录入学生姓名，教师评分时使用</div></div>
+  </div>
+  ${tabs}
+  ${body}`;
+}
+function saveRoster(){
+  const ta=$('roster-ta');
+  const lines=ta.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  const unique=[...new Set(lines)];
+  DB.roster[S.cls]=unique;
+  save();
+  const rc=$('rcount');if(rc)rc.textContent=unique.length;
+  toast('已保存 '+unique.length+' 人');
+}
+function loadSample(){
+  const ta=$('roster-ta');if(!ta)return;
+  ta.value='王小明\n李小红\n张子轩\n陈思彤\n刘浩然\n赵雨欣\n孙一诺\n周子墨\n吴欣怡\n郑凯文';
+  toast('已填入示例名单，记得点保存');
+}
+function clearRoster(){
+  if(!confirm('确定清空 ' + S.cls + ' 的学生名单吗？'))return;
+  DB.roster[S.cls]=[];
+  save();render();toast('名单已清空');
+}
+
+/* =========================================================
+   导出 / 打印 / 数据管理
+   ========================================================= */
+function exportCSV(){
+  const stations=STATIONS[S.grade];
+  const list=rosterOf(S.cls);
+  if(!list.length){toast('该班没有学生，无法导出');return;}
+  const header=['班级','姓名',...stations.map(st=>st.name),'总星数','闯关数'];
+  const rows=[header];
+  list.forEach(nm=>{
+    let tot=0,dn=0;
+    const cols=stations.map(st=>{
+      const s=getStar(S.grade,S.cls,nm,st.id);tot+=s;if(s>0)dn++;
+      return s;
+    });
+    rows.push([S.cls,nm,...cols,tot,dn+'/'+stations.length]);
+  });
+  const csv='﻿'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  download(csv,'瓯北三小乐考-'+S.grade+'年级-'+S.cls+'-成绩.csv','text/csv;charset=utf-8');
+  toast('CSV已导出');
+}
+function exportJSON(){
+  const data=JSON.stringify({grade:S.grade,db:DB,exportAt:new Date().toISOString()},null,2);
+  download(data,'乐考数据备份-'+new Date().toISOString().slice(0,10)+'.json','application/json');
+  toast('数据已备份');
+}
+function importJSON(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json,application/json';
+  inp.onchange=()=>{
+    const f=inp.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const obj=JSON.parse(rd.result);
+        if(obj.db&&obj.db.roster&&obj.db.scores){DB=obj.db;save();render();toast('✅ 数据恢复成功');}
+        else toast('❌ 文件格式不对');
+      }catch(e){toast('❌ 解析失败');}
+    };
+    rd.readAsText(f,'utf-8');
+  };
+  inp.click();
+}
+function resetAll(){
+  if(!confirm('确定清空当前设备上的全部乐考数据吗？此操作不可恢复！'))return;
+  localStorage.removeItem(STORE_KEY);
+  DB={roster:{},scores:{}};
+  S.cls='';S.student='';S.station='';
+  render();toast('已清空全部数据');
+}
+function download(content,filename,type){
+  const blob=new Blob([content],{type:type||'application/octet-stream'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},400);
+}
+
+/* ---------- 闯关卡打印 ---------- */
+function passportHTML(opts){
+  const g=opts.grade, cls=opts.cls, stu=opts.student, fill=opts.fill;
+  const stations=STATIONS[g];
+  const th=THEME[g];
+  const grouped={};
+  stations.forEach(st=>{ (grouped[st.subject]=grouped[st.subject]||[]).push(st); });
+  let sec='';
+  Object.keys(grouped).forEach(sub=>{
+    sec+=`<div class="p-sec">${(SUBJECT_META[sub]||{}).icon||''} ${sub}</div>`;
+    grouped[sub].forEach(st=>{
+      const s=fill&&stu?getStar(g,cls,stu,st.id):0;
+      const max=maxStars(st);
+      let starStr='';
+      if(st.checklist){
+        starStr='<span class="st">'+Array.from({length:max},(_,i)=>i<s?'✔':'·').join('')+'</span>';
+      }else{
+        let h='';
+        for(let i=1;i<=max;i++){h+=i<=s?'★':'<span class="off">★</span>';}
+        starStr='<span class="st">'+h+'</span>';
+      }
+      sec+=`<div class="p-row"><span class="nm">${st.icon} ${esc(st.name)}</span>${starStr}</div>`;
+    });
+  });
+  let total=0;
+  if(fill&&stu){stations.forEach(st=>{total+=getStar(g,cls,stu,st.id);});}
+  const tline=fill&&stu?`<div class="p-total">总星数：${total}</div>`:'';
+  const nameLine=fill&&stu?`<span>姓名 ${esc(stu)}</span><span>班级 ${esc(cls)}</span>`:'<span>姓名________</span><span>班级________</span>';
+  return `
+  <div class="passport">
+    <div class="p-head">
+      <div class="p-title">🎉 乐考闯关卡</div>
+      <div class="p-sub">阅享绘本趣闯关 · 快乐萌娃大冒险（${g===1?'一年级':'二年级'} · ${esc(th.title)}）</div>
+      <div class="p-info">${nameLine}<span>日期 2026年6月25日</span></div>
+    </div>
+    ${sec}
+    <div class="p-foot"><span>永嘉县瓯北第三小学</span><span>☺ 恭喜你完成乐考之旅！</span></div>
+    ${tline}
+  </div>`;
+}
+function printPassport(){
+  if(!S.cls){toast('请先选择班级');return;}
+  const list=rosterOf(S.cls);
+  if(!list.length){toast('该班没有学生');return;}
+  // 弹层选择打印哪个学生
+  let opts='';
+  list.forEach(nm=>{opts+='<option value="'+esc(nm)+'">'+esc(nm)+'</option>';});
+  openSheet(`
+    <div class="grab"></div>
+    <div class="s-title">🖨️ 打印闯关卡</div>
+    <div class="s-sub">选择要打印的学生闯关卡（含已评星星）</div>
+    <select id="pstu" class="map-tools" style="width:100%;padding:11px;border:2px solid var(--line);border-radius:14px;font-size:16px;font-family:inherit;background:#fff">${opts}</select>
+    <div class="act-row" style="margin-top:14px">
+      <button class="btn btn-gold btn-sm" style="flex:1" onclick="doPrintPassport()">打印</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeSheet()">取消</button>
+    </div>
+  `);
+}
+function doPrintPassport(){
+  const stu=$('pstu').value;
+  $('print-area').innerHTML=passportHTML({grade:S.grade,cls:S.cls,student:stu,fill:true});
+  closeSheet();
+  setTimeout(()=>window.print(),120);
+}
+function printBlankPassport(){
+  if(!S.cls){toast('请先选择班级');return;}
+  $('print-area').innerHTML=passportHTML({grade:S.grade,cls:S.cls,fill:false});
+  setTimeout(()=>window.print(),120);
+}
+
+/* =========================================================
+   启动
+   ========================================================= */
+render();
+</script>
+</body>
+</html>

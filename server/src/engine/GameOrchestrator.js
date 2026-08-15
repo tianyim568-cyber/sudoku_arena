@@ -36,7 +36,7 @@ const IndividualRoundEngine = require('./individual/IndividualRoundEngine');
 const PuzzleAssignmentService = require('../services/PuzzleAssignmentService');
 const Round2NotificationService = require('../services/Round2NotificationService');
 const Round3CollaborationService = require('../services/Round3CollaborationService');
-const { isIndividualRoundType } = require('./RoundTypes');
+const { isTeamRoundType, isIndividualRoundType } = require('./RoundTypes');
 const { CompetitionError, RoundError, StageError } = require('./errors');
 
 // Default transition delay between rounds (seconds).
@@ -249,10 +249,14 @@ class GameOrchestrator {
     const allRounds = allStages.flatMap(s => s.rounds);
     if (allRounds.length < 3) throw new CompetitionError('轮次配置不完整');
 
+    // Only require teams when the competition actually has team-type stages.
+    // Individual-only competitions need registered players, not teams.
+    const hasTeamStages = allRounds.some(r => isTeamRoundType(r.type));
+
     const teams = await this._prisma.teams.findMany({
       where: { competition_id: competitionId },
     });
-    if (teams.length === 0) throw new CompetitionError('没有队伍');
+    if (hasTeamStages && teams.length === 0) throw new CompetitionError('没有队伍');
 
     // Update competition to RUNNING
     await this._prisma.competitions.update({
@@ -270,6 +274,7 @@ class GameOrchestrator {
         firstStageId: firstStage.id,
         firstStageType: firstStage.type,
         teams: teams.map(tm => ({ teamId: tm.id, teamName: tm.name })),
+        hasTeamStages,
       },
     }];
 

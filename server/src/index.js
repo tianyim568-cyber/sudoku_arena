@@ -16,10 +16,12 @@ const { createCompetitionSetupRouter } = require('./routes/competitionSetup');
 const { createGameRouter } = require('./routes/game');
 const { createPuzzleBankRouter } = require('./routes/puzzleBank');
 const { createParticipantRouter } = require('./routes/participants');
+const { createMonitoringRouter } = require('./routes/monitoring');
 const EmissionBus = require('./ws/EmissionBus');
 const SocketManager = require('./ws/SocketManager');
 const GameOrchestrator = require('./engine/GameOrchestrator');
 const DisplayManager = require('./engine/DisplayManager');
+const PresenceService = require('./services/PresenceService');
 const { createStateRepository } = require('./state');
 const config = require('./config');
 
@@ -103,15 +105,20 @@ async function main() {
   const orchestrator = new GameOrchestrator(repos, state, bus);
   const displayManager = new DisplayManager(repos, bus);
 
+  // Create PresenceService for monitoring stale heartbeats
+  const presenceService = new PresenceService(state, bus);
+  presenceService.start();
+
   // Mount display routes
   app.use('/api', createDisplayRouter(displayManager));
 
   app.use('/api', createGameRouter(repos, orchestrator));
   app.use('/api', createPuzzleBankRouter(repos));
   app.use('/api', createParticipantRouter(repos));
+  app.use('/api', createMonitoringRouter(repos, state));
 
   // Setup WebSocket via SocketManager (replaces socketHandler)
-  new SocketManager(io, repos, orchestrator, bus);
+  new SocketManager(io, repos, orchestrator, bus, presenceService);
 
   // Serve frontend static files
   const path = require('path');

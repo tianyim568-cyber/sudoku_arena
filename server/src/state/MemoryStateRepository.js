@@ -302,7 +302,31 @@ class MemoryStateRepository {
     if (!this._activePlayers.has(competitionId)) {
       this._activePlayers.set(competitionId, new Map());
     }
-    this._activePlayers.get(competitionId).set(userId, socketId);
+    this._activePlayers.get(competitionId).set(userId, { socketId, lastHeartbeatAt: Date.now() });
+  }
+
+  async refreshHeartbeat(competitionId, userId) {
+    const players = this._activePlayers.get(competitionId);
+    if (players) {
+      const data = players.get(userId);
+      if (data) {
+        data.lastHeartbeatAt = Date.now();
+      }
+    }
+  }
+
+  async getStalePlayers(competitionId, ttlMs) {
+    const players = this._activePlayers.get(competitionId);
+    if (!players) return [];
+
+    const now = Date.now();
+    const stale = [];
+    for (const [userId, data] of players.entries()) {
+      if (now - data.lastHeartbeatAt > ttlMs) {
+        stale.push({ userId, socketId: data.socketId });
+      }
+    }
+    return stale;
   }
 
   async removeActivePlayer(competitionId, userId) {
@@ -315,7 +339,11 @@ class MemoryStateRepository {
   async getActivePlayers(competitionId) {
     const players = this._activePlayers.get(competitionId);
     if (!players) return {};
-    return Object.fromEntries(players);
+    const result = {};
+    for (const [userId, data] of players.entries()) {
+      result[userId] = data;
+    }
+    return result;
   }
 
   // ─── Stage Context ─────────────────────────────────────────

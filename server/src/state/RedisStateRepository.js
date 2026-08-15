@@ -356,8 +356,45 @@ class RedisStateRepository {
 
   async setActivePlayer(competitionId, userId, socketId) {
     const key = `active:${competitionId}`;
-    await this.redis.hset(key, String(userId), socketId);
+    const data = JSON.stringify({ socketId, lastHeartbeatAt: Date.now() });
+    await this.redis.hset(key, String(userId), data);
     await this.redis.expire(key, 120); // 2 min TTL — heartbeat refreshes
+  }
+
+  async refreshHeartbeat(competitionId, userId) {
+    const key = `active:${competitionId}`;
+    const field = String(userId);
+    const existing = await this.redis.hget(key, field);
+    if (!existing) return;
+
+    try {
+      const data = JSON.parse(existing);
+      data.lastHeartbeatAt = Date.now();
+      await this.redis.hset(key, field, JSON.stringify(data));
+      await this.redis.expire(key, 120);
+    } catch (err) {
+      // Ignore parse errors for legacy data
+    }
+  }
+
+  async getStalePlayers(competitionId, ttlMs) {
+    const key = `active:${competitionId}`;
+    const all = await this.redis.hgetall(key);
+    if (!all) return [];
+
+    const now = Date.now();
+    const stale = [];
+    for (const [userId, dataStr] of Object.entries(all)) {
+      try {
+        const data = JSON.parse(dataStr);
+        if (now - data.lastHeartbeatAt > ttlMs) {
+          stale.push({ userId, socketId: data.socketId });
+        }
+      } catch (err) {
+        // Ignore parse errors
+      }
+    }
+    return stale;
   }
 
   async removeActivePlayer(competitionId, userId) {
@@ -368,8 +405,13 @@ class RedisStateRepository {
     const data = await this.redis.hgetall(`active:${competitionId}`);
     if (!data) return {};
     const result = {};
-    for (const [uid, socketId] of Object.entries(data)) {
-      result[Number(uid)] = socketId;
+    for (const [uid, dataStr] of Object.entries(data)) {
+      try {
+        result[uid] = JSON.parse(dataStr);
+      } catch (err) {
+        // Fallback for legacy data: treat as socketId string
+        result[uid] = { socketId: dataStr, lastHeartbeatAt: Date.now() };
+      }
     }
     return result;
   }
