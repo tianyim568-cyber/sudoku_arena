@@ -26,11 +26,17 @@ export default {
       ROUND1_NINE_ONE: 'Round 1: Nine-One',
       ROUND2_RELAY: 'Round 2: Relay',
       ROUND3_COLLABORATE: 'Round 3: Collaborate',
+      INDIVIDUAL_STANDARD: 'Standard Sudoku',
+      INDIVIDUAL_SHAPED: 'Shaped Sudoku',
+      INDIVIDUAL_MIXED: 'Mixed Sudoku',
     },
     roundShort: {
       ROUND1_NINE_ONE: 'Nine-One',
       ROUND2_RELAY: 'Relay',
       ROUND3_COLLABORATE: 'Collaborate',
+      INDIVIDUAL_STANDARD: 'Standard',
+      INDIVIDUAL_SHAPED: 'Shaped',
+      INDIVIDUAL_MIXED: 'Mixed',
     },
   },
 
@@ -176,12 +182,6 @@ export default {
     checkJudge: 'Judge assigned',
     allReady: 'All set! You can start the competition.',
     startCompetition: 'Start competition',
-    roundsTitle: 'Rounds',
-    addRound: '+ Add round',
-    roundNamePlaceholder: 'Round name',
-    durationPlaceholder: 'Duration (seconds)',
-    addRoundSubmit: 'Add round',
-    noRounds: 'No rounds configured. Use quick setup or add manually.',
     roundNumber: 'Round {n}',
     roundMeta: 'Type: {type} | Duration: {dur}s | Puzzles: {count}',
     importing: 'Importing...',
@@ -423,5 +423,50 @@ export default {
 
   timer: {
     paused: ' (Paused)',
+  },
+
+  waiting: {
+    programmeTitle: 'Programme',
+    programmeLoading: 'Loading the programme...',
+    programmeError: 'Could not load the programme',
+    noStages: 'No stage configured yet for this competition.',
+  },
+
+  roundLoading: {
+    message: 'Loading round…',
+  },
+
+  preparation: {
+    subtitle: 'Preparation',
+    roundLabel: 'Round',
+    rulesTitle: 'Rules',
+    startingIn: 'Starting in',
+    unknownRoundType: 'Unknown round type',
+    rulesRound1: 'Nine-One: each puzzle has a single empty cell — find it and submit the right value. Every correct answer reveals a letter clue. Solve all 9 to unlock the final puzzle.',
+    rulesRound2: 'Relay: each player is assigned their own puzzle. Boards rotate automatically at a fixed interval — solve yours before the rotation hands you a new one.',
+    rulesRound3: 'Collaborate: the whole team shares the same boards. Propose a value; a teammate must accept it before it sticks. Work together to clear every puzzle.',
+    rulesUnknown: 'The rules for this round are not available. Please ask the judge.',
+  },
+
+  transition: {
+    subtitle: 'Transition',
+    finishedLabel: 'Just finished',
+    finishedGeneric: 'Round complete',
+    nextLabel: 'Up next',
+    roundLabel: 'Round',
+    startingIn: 'Starting in',
+  },
+
+  accessLink: {
+    title: 'Player access link',
+    noneYet: 'No access link has been generated yet. Generate one to get a URL you can share with players.',
+    generate: 'Generate link',
+    regenerate: 'Regenerate link',
+    regenerateConfirm: 'Regenerating a new link will invalidate the current one. Anyone who received the old URL will no longer be able to enter. Continue?',
+    copy: 'Copy',
+    copied: 'Copied',
+    copyFailed: 'Copy failed — please select the URL manually.',
+    loadFailed: 'Could not load the access link.',
+    generateFailed: 'Could not generate the access link.',
   },
 };

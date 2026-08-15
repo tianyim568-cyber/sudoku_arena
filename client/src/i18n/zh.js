@@ -22,11 +22,17 @@ export default {
       ROUND1_NINE_ONE: '第一轮：九宫一填',
       ROUND2_RELAY: '第二轮：接力轮转',
       ROUND3_COLLABORATE: '第三轮：协作攻坚',
+      INDIVIDUAL_STANDARD: '标准数独',
+      INDIVIDUAL_SHAPED: '异形数独',
+      INDIVIDUAL_MIXED: '混合数独',
     },
     roundShort: {
       ROUND1_NINE_ONE: '九宫一填',
       ROUND2_RELAY: '接力轮转',
       ROUND3_COLLABORATE: '协作攻坚',
+      INDIVIDUAL_STANDARD: '标准',
+      INDIVIDUAL_SHAPED: '异形',
+      INDIVIDUAL_MIXED: '混合',
     },
   },
 
@@ -170,12 +176,6 @@ export default {
     checkJudge: '已分配裁判',
     allReady: '一切就绪！可以开始赛事了。',
     startCompetition: '开始赛事',
-    roundsTitle: '轮次',
-    addRound: '+ 添加轮次',
-    roundNamePlaceholder: '轮次名称',
-    durationPlaceholder: '时长（秒）',
-    addRoundSubmit: '添加轮次',
-    noRounds: '暂未配置轮次。请使用快速设置或手动添加。',
     roundNumber: '第 {n} 轮',
     roundMeta: '类型：{type} | 时长：{dur}秒 | 题目：{count}道',
     importing: '导入中...',
@@ -417,5 +417,50 @@ export default {
 
   timer: {
     paused: ' (已暂停)',
+  },
+
+  waiting: {
+    programmeTitle: '赛程',
+    programmeLoading: '正在加载赛程...',
+    programmeError: '无法加载赛程',
+    noStages: '本赛事尚未配置任何阶段。',
+  },
+
+  roundLoading: {
+    message: '正在加载本轮…',
+  },
+
+  preparation: {
+    subtitle: '准备阶段',
+    roundLabel: '第',
+    rulesTitle: '规则',
+    startingIn: '即将开始',
+    unknownRoundType: '未知轮次类型',
+    rulesRound1: '九宫一填：每道题只有一个空格，找出它并填入正确数字。每答对一题揭示一个字母线索，解开全部 9 道即可解锁终极题。',
+    rulesRound2: '接力轮转：每位选手各分到一道题，每隔一段时间自动轮转。尽快解开自己手上的题，轮转后会拿到下一道。',
+    rulesRound3: '协作攻坚：全队共同面对同一批棋盘。提出填数建议，队友同意后即落子；通力合作，解开所有题目。',
+    rulesUnknown: '本轮规则暂未说明，请联系裁判。',
+  },
+
+  transition: {
+    subtitle: '过渡',
+    finishedLabel: '刚刚结束',
+    finishedGeneric: '本轮已完成',
+    nextLabel: '下一轮',
+    roundLabel: '第',
+    startingIn: '即将开始',
+  },
+
+  accessLink: {
+    title: '选手访问链接',
+    noneYet: '尚未生成访问链接。点击生成以获取可分享给选手的链接。',
+    generate: '生成链接',
+    regenerate: '重新生成链接',
+    regenerateConfirm: '重新生成会使当前链接失效。之前收到旧链接的选手将无法再进入。是否继续？',
+    copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败，请手动选中链接复制。',
+    loadFailed: '无法加载访问链接。',
+    generateFailed: '无法生成访问链接。',
   },
 };
