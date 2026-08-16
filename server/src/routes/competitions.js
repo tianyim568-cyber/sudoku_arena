@@ -37,6 +37,7 @@ const { getPrisma } = require('../db/prisma');
 const { competitionLogin } = require('../middleware/competitionAuth');
 const { evaluatePublishability } = require('../services/PublishabilityService');
 const config = require('../config');
+const logger = require('../utils/logger');
 
 // Stable, localisable messages for each unmet publishability criterion.
 // The client receives the machine code and maps it to a translated string;
@@ -352,7 +353,7 @@ function createCompetitionRouter(repos) {
           data: { id, status: 'PUBLISHED' },
         });
       } catch (e) {
-        console.error('[competitions] publish error:', e.message);
+        logger.error('Publish competition failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '发布失败', data: null });
       }
     }
@@ -419,7 +420,7 @@ function createCompetitionRouter(repos) {
           data: { id, status: 'DRAFT' },
         });
       } catch (e) {
-        console.error('[competitions] cancel error:', e.message);
+        logger.error('Cancel competition failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '取消发布失败', data: null });
       }
     }
@@ -468,7 +469,7 @@ function createCompetitionRouter(repos) {
           data: { status: competition.status, publishable, missing },
         });
       } catch (e) {
-        console.error('[competitions] publishability error:', e.message);
+        logger.error('Get publishability failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '获取发布状态失败', data: null });
       }
     }
@@ -543,7 +544,7 @@ function createCompetitionRouter(repos) {
           },
         });
       } catch (e) {
-        console.error('[competitions] generate access link error:', e.message);
+        logger.error('Generate access link failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '生成访问链接失败', data: null });
       }
     }
@@ -590,7 +591,7 @@ function createCompetitionRouter(repos) {
           },
         });
       } catch (e) {
-        console.error('[competitions] get access link error:', e.message);
+        logger.error('Get access link failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '获取访问链接失败', data: null });
       }
     }
@@ -630,7 +631,7 @@ function createCompetitionRouter(repos) {
 
         res.json({ code: 200, message: 'success', data: null });
       } catch (e) {
-        console.error('[competitions] revoke access link error:', e.message);
+        logger.error('Revoke access link failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '撤销访问链接失败', data: null });
       }
     }
@@ -680,7 +681,7 @@ function createCompetitionRouter(repos) {
         },
       });
     } catch (e) {
-      console.error('[competitions] get by code error:', e.message);
+      logger.error('Get competition by access code failed', { accessCode, error: e.message });
       res.json({ code: 50000, message: '获取比赛信息失败', data: null });
     }
   });
