@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import { translateServerMessage } from '../i18n/serverMessages';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import { LocalErrorBoundary } from '../components/ErrorBoundary';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useTimer } from '../hooks/useTimer';
 import { submitCellFill, submitAnswer } from '../api/socket';
@@ -408,69 +409,79 @@ export default function PlayerGamePage() {
          * puzzles/state haven't arrived used to fall through to
          * WaitingScreen, which told the player the competition hadn't
          * started — in the middle of a live round.
+         *
+         * LOCAL BOUNDARY: the round views (Round1/2/3View) render grids and
+         * timers and teammate cursors — complex enough to crash on a bad
+         * payload. If one crashes mid-round, the player keeps their header
+         * (timer, competition name, back button) and sees a targeted
+         * message instead of losing the whole screen. This is the case
+         * Louise called out: "si la grille du joueur casse, il doit garder
+         * son chronomètre, son en-tête et un message lui disant quoi faire".
          */}
-        {(() => {
-          const screen = chooseScreen({
-            transition, preparation, currentRound,
-            puzzles, round2State, round3State,
-          });
-          switch (screen) {
-            case 'TRANSITION':
-              return <TransitionScreen transition={transition} />;
-            case 'PREPARATION':
-              return <PreparationScreen preparation={preparation} />;
-            case 'ROUND2_VIEW':
-              return (
-                <Round2View
-                  round2State={round2State}
-                  activePuzzle={activePuzzle}
-                  user={user}
-                  onCellChange={handleR2CellChange}
-                  onFullGridSubmit={handleFullGridSubmit}
-                  rotationWarning={rotationWarning}
-                />
-              );
-            case 'ROUND1_VIEW':
-              return (
-                <Round1View
-                  puzzles={puzzles}
-                  activePuzzle={activePuzzle}
-                  round1Progress={round1Progress}
-                  teamScore={teamScore}
-                  timerRemaining={remainingSeconds}
-                  onSelectPuzzle={handleSelectPuzzle}
-                  onCellSubmit={handleCellSubmit}
-                  onFullGridSubmit={handleFullGridSubmit}
-                />
-              );
-            case 'ROUND3_VIEW':
-              return (
-                <Round3View
-                  round3State={round3State}
-                  activePuzzle={activePuzzle}
-                  currentRound={currentRound}
-                  user={user}
-                  activeTeammates={activeTeammates}
-                  onSelectPuzzle={handleSelectPuzzle}
-                  onProposeCell={handleR3ProposeCell}
-                  onAcceptProposal={handleR3AcceptProposal}
-                  onRejectProposal={handleR3RejectProposal}
-                  onWithdrawProposal={handleR3WithdrawProposal}
-                  onFullGridSubmit={handleFullGridSubmit}
-                  onFocusUpdate={handleR3FocusUpdate}
-                />
-              );
-            case 'ROUND_LOADING':
-              return (
-                <div className="text-center py-20 text-gray-400 text-sm sm:text-base">
-                  {t('roundLoading.message')}
-                </div>
-              );
-            case 'WAITING':
-            default:
-              return <WaitingScreen competitionId={competitionId} />;
-          }
-        })()}
+        <LocalErrorBoundary>
+          {(() => {
+            const screen = chooseScreen({
+              transition, preparation, currentRound,
+              puzzles, round2State, round3State,
+            });
+            switch (screen) {
+              case 'TRANSITION':
+                return <TransitionScreen transition={transition} />;
+              case 'PREPARATION':
+                return <PreparationScreen preparation={preparation} />;
+              case 'ROUND2_VIEW':
+                return (
+                  <Round2View
+                    round2State={round2State}
+                    activePuzzle={activePuzzle}
+                    user={user}
+                    onCellChange={handleR2CellChange}
+                    onFullGridSubmit={handleFullGridSubmit}
+                    rotationWarning={rotationWarning}
+                  />
+                );
+              case 'ROUND1_VIEW':
+                return (
+                  <Round1View
+                    puzzles={puzzles}
+                    activePuzzle={activePuzzle}
+                    round1Progress={round1Progress}
+                    teamScore={teamScore}
+                    timerRemaining={remainingSeconds}
+                    onSelectPuzzle={handleSelectPuzzle}
+                    onCellSubmit={handleCellSubmit}
+                    onFullGridSubmit={handleFullGridSubmit}
+                  />
+                );
+              case 'ROUND3_VIEW':
+                return (
+                  <Round3View
+                    round3State={round3State}
+                    activePuzzle={activePuzzle}
+                    currentRound={currentRound}
+                    user={user}
+                    activeTeammates={activeTeammates}
+                    onSelectPuzzle={handleSelectPuzzle}
+                    onProposeCell={handleR3ProposeCell}
+                    onAcceptProposal={handleR3AcceptProposal}
+                    onRejectProposal={handleR3RejectProposal}
+                    onWithdrawProposal={handleR3WithdrawProposal}
+                    onFullGridSubmit={handleFullGridSubmit}
+                    onFocusUpdate={handleR3FocusUpdate}
+                  />
+                );
+              case 'ROUND_LOADING':
+                return (
+                  <div className="text-center py-20 text-gray-400 text-sm sm:text-base">
+                    {t('roundLoading.message')}
+                  </div>
+                );
+              case 'WAITING':
+              default:
+                return <WaitingScreen competitionId={competitionId} />;
+            }
+          })()}
+        </LocalErrorBoundary>
       </div>
     </div>
   );

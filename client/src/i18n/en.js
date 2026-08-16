@@ -64,6 +64,7 @@ export default {
     upcoming: 'Upcoming',
     finished: 'Finished',
     noCompetitions: 'No competitions yet',
+    loadFailed: 'Could not load the overview.',
     loading: 'Loading overview...',
     nav: {
       dashboard: 'Dashboard',
@@ -175,12 +176,6 @@ export default {
     quickSettingUp: 'Setting up...',
     judgeConsole: 'Judge console',
     enterGame: 'Enter game',
-    readinessTitle: 'Readiness check',
-    check3Rounds: '3 rounds configured',
-    checkPuzzles: 'All rounds have puzzles',
-    checkTeam: 'At least 1 team',
-    checkJudge: 'Judge assigned',
-    allReady: 'All set! You can start the competition.',
     startCompetition: 'Start competition',
     roundNumber: 'Round {n}',
     roundMeta: 'Type: {type} | Duration: {dur}s | Puzzles: {count}',
@@ -468,5 +463,75 @@ export default {
     copyFailed: 'Copy failed — please select the URL manually.',
     loadFailed: 'Could not load the access link.',
     generateFailed: 'Could not generate the access link.',
+    publishFirst: 'Publish the competition first — the link can only be generated once everything is configured.',
+  },
+
+  publishPanel: {
+    title: 'Publishing',
+    // Each missing criterion has its own line so the admin sees the full
+    // punch list, not just the first blocker. The codes come from the
+    // server as NO_JUDGE / NO_PARTICIPANT / NO_STAGE / STAGE_EMPTY /
+    // ROUND_EMPTY; the client maps them to these labels.
+    missingJudge: 'At least one judge assigned',
+    missingParticipant: 'At least one participant added',
+    missingStage: 'At least one stage created',
+    missingStageRounds: 'Every stage has at least one round',
+    missingRoundPuzzles: 'Every round has at least one puzzle',
+    // "All stages have been added" is NOT verifiable — the system cannot
+    // know that the admin is done. The hint says what is true instead.
+    allConfiguredHint: 'Every existing stage is configured. You can publish.',
+    someMissingHint: 'Publishing is blocked until every criterion above is met.',
+    publish: 'Publish',
+    published: 'Competition published.',
+    publishFailed: 'Could not publish.',
+    // "On ne dépublie pas. Mais on peut annuler." Cancelling is a DESTRUCTIVE
+    // action: the access link is destroyed (anyone who received the URL can
+    // no longer enter) and the competition reverts to DRAFT. This is NOT a
+    // toggle — the confirm dialog must say the link is destroyed, or the
+    // admin will think it is a harmless step back.
+    cancel: 'Cancel publication',
+    cancelConfirm: 'Cancelling destroys the access link. Anyone who received the URL — players, judges, screens — will no longer be able to enter. The competition reverts to DRAFT and becomes editable again. Continue?',
+    cancelled: 'Competition cancelled — reverted to draft, access link destroyed.',
+    cancelFailed: 'Could not cancel.',
+    start: 'Start competition',
+    started: 'Competition started!',
+    startFailed: 'Could not start the competition.',
+    // The case that matters: status is PUBLISHED but the rule says not
+    // publishable (e.g. a stage was added after publication and not
+    // configured yet). The Start button is disabled, and this line tells
+    // the admin why.
+    publishedButNotReady: 'Published, but no longer ready — fix the missing criteria above or step back to draft.',
+    loadFailed: 'Could not load the publishing status.',
+  },
+
+  displayToken: {
+    title: 'Big-screen display token',
+    noneYet: 'No display token yet. Generate one to get the URL to open on the screen in the room.',
+    generate: 'Generate token',
+    revoke: 'Revoke',
+    revokeConfirm: 'Revoking the token immediately cuts off any screen currently using it. Continue?',
+    copy: 'Copy',
+    copied: 'Copied',
+    copyFailed: 'Copy failed — please select the URL manually.',
+    generateFailed: 'Could not generate the display token.',
+    revokeFailed: 'Could not revoke the display token.',
+  },
+
+  // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The
+  // boundary keys are used by the default fallback when no custom one is
+  // passed; the title/message/door keys are used by ErrorPage.
+  errors: {
+    boundaryTitle: 'Something went wrong',
+    boundaryMessage: 'An unexpected error occurred. Try reloading the page.',
+    retry: 'Try again',
+    title404: 'Page not found',
+    message404: 'The page you are looking for does not exist. It may have been moved, or the link is no longer valid.',
+    title403: 'Access denied',
+    message403: 'You do not have permission to view this page. If you think this is a mistake, you may be signed in with the wrong account.',
+    title500: 'Server error',
+    message500: 'Something went wrong on our side. Please try again in a moment.',
+    backHome: 'Back to home',
+    backToLogin: 'Back to login',
+    switchAccount: 'Switch account',
   },
 };

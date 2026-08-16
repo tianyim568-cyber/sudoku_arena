@@ -9,6 +9,12 @@ export default function CompetitionListPage() {
   const { user, isAdmin, logout } = useAuth();
   const { t } = useLanguage();
   const [competitions, setCompetitions] = useState([]);
+  // loadError is set when listCompetitions fails. Without it, a failed load
+  // leaves `competitions` as [] and the page renders the "no competitions"
+  // empty state — which misleads the user into thinking their org has no
+  // competitions when really the server just failed. The toast is still
+  // shown for action feedback, but the list area now distinguishes the two.
+  const [loadError, setLoadError] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -25,7 +31,9 @@ export default function CompetitionListPage() {
     const res = await api.listCompetitions();
     if (res.code === 200) {
       setCompetitions(res.data);
+      setLoadError(null);
     } else {
+      setLoadError(res.message || t('competitionList.loadFailed', { msg: res.message || res.code }));
       msg(t('competitionList.loadFailed', { msg: res.message || res.code }), 'error');
     }
   };
@@ -130,7 +138,17 @@ export default function CompetitionListPage() {
           </form>
         )}
 
-        {competitions.length === 0 ? (
+        {loadError ? (
+          // A failed load is NOT the same as an empty org. Show the reason
+          // inline so the user knows the list is missing because something
+          // broke, not because they have no competitions.
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 sm:p-8 text-center">
+            <p className="text-red-700 text-sm sm:text-base">{t('competitionList.loadFailed', { msg: loadError })}</p>
+            <button onClick={load} className="mt-3 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs sm:text-sm">
+              {t('errors.retry')}
+            </button>
+          </div>
+        ) : competitions.length === 0 ? (
           <div className="text-center py-12 sm:py-20 text-gray-400">
             <p className="text-base sm:text-lg">{t('competitionList.empty')}</p>
             {isAdmin && <p className="text-xs sm:text-sm mt-2">{t('competitionList.emptyHint')}</p>}
