@@ -33,6 +33,12 @@ vi.mock('../api', () => ({
     getAccessLink: vi.fn().mockResolvedValue({ code: 200, data: { accessCode: null, entryUrl: null } }),
     generateAccessLink: vi.fn(),
     revokeAccessLink: vi.fn(),
+    // PublishPanel also renders on the admin view and calls getPublishability
+    // on mount. Same reason: not asserted here, but must exist as a mock.
+    getPublishability: vi.fn().mockResolvedValue({ code: 200, data: { status: 'DRAFT', publishable: true, missing: [] } }),
+    publishCompetition: vi.fn(),
+    cancelCompetition: vi.fn(),
+    startCompetition: vi.fn(),
   },
   setToken: vi.fn(),
 }));

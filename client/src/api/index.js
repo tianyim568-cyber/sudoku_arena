@@ -224,6 +224,16 @@ export const api = {
   getAccessLink: (competitionId) => request('GET', `/competitions/${competitionId}/access-link`),
   revokeAccessLink: (competitionId) => request('DELETE', `/competitions/${competitionId}/access-link`),
 
+  // Publication — the middle step between DRAFT and RUNNING. The panel reads
+  // GET /publishability to know whether Publish is allowed; the button calls
+  // POST /publish. "On ne dépublie pas. Mais on peut annuler." — the
+  // destructive step back is POST /cancel: it destroys the access link and
+  // reverts to DRAFT. The server re-checks publishability on POST /publish
+  // — the client does not decide.
+  getPublishability: (competitionId) => request('GET', `/competitions/${competitionId}/publishability`),
+  publishCompetition: (competitionId) => request('POST', `/competitions/${competitionId}/publish`),
+  cancelCompetition: (competitionId) => request('POST', `/competitions/${competitionId}/cancel`),
+
   // Generic request (for endpoints not covered above)
   request,
 };

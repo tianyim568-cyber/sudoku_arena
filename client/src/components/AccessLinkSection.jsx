@@ -29,7 +29,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
-export default function AccessLinkSection({ competitionId }) {
+/**
+ * @param {string}  competitionId
+ * @param {boolean} canGenerate — is the competition published? Publishing does
+ *   not create the link, it UNLOCKS creating one: an unpublished competition
+ *   has an unfinished configuration, and handing out an entry URL for it would
+ *   invite people into something still being built. The server enforces this
+ *   (POST /:id/access-link answers 40041 on a DRAFT); this flag only spares the
+ *   admin a button that would refuse. Never the other way round.
+ */
+export default function AccessLinkSection({ competitionId, canGenerate = false }) {
   const { t } = useLanguage();
   const [link, setLink] = useState(null); // { accessCode, entryUrl } | null
   const [status, setStatus] = useState('LOADING'); // LOADING | READY | ERROR
@@ -108,13 +117,18 @@ export default function AccessLinkSection({ competitionId }) {
       {status === 'READY' && !hasLink && (
         <div className="space-y-3">
           <p className="text-gray-500 text-xs sm:text-sm">{t('accessLink.noneYet')}</p>
+          {/* A disabled button says "not yet"; a missing button says "never".
+              The admin needs the first: the link IS coming, once published. */}
           <button
             onClick={handleGenerate}
-            disabled={busy}
-            className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500 disabled:opacity-50"
+            disabled={busy || !canGenerate}
+            className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {busy ? t('common.loading') : t('accessLink.generate')}
           </button>
+          {!canGenerate && (
+            <p className="text-gray-500 text-xs sm:text-sm">{t('accessLink.publishFirst')}</p>
+          )}
           {error && <p className="text-red-600 text-xs sm:text-sm">{error}</p>}
         </div>
       )}

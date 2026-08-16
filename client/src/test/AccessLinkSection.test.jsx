@@ -35,11 +35,14 @@ vi.mock('../api', () => ({
   setToken: vi.fn(),
 }));
 
-function renderSection() {
+// canGenerate defaults to true here: most tests are about the link states
+// themselves, not about the publish gate. The gate has its own describe block
+// at the bottom.
+function renderSection({ canGenerate = true } = {}) {
   return render(
     <MemoryRouter>
       <LanguageProvider>
-        <AccessLinkSection competitionId="comp-1" />
+        <AccessLinkSection competitionId="comp-1" canGenerate={canGenerate} />
       </LanguageProvider>
     </MemoryRouter>
   );
@@ -152,5 +155,34 @@ describe('AccessLinkSection — error handling', () => {
     const generate = await screen.findByRole('button', { name: /generate|生成/i });
     fireEvent.click(generate);
     expect(await screen.findByText(/generate boom/)).toBeInTheDocument();
+  });
+});
+
+// Publishing does not create the link — it unlocks creating one. Before that,
+// the button must be visibly present but inert, with the reason stated: a
+// missing button says "never", a disabled one says "not yet".
+describe('AccessLinkSection — the publish gate', () => {
+  it('disables generation and says why while the competition is unpublished', async () => {
+    api.getAccessLink.mockResolvedValue({
+      code: 200,
+      data: { accessCode: null, entryUrl: null },
+    });
+    renderSection({ canGenerate: false });
+
+    const generate = await screen.findByRole('button', { name: /generate|生成/i });
+    expect(generate).toBeDisabled();
+    expect(screen.getByText(/publish the competition first|请先发布赛事/i)).toBeInTheDocument();
+  });
+
+  it('does not call the API when generation is locked', async () => {
+    api.getAccessLink.mockResolvedValue({
+      code: 200,
+      data: { accessCode: null, entryUrl: null },
+    });
+    renderSection({ canGenerate: false });
+
+    const generate = await screen.findByRole('button', { name: /generate|生成/i });
+    fireEvent.click(generate);
+    expect(api.generateAccessLink).not.toHaveBeenCalled();
   });
 });
