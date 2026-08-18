@@ -71,6 +71,10 @@ class GameOrchestrator {
     this.round2.setEmissionCallback((emission) => {
       this.bus.emitImmediate(emission);
     });
+
+    // Throttle map for live ranking updates: competitionId -> lastEmitTimestamp
+    this._rankingUpdateThrottle = new Map();
+    this._rankingUpdateThrottleMs = 3000; // Max 1 update per 3 seconds per competition
   }
 
   // ─── Prisma helpers ─────────────────────────────────────────────
@@ -78,6 +82,30 @@ class GameOrchestrator {
   /** @private Shorthand for getPrisma() */
   get _prisma() {
     return getPrisma();
+  }
+
+  /**
+   * Emit throttled RANKING_UPDATE for live display during active rounds.
+   * Fire-and-forget — does not block the caller.
+   * @private
+   * @param {string} competitionId
+   */
+  _emitLiveRankingUpdate(competitionId) {
+    if (!this.displayManager) return;
+
+    const now = Date.now();
+    const lastEmit = this._rankingUpdateThrottle.get(competitionId) || 0;
+
+    if (now - lastEmit < this._rankingUpdateThrottleMs) {
+      return; // Throttled
+    }
+
+    this._rankingUpdateThrottle.set(competitionId, now);
+
+    // Fire-and-forget — don't await, don't block submission response
+    this.displayManager.emitRankingUpdate(competitionId).catch(err => {
+      console.error('[GameOrchestrator] Live ranking update failed:', err.message);
+    });
   }
 
   /**
@@ -1047,6 +1075,9 @@ class GameOrchestrator {
     const { result, emissions } = await engine.submitAnswer(
       userId, competitionId, roundId, puzzleId, submissionType, data
     );
+
+    // Emit live ranking update (throttled, fire-and-forget)
+    this._emitLiveRankingUpdate(competitionId);
 
     return { result, emissions };
   }
