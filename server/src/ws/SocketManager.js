@@ -194,12 +194,24 @@ class SocketManager {
           }, config.HEARTBEAT_INTERVAL_MS);
         }
 
-        // Notify room
+        // Register competition for presence monitoring (offline detection)
+        if (this.presenceService) {
+          this.presenceService.addCompetition(tournamentId);
+        }
+
+        // Notify tournament room (for players)
         this.io.to(`tournament_${tournamentId}`).emit('event', {
           type: 'PLAYER_STATUS_CHANGE',
           timestamp: new Date().toISOString(),
           tournamentId,
-          payload: { playerId: socket.user.userId, playerName: socket.user.username, online: true }
+          payload: { playerId: socket.user.userId, playerName: socket.user.username, status: 'online', online: true }
+        });
+
+        // Notify competition room (for judge monitoring UI)
+        this.io.to(`competition_${tournamentId}`).emit('event', {
+          type: 'PARTICIPANT_STATUS_CHANGE',
+          timestamp: new Date().toISOString(),
+          payload: { competitionId: tournamentId, userId: socket.user.userId, username: socket.user.username, status: 'online' }
         });
 
         // Late-join sync via orchestrator
@@ -223,6 +235,14 @@ class SocketManager {
           heartbeatInterval = null;
         }
         this.orchestrator.state.removeActivePlayer(tournamentId, socket.user.userId);
+
+        // Emit offline status to competition room (for judge monitoring)
+        this.io.to(`competition_${tournamentId}`).emit('event', {
+          type: 'PARTICIPANT_STATUS_CHANGE',
+          timestamp: new Date().toISOString(),
+          payload: { competitionId: tournamentId, userId: socket.user.userId, username: socket.user.username, status: 'offline' }
+        });
+
         console.log(`${socket.user.username} left tournament ${tournamentId}`);
       });
 
