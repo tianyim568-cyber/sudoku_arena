@@ -129,6 +129,54 @@ describe('POST /api/competitions/:id/stages/:stageId/rounds', () => {
     expect(res.body.data.stage_id).toBe('stage-1');
   });
 
+  // preparation_seconds has always existed on the rounds table with a 10s
+  // default, but nothing let an admin set it — every round in the product used
+  // the same value whether or not it suited. These two tests pin both halves:
+  // the value reaches the repository when given, and the column is left alone
+  // when it is not, so the schema default stays the one place that number is
+  // decided.
+  test('a preparation time is passed through to the repository', async () => {
+    let received = null;
+    const app = buildApp(buildRepos({
+      rounds: {
+        findStageById: async (id) => ({ id, competition_id: '1', type: 'TEAM' }),
+        create: async (args) => { received = args; return { id: 'r-1', ...args }; },
+      },
+    }));
+    const res = await request(app)
+      .post(ROUNDS_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'Round 1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600, preparationSeconds: 30 });
+    expect(res.body.code).toBe(200);
+    expect(received.preparationSeconds).toBe(30);
+  });
+
+  test('omitting the preparation time leaves it undefined, so the column default applies', async () => {
+    let received = null;
+    const app = buildApp(buildRepos({
+      rounds: {
+        findStageById: async (id) => ({ id, competition_id: '1', type: 'TEAM' }),
+        create: async (args) => { received = args; return { id: 'r-1', ...args }; },
+      },
+    }));
+    const res = await request(app)
+      .post(ROUNDS_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'Round 1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600 });
+    expect(res.body.code).toBe(200);
+    expect(received.preparationSeconds).toBeUndefined();
+  });
+
+  // A countdown in front of a waiting room, not an intermission.
+  test('an absurd preparation time is refused by validation', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .post(ROUNDS_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'Round 1', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600, preparationSeconds: 9999 });
+    expect(res.body.code).not.toBe(200);
+  });
+
   // The individual types used to be rejected by the schema, which made
   // INDIVIDUAL stages unusable.
   test('an individual round is accepted in an INDIVIDUAL stage', async () => {

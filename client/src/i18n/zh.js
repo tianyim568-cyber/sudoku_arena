@@ -158,6 +158,8 @@ export default {
     roundName: '轮次名称',
     roundType: '轮次类型',
     roundDuration: '时长（秒）',
+    roundPreparation: '准备时长（秒）',
+    roundPreparationHint: '选手在题目出现前阅读本轮规则的时间。填 0 表示立即开始。',
     roundPdf: '题目文件（PDF）',
     roundPdfHint: 'PDF 解析功能尚未实现，需要先提供样例文件。您现在可以创建轮次，并从题库导入题目。',
     addRoundSubmit: '添加轮次',

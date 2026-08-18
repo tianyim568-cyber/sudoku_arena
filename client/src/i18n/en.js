@@ -164,6 +164,8 @@ export default {
     roundName: 'Round name',
     roundType: 'Round type',
     roundDuration: 'Duration (seconds)',
+    roundPreparation: 'Preparation time (seconds)',
+    roundPreparationHint: 'How long players see the round rules before the board opens. 0 starts it immediately.',
     roundPdf: 'Puzzle file (PDF)',
     roundPdfHint: 'PDF extraction is not built yet — a sample file is needed first. You can already create the round and import its puzzles from the Puzzle Bank.',
     addRoundSubmit: 'Add the round',

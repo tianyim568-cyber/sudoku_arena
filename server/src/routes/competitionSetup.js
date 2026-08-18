@@ -54,7 +54,7 @@ function createCompetitionSetupRouter(repos) {
     roleMiddleware(...ADMIN_ROLES),
     validateBody(createRoundSchema),
     async (req, res) => {
-      const { name, roundType, durationSeconds } = req.body;
+      const { name, roundType, durationSeconds, preparationSeconds } = req.body;
       const { id: competitionId, stageId } = req.params;
 
       const stage = await repos.rounds.findStageById(stageId);
@@ -73,7 +73,7 @@ function createCompetitionSetupRouter(repos) {
         return res.json({ code: 40011, message: '轮次类型与阶段类型不匹配', data: null });
       }
 
-      const round = await repos.rounds.create({ stageId, name, roundType, durationSeconds });
+      const round = await repos.rounds.create({ stageId, name, roundType, durationSeconds, preparationSeconds });
       res.json({ code: 200, message: 'success', data: round });
     }
   );
