@@ -22,11 +22,17 @@ export default {
       ROUND1_NINE_ONE: '第一轮：九宫一填',
       ROUND2_RELAY: '第二轮：接力轮转',
       ROUND3_COLLABORATE: '第三轮：协作攻坚',
+      INDIVIDUAL_STANDARD: '标准数独',
+      INDIVIDUAL_SHAPED: '异形数独',
+      INDIVIDUAL_MIXED: '混合数独',
     },
     roundShort: {
       ROUND1_NINE_ONE: '九宫一填',
       ROUND2_RELAY: '接力轮转',
       ROUND3_COLLABORATE: '协作攻坚',
+      INDIVIDUAL_STANDARD: '标准',
+      INDIVIDUAL_SHAPED: '异形',
+      INDIVIDUAL_MIXED: '混合',
     },
   },
 
@@ -54,6 +60,7 @@ export default {
     upcoming: '未开始',
     finished: '已结束',
     noCompetitions: '暂无赛事',
+    loadFailed: '无法加载概览。',
     loading: '加载中...',
     nav: {
       dashboard: '控制台',
@@ -163,19 +170,7 @@ export default {
     quickSettingUp: '设置中...',
     judgeConsole: '裁判控制台',
     enterGame: '进入游戏',
-    readinessTitle: '赛事就绪检查',
-    check3Rounds: '已配置3个轮次',
-    checkPuzzles: '所有轮次已导入题目',
-    checkTeam: '至少1支队伍',
-    checkJudge: '已分配裁判',
-    allReady: '一切就绪！可以开始赛事了。',
     startCompetition: '开始赛事',
-    roundsTitle: '轮次',
-    addRound: '+ 添加轮次',
-    roundNamePlaceholder: '轮次名称',
-    durationPlaceholder: '时长（秒）',
-    addRoundSubmit: '添加轮次',
-    noRounds: '暂未配置轮次。请使用快速设置或手动添加。',
     roundNumber: '第 {n} 轮',
     roundMeta: '类型：{type} | 时长：{dur}秒 | 题目：{count}道',
     importing: '导入中...',
@@ -417,5 +412,108 @@ export default {
 
   timer: {
     paused: ' (已暂停)',
+  },
+
+  waiting: {
+    programmeTitle: '赛程',
+    programmeLoading: '正在加载赛程...',
+    programmeError: '无法加载赛程',
+    noStages: '本赛事尚未配置任何阶段。',
+  },
+
+  roundLoading: {
+    message: '正在加载本轮…',
+  },
+
+  preparation: {
+    subtitle: '准备阶段',
+    roundLabel: '第',
+    rulesTitle: '规则',
+    startingIn: '即将开始',
+    unknownRoundType: '未知轮次类型',
+    rulesRound1: '九宫一填：每道题只有一个空格，找出它并填入正确数字。每答对一题揭示一个字母线索，解开全部 9 道即可解锁终极题。',
+    rulesRound2: '接力轮转：每位选手各分到一道题，每隔一段时间自动轮转。尽快解开自己手上的题，轮转后会拿到下一道。',
+    rulesRound3: '协作攻坚：全队共同面对同一批棋盘。提出填数建议，队友同意后即落子；通力合作，解开所有题目。',
+    rulesUnknown: '本轮规则暂未说明，请联系裁判。',
+  },
+
+  transition: {
+    subtitle: '过渡',
+    finishedLabel: '刚刚结束',
+    finishedGeneric: '本轮已完成',
+    nextLabel: '下一轮',
+    roundLabel: '第',
+    startingIn: '即将开始',
+  },
+
+  accessLink: {
+    title: '选手访问链接',
+    noneYet: '尚未生成访问链接。点击生成以获取可分享给选手的链接。',
+    generate: '生成链接',
+    regenerate: '重新生成链接',
+    regenerateConfirm: '重新生成会使当前链接失效。之前收到旧链接的选手将无法再进入。是否继续？',
+    copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败，请手动选中链接复制。',
+    loadFailed: '无法加载访问链接。',
+    generateFailed: '无法生成访问链接。',
+    publishFirst: '请先发布赛事——所有配置完成后才能生成访问链接。',
+  },
+
+  publishPanel: {
+    title: '发布',
+    missingJudge: '至少已分配一名裁判',
+    missingParticipant: '至少添加一名参赛者',
+    missingStage: '至少创建一个阶段',
+    missingStageRounds: '每个阶段至少有一个轮次',
+    missingRoundPuzzles: '每个轮次至少有一道题目',
+    allConfiguredHint: '所有已存在的阶段均已配置完毕，可以发布。',
+    someMissingHint: '上述条件全部满足前无法发布。',
+    publish: '发布',
+    published: '赛事已发布。',
+    publishFailed: '无法发布。',
+    // 「On ne dépublie pas. Mais on peut annuler.」取消发布是破坏性操作：
+    // 访问链接会被销毁（之前收到链接的选手、裁判、大屏都无法再进入），
+    // 赛事回到草稿状态并恢复可编辑。这不是一个开关——确认对话框必须明
+    // 确说明链接会被销毁，否则管理员会以为这只是无害的撤回。
+    cancel: '取消发布',
+    cancelConfirm: '取消发布将销毁访问链接。之前收到链接的选手、裁判、大屏都无法再进入，赛事将回到草稿状态并恢复可编辑。是否继续？',
+    cancelled: '赛事已取消——回到草稿状态，访问链接已销毁。',
+    cancelFailed: '无法取消。',
+    start: '开始赛事',
+    started: '赛事已开始！',
+    startFailed: '无法开始赛事。',
+    publishedButNotReady: '已发布，但不再就绪——请补齐上方缺失项，或撤回到草稿。',
+    loadFailed: '无法加载发布状态。',
+  },
+
+  displayToken: {
+    title: '大屏显示令牌',
+    noneYet: '尚未生成显示令牌。点击生成以获取要在场地大屏上打开的链接。',
+    generate: '生成令牌',
+    revoke: '撤销',
+    revokeConfirm: '撤销令牌会立刻切断当前正在使用它的大屏。是否继续？',
+    copy: '复制',
+    copied: '已复制',
+    copyFailed: '复制失败，请手动选中链接复制。',
+    generateFailed: '无法生成显示令牌。',
+    revokeFailed: '无法撤销显示令牌。',
+  },
+
+  // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的
+  // 键用于未传自定义 fallback 时的默认兜底；其余键由 ErrorPage 使用。
+  errors: {
+    boundaryTitle: '出了点问题',
+    boundaryMessage: '发生了意外错误。请尝试刷新页面。',
+    retry: '重试',
+    title404: '页面不存在',
+    message404: '您访问的页面不存在。它可能已被移动，或链接已失效。',
+    title403: '无权访问',
+    message403: '您没有权限查看此页面。如果您认为这是误判，可能是登录的账号不对。',
+    title500: '服务器错误',
+    message500: '服务器出了点问题，请稍后重试。',
+    backHome: '返回首页',
+    backToLogin: '返回登录',
+    switchAccount: '切换账号',
   },
 };

@@ -14,6 +14,7 @@
  */
 
 const WORDS = require('../data/words');
+const logger = require('../utils/logger');
 
 class PuzzleAssignmentService {
   /**
@@ -258,7 +259,7 @@ class PuzzleAssignmentService {
     try {
       await this.repos.teamPuzzleSets.persist(competitionId, roundId, teamId, word, puzzleIds);
     } catch (e) {
-      console.error('Failed to persist team puzzle set:', e.message);
+      logger.error('Failed to persist team puzzle set', { roundId, teamId, error: e.message });
     }
   }
 
@@ -294,7 +295,7 @@ class PuzzleAssignmentService {
         teamPuzzleMap.set(row.team_id, puzzles);
       }
 
-      console.log(`Loaded existing puzzle assignments for round ${roundId} (${rows.length} teams)`);
+      logger.info('Loaded existing puzzle assignments', { roundId, teamsCount: rows.length });
       return teamPuzzleMap;
     } catch (e) {
       return null;
@@ -344,7 +345,7 @@ class PuzzleAssignmentService {
     try {
       await this.repos.teamPuzzleSets.resetByRound(roundId);
     } catch (e) {
-      console.error('Failed to reset assignments:', e.message);
+      logger.error('Failed to reset assignments', { roundId, error: e.message });
     }
   }
 }

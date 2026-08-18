@@ -11,6 +11,7 @@
 
 const { Pool } = require('pg');
 const config = require('../config');
+const logger = require('../utils/logger');
 
 let _pool = null;
 
@@ -28,7 +29,7 @@ async function _run(sql, params = []) {
   try {
     await _pool.query(pgSql, params);
   } catch (e) {
-    console.error('SQL Error:', pgSql, e.message);
+    logger.error('SQL run failed', { sql: pgSql, error: e.message });
     throw e;
   }
 }
@@ -39,7 +40,7 @@ async function _all(sql, params = []) {
     const { rows } = await _pool.query(pgSql, params);
     return rows;
   } catch (e) {
-    console.error('SQL Error:', pgSql, e.message);
+    logger.error('SQL all failed', { sql: pgSql, error: e.message });
     throw e;
   }
 }
@@ -118,16 +119,16 @@ async function createPostgresConnection() {
   // Verify connection
   try {
     const client = await _pool.connect();
-    console.log('PostgreSQL connected successfully');
+    logger.info('PostgreSQL connected successfully');
     client.release();
   } catch (e) {
-    console.error('PostgreSQL connection failed:', e.message);
+    logger.error('PostgreSQL connection failed', { error: e.message });
     throw e;
   }
 
   // Handle pool-level errors
   _pool.on('error', (err) => {
-    console.error('Unexpected PG pool error:', err.message);
+    logger.error('Unexpected PG pool error', { error: err.message });
   });
 
   return { db: _pool, run: _run, all: _all, get: _get, saveDB: _saveDB, transaction: _transaction };

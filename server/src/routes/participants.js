@@ -16,6 +16,7 @@ const { validateBody } = require('../middleware/validate');
 const { confirmImportSchema } = require('../validations/participants');
 const ParticipantImportService = require('../services/ParticipantImportService');
 const ParticipantExportService = require('../services/ParticipantExportService');
+const logger = require('../utils/logger');
 
 // Configure multer for memory storage (file in req.file.buffer)
 const upload = multer({
@@ -89,7 +90,7 @@ function createParticipantRouter(repos) {
           },
         });
       } catch (err) {
-        console.error('Upload participants error:', err);
+        logger.error('Upload participants failed', { error: err.message });
         res.json({ code: 50000, message: '选手导入失败', data: null });
       }
     }
@@ -130,7 +131,7 @@ function createParticipantRouter(repos) {
         try {
           result = await repos.participants.bulkImport(competitionId, valid, year);
         } catch (importErr) {
-          console.error('Bulk import rolled back:', importErr.message);
+          logger.error('Bulk import rolled back', { error: importErr.message });
           return res.json({ code: 50001, message: '导入所有选手失败，已回滚全部操作', data: null });
         }
 
@@ -140,7 +141,7 @@ function createParticipantRouter(repos) {
           data: result,
         });
       } catch (err) {
-        console.error('Confirm participants error:', err);
+        logger.error('Confirm participants failed', { error: err.message });
         res.json({ code: 50001, message: '选手导入失败', data: null });
       }
     }
@@ -171,7 +172,7 @@ function createParticipantRouter(repos) {
           data: participants,
         });
       } catch (err) {
-        console.error('List participants error:', err);
+        logger.error('List participants failed', { error: err.message });
         res.json({ code: 50002, message: '查询选手失败', data: null });
       }
     }
@@ -202,7 +203,7 @@ function createParticipantRouter(repos) {
           data: { deleted: count },
         });
       } catch (err) {
-        console.error('Delete participants error:', err);
+        logger.error('Delete participants failed', { error: err.message });
         res.json({ code: 50003, message: '删除选手失败', data: null });
       }
     }
@@ -241,7 +242,7 @@ function createParticipantRouter(repos) {
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
         res.send(buffer);
       } catch (err) {
-        console.error('Export participants error:', err);
+        logger.error('Export participants failed', { error: err.message });
         res.json({ code: 50004, message: '导出选手信息失败', data: null });
       }
     }

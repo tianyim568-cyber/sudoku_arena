@@ -7,7 +7,11 @@ import en from './en';
 const dictionaries = { zh, en };
 const STORAGE_KEY = 'sa_lang';
 
-const LanguageContext = createContext(null);
+// Exporté pour les rares consommateurs qui doivent survivre à l'absence de
+// fournisseur — typiquement l'interface de secours d'un garde-fou d'erreur, qui
+// ne doit JAMAIS lever d'exception : une erreur dans l'affichage d'erreur fait
+// disparaître toute l'application. Le code normal utilise useLanguage().
+export const LanguageContext = createContext(null);
 
 // Lit une clé "login.title" en profondeur dans un objet.
 function resolve(dict, path) {

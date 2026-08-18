@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import { translateServerMessage } from '../i18n/serverMessages';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import { LocalErrorBoundary } from '../components/ErrorBoundary';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useTimer } from '../hooks/useTimer';
 import { submitCellFill, submitAnswer } from '../api/socket';
@@ -19,6 +20,10 @@ import TimerDisplay from '../components/TimerDisplay';
 import Round1View from './Round1View';
 import Round2View from './Round2View';
 import Round3View from './Round3View';
+import WaitingScreen from './WaitingScreen';
+import PreparationScreen from './PreparationScreen';
+import TransitionScreen from './TransitionScreen';
+import { chooseScreen } from './chooseScreen';
 
 export default function PlayerGamePage() {
   const { competitionId } = useParams();
@@ -48,6 +53,8 @@ export default function PlayerGamePage() {
     round3State,
     rotationWarning,
     activeTeammates,
+    preparation,
+    transition,
     onLetterReveal,
     updateCell,
     proposeCell,
@@ -357,7 +364,14 @@ export default function PlayerGamePage() {
             )}
           </div>
           <div className="flex items-center gap-3 sm:gap-6 w-full sm:w-auto">
-            {timerMeta.timerStatus !== 'UNKNOWN' && (
+            {/* The header timer belongs to the round itself — the preparation
+                and transition countdowns live inside their own screens. Hiding
+                it here is not redundant with routing those ticks away from
+                timerMeta: from the SECOND round on, timerMeta keeps the
+                previous round's FINISHED state, so without this guard the
+                header would show a frozen 0:00 next to no round name for the
+                whole between-rounds gap. */}
+            {timerMeta.timerStatus !== 'UNKNOWN' && !preparation && !transition && (
               <div className="w-32 sm:w-48">
                 <TimerDisplay
                   remainingSeconds={remainingSeconds}
@@ -383,47 +397,91 @@ export default function PlayerGamePage() {
           }`}>{message.text}</div>
         )}
 
-        {isRound2 && currentRound ? (
-          <Round2View
-            round2State={round2State}
-            activePuzzle={activePuzzle}
-            user={user}
-            onCellChange={handleR2CellChange}
-            onFullGridSubmit={handleFullGridSubmit}
-            rotationWarning={rotationWarning}
-          />
-        ) : isRound1 && puzzles.length > 0 && currentRound ? (
-          <Round1View
-            puzzles={puzzles}
-            activePuzzle={activePuzzle}
-            round1Progress={round1Progress}
-            teamScore={teamScore}
-            timerRemaining={remainingSeconds}
-            onSelectPuzzle={handleSelectPuzzle}
-            onCellSubmit={handleCellSubmit}
-            onFullGridSubmit={handleFullGridSubmit}
-          />
-        ) : isRound3 && currentRound ? (
-          <Round3View
-            round3State={round3State}
-            activePuzzle={activePuzzle}
-            currentRound={currentRound}
-            user={user}
-            activeTeammates={activeTeammates}
-            onSelectPuzzle={handleSelectPuzzle}
-            onProposeCell={handleR3ProposeCell}
-            onAcceptProposal={handleR3AcceptProposal}
-            onRejectProposal={handleR3RejectProposal}
-            onWithdrawProposal={handleR3WithdrawProposal}
-            onFullGridSubmit={handleFullGridSubmit}
-            onFocusUpdate={handleR3FocusUpdate}
-          />
-        ) : (
-          <div className="text-center py-12 sm:py-20">
-            <p className="text-gray-400 text-base sm:text-lg">{t('game.waitingRound')}</p>
-            <p className="text-gray-500 text-xs sm:text-sm mt-2">{t('game.waitingRoundHint')}</p>
-          </div>
-        )}
+        {/*
+         * Which screen wins — the full priority rule (order AND reason for
+         * each position) lives in `chooseScreen.js`, next to the function
+         * that enforces it. Read it there. The short version:
+         *
+         *   transition > preparation > round views (with data) >
+         *   round loading (active round, data missing) > waiting
+         *
+         * The "round loading" state is the bug fix: an active round whose
+         * puzzles/state haven't arrived used to fall through to
+         * WaitingScreen, which told the player the competition hadn't
+         * started — in the middle of a live round.
+         *
+         * LOCAL BOUNDARY: the round views (Round1/2/3View) render grids and
+         * timers and teammate cursors — complex enough to crash on a bad
+         * payload. If one crashes mid-round, the player keeps their header
+         * (timer, competition name, back button) and sees a targeted
+         * message instead of losing the whole screen. This is the case
+         * Louise called out: "si la grille du joueur casse, il doit garder
+         * son chronomètre, son en-tête et un message lui disant quoi faire".
+         */}
+        <LocalErrorBoundary>
+          {(() => {
+            const screen = chooseScreen({
+              transition, preparation, currentRound,
+              puzzles, round2State, round3State,
+            });
+            switch (screen) {
+              case 'TRANSITION':
+                return <TransitionScreen transition={transition} />;
+              case 'PREPARATION':
+                return <PreparationScreen preparation={preparation} />;
+              case 'ROUND2_VIEW':
+                return (
+                  <Round2View
+                    round2State={round2State}
+                    activePuzzle={activePuzzle}
+                    user={user}
+                    onCellChange={handleR2CellChange}
+                    onFullGridSubmit={handleFullGridSubmit}
+                    rotationWarning={rotationWarning}
+                  />
+                );
+              case 'ROUND1_VIEW':
+                return (
+                  <Round1View
+                    puzzles={puzzles}
+                    activePuzzle={activePuzzle}
+                    round1Progress={round1Progress}
+                    teamScore={teamScore}
+                    timerRemaining={remainingSeconds}
+                    onSelectPuzzle={handleSelectPuzzle}
+                    onCellSubmit={handleCellSubmit}
+                    onFullGridSubmit={handleFullGridSubmit}
+                  />
+                );
+              case 'ROUND3_VIEW':
+                return (
+                  <Round3View
+                    round3State={round3State}
+                    activePuzzle={activePuzzle}
+                    currentRound={currentRound}
+                    user={user}
+                    activeTeammates={activeTeammates}
+                    onSelectPuzzle={handleSelectPuzzle}
+                    onProposeCell={handleR3ProposeCell}
+                    onAcceptProposal={handleR3AcceptProposal}
+                    onRejectProposal={handleR3RejectProposal}
+                    onWithdrawProposal={handleR3WithdrawProposal}
+                    onFullGridSubmit={handleFullGridSubmit}
+                    onFocusUpdate={handleR3FocusUpdate}
+                  />
+                );
+              case 'ROUND_LOADING':
+                return (
+                  <div className="text-center py-20 text-gray-400 text-sm sm:text-base">
+                    {t('roundLoading.message')}
+                  </div>
+                );
+              case 'WAITING':
+              default:
+                return <WaitingScreen competitionId={competitionId} />;
+            }
+          })()}
+        </LocalErrorBoundary>
       </div>
     </div>
   );

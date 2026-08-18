@@ -4,6 +4,7 @@ const { generateToken, authMiddleware } = require('../middleware/auth');
 const { authLimiter, registerLimiter } = require('../middleware/rateLimiters');
 const { getPrisma } = require('../db/prisma');
 const { validateBody, z } = require('../middleware/validate');
+const logger = require('../utils/logger');
 
 function createAuthRouter(repos) {
   const router = express.Router();
@@ -90,7 +91,7 @@ function createAuthRouter(repos) {
         }
         return res.json({ code: 40003, message: '注册失败，请重试', data: null });
       }
-      console.error('Registration error:', e.message);
+      logger.error('Registration error', { error: e.message });
       res.json({ code: 50000, message: '注册失败，请稍后重试', data: null });
     }
   });
