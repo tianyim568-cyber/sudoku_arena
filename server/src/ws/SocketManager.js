@@ -43,11 +43,12 @@ class SocketManager {
    * @param {import('../engine/GameOrchestrator')} orchestrator
    * @param {import('./EmissionBus')} bus
    */
-  constructor(io, repos, orchestrator, bus, presenceService) {
+  constructor(io, repos, orchestrator, bus, presenceService, displayManager) {
     this.io = io;
     this.repos = repos;
     this.orchestrator = orchestrator;
     this.presenceService = presenceService; // optional, for monitoring
+    this.displayManager = displayManager; // optional, for display token auth
 
     // Throttle map for PLAYER_GRID_UPDATE: key = `${competitionId}:${playerId}`, value = timestamp
     this._gridUpdateThrottle = new Map();
@@ -63,6 +64,27 @@ class SocketManager {
 
     this._setupAuth();
     this._setupConnection();
+  }
+
+  // ─── Display connection handler ─────────────────────────────────
+
+  /**
+   * Handle display-only socket connections.
+   * Display sockets are read-only — no game actions, no heartbeat, no user rooms.
+   * They auto-join the display room for a competition to receive real-time
+   * DISPLAY_MODE_CHANGED and RANKING_UPDATE events.
+   * @param {import('socket.io').Socket} socket
+   */
+  _handleDisplayConnection(socket) {
+    const { competitionId } = socket.user;
+    console.log(`[display] connected for competition ${competitionId}`);
+
+    // Auto-join display room
+    socket.join(`display_${competitionId}`);
+
+    socket.on('disconnect', () => {
+      console.log(`[display] disconnected for competition ${competitionId}`);
+    });
   }
 
   // ─── Emission routing ─────────────────────────────────────────
@@ -275,12 +297,33 @@ class SocketManager {
   // ─── Auth middleware ───────────────────────────────────────────
 
   _setupAuth() {
-    this.io.use((socket, next) => {
+    this.io.use(async (socket, next) => {
+      // Path 1: Display token (non-JWT, DB lookup)
+      const displayToken = socket.handshake.auth.displayToken;
+      if (displayToken) {
+        if (!this.displayManager) {
+          return next(new Error('Display authentication not available'));
+        }
+        try {
+          const competitionId = await this.displayManager.verifyToken(displayToken);
+          if (competitionId) {
+            socket.isDisplay = true;
+            socket.user = { role: 'DISPLAY', competitionId, userId: null };
+            return next();
+          }
+          return next(new Error('Invalid display token'));
+        } catch (e) {
+          return next(new Error('Invalid display token'));
+        }
+      }
+
+      // Path 2: JWT (existing logic — unchanged)
       const token = socket.handshake.auth.token;
       if (!token) return next(new Error('Authentication required'));
       try {
         const decoded = jwt.verify(token, config.JWT_SECRET);
         socket.user = decoded;
+        socket.isDisplay = false;
         next();
       } catch (e) {
         next(new Error('Invalid token'));
@@ -292,6 +335,12 @@ class SocketManager {
 
   _setupConnection() {
     this.io.on('connection', (socket) => {
+      // Display socket: minimal handling, no game logic
+      if (socket.isDisplay) {
+        this._handleDisplayConnection(socket);
+        return;
+      }
+
       console.log(`User connected: ${socket.user.username} (${socket.user.role})`);
 
       // Join user-specific room for targeted messages

@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { RoundType } = require('../engine/RoundTypes');
+const { DisplayMode } = require('../engine/DisplayModes');
 
 // Zod schema for POST /api/competitions (create competition)
 const createCompetitionSchema = z.object({
@@ -46,6 +47,11 @@ const assignJudgeSchema = z.object({
   judgeId: z.string().uuid(),
 });
 
+// Zod schema for PUT /api/competitions/:id/display/mode
+const updateDisplayModeSchema = z.object({
+  mode: z.enum(Object.values(DisplayMode)),
+});
+
 module.exports = {
   createCompetitionSchema,
   createRoundSchema,
@@ -53,4 +59,5 @@ module.exports = {
   createTeamSchema,
   addTeamMemberSchema,
   assignJudgeSchema,
+  updateDisplayModeSchema,
 };

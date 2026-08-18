@@ -100,10 +100,10 @@ async function main() {
   // competition routes live in routes/competitions.js (mounted above).
   app.use('/api', createCompetitionSetupRouter(repos));
 
-  // Create EmissionBus and GameOrchestrator
+  // Create EmissionBus, DisplayManager, and GameOrchestrator
   const bus = new EmissionBus();
-  const orchestrator = new GameOrchestrator(repos, state, bus);
   const displayManager = new DisplayManager(repos, bus);
+  const orchestrator = new GameOrchestrator(repos, state, bus, displayManager);
 
   // Create PresenceService for monitoring stale heartbeats
   const presenceService = new PresenceService(state, bus);
@@ -118,7 +118,7 @@ async function main() {
   app.use('/api', createMonitoringRouter(repos, state));
 
   // Setup WebSocket via SocketManager (replaces socketHandler)
-  new SocketManager(io, repos, orchestrator, bus, presenceService);
+  new SocketManager(io, repos, orchestrator, bus, presenceService, displayManager);
 
   // Serve frontend static files
   const path = require('path');
