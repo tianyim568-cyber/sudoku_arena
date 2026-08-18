@@ -97,3 +97,61 @@ export function onEvent(callback) {
   socket?.on('event', callback);
   return () => socket?.off('event', callback);
 }
+
+// ─── Display socket (token-based, separate from game socket) ───
+
+let displaySocket = null;
+
+/**
+ * Open a Socket.IO connection using a display access token.
+ * The server authenticates via DB lookup (no JWT) and auto-joins
+ * the display_${competitionId} room.
+ * @param {string} displayToken — from the display page URL
+ * @returns {import('socket.io-client').Socket}
+ */
+export function connectDisplaySocket(displayToken) {
+  if (displaySocket?.connected) return displaySocket;
+
+  displaySocket = io('/', {
+    auth: { displayToken },
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+  });
+
+  displaySocket.on('connect', () => {
+    console.log('Display WebSocket connected');
+  });
+
+  displaySocket.on('disconnect', () => {
+    console.log('Display WebSocket disconnected');
+  });
+
+  displaySocket.on('connect_error', (err) => {
+    console.error('Display WebSocket error:', err.message);
+  });
+
+  return displaySocket;
+}
+
+export function disconnectDisplaySocket() {
+  if (displaySocket) {
+    displaySocket.disconnect();
+    displaySocket = null;
+  }
+}
+
+export function onDisplayEvent(callback) {
+  displaySocket?.on('event', callback);
+  return () => displaySocket?.off('event', callback);
+}
+
+/**
+ * Returns true when the display WebSocket is connected.
+ * The DisplayPage uses this to decide whether to poll via HTTP.
+ */
+export function isDisplaySocketConnected() {
+  return displaySocket?.connected ?? false;
+}

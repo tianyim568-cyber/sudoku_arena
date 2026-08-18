@@ -51,6 +51,8 @@ model competitions {
   description             String?
   status                  String               @default("DRAFT") @db.VarChar(50)
   display_access_token    String?              @db.VarChar(255)
+  display_mode            String               @default("DEFAULT") @db.VarChar(50)
+  broadcast_player_id     String?              @db.Uuid
   competition_access_code String?              @unique @db.VarChar(20)
   created_at              DateTime             @default(now()) @db.Timestamptz(6)
   updated_at              DateTime             @default(now()) @db.Timestamptz(6)

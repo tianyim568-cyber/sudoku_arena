@@ -76,10 +76,10 @@ async function main() {
   // TODO: Disabled until rewritten for new UUID-based schema.
   // app.use('/api', createTournamentRouter(repos));
 
-  // Create EmissionBus and GameOrchestrator
+  // Create EmissionBus, DisplayManager, and GameOrchestrator
   const bus = new EmissionBus();
-  const orchestrator = new GameOrchestrator(repos, state, bus);
   const displayManager = new DisplayManager(repos, bus);
+  const orchestrator = new GameOrchestrator(repos, state, bus, displayManager);
 
   // Mount display routes
   app.use('/api', createDisplayRouter(displayManager));
@@ -89,7 +89,7 @@ async function main() {
   // app.use('/api', createParticipantRouter(repos));
 
   // Setup WebSocket via SocketManager (replaces socketHandler)
-  new SocketManager(io, repos, orchestrator, bus);
+  new SocketManager(io, repos, orchestrator, bus, presenceService, displayManager);
 
   // Serve frontend static files
   const path = require('path');

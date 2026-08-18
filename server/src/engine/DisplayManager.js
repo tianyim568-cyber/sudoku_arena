@@ -71,6 +71,142 @@ class DisplayManager {
       where: { id: competitionId },
       data: { display_access_token: null },
     });
+
+    this.bus.emitImmediate({
+      target: 'display',
+      targetId: competitionId,
+      event: 'DISPLAY_TOKEN_REVOKED',
+      payload: { message: '显示令牌已被撤销' },
+    });
+  }
+
+  /**
+   * Set the display mode for a competition and emit change event.
+   * @param {string} competitionId
+   * @param {string} mode - One of DisplayMode values
+   * @returns {Promise<void>}
+   */
+  async setDisplayMode(competitionId, mode) {
+    const prisma = getPrisma();
+
+    await prisma.competitions.update({
+      where: { id: competitionId },
+      data: { display_mode: mode },
+    });
+
+    this.bus.emitImmediate({
+      target: 'display',
+      targetId: competitionId,
+      event: 'DISPLAY_MODE_CHANGED',
+      payload: { mode, competitionId },
+    });
+  }
+
+  /**
+   * Broadcast a specific player's gameplay to the big-screen display.
+   * Switches display mode to PLAYER_BROADCAST and emits player data.
+   * @param {string} competitionId
+   * @param {string} playerId
+   * @returns {Promise<object>} Player data that was broadcast
+   */
+  async broadcastPlayer(competitionId, playerId) {
+    const prisma = getPrisma();
+
+    // Fetch player and verify they belong to this competition
+    const player = await prisma.players.findFirst({
+      where: {
+        id: playerId,
+        competition_id: competitionId,
+      },
+      select: {
+        id: true,
+        name: true,
+        school: true,
+        province: true,
+        age: true,
+        categories: {
+          select: { id: true, name: true, min_age: true, max_age: true },
+        },
+      },
+    });
+
+    if (!player) {
+      throw new Error('选手不存在或不属于此竞赛');
+    }
+
+    // Switch display mode to PLAYER_BROADCAST
+    await prisma.competitions.update({
+      where: { id: competitionId },
+      data: {
+        display_mode: 'PLAYER_BROADCAST',
+        broadcast_player_id: player.id,
+      },
+    });
+
+    // Emit broadcast event with player data
+    const playerData = {
+      id: player.id,
+      name: player.name,
+      school: player.school,
+      province: player.province,
+      age: player.age,
+      category: player.categories,
+    };
+
+    this.bus.emitImmediate({
+      target: 'display',
+      targetId: competitionId,
+      event: 'DISPLAY_PLAYER_BROADCAST',
+      payload: {
+        mode: 'PLAYER_BROADCAST',
+        player: playerData,
+        competitionId,
+      },
+    });
+
+    return playerData;
+  }
+
+  /**
+   * Stop broadcasting a player and return to DEFAULT display mode.
+   * @param {string} competitionId
+   * @returns {Promise<void>}
+   */
+  async stopBroadcast(competitionId) {
+    const prisma = getPrisma();
+
+    await prisma.competitions.update({
+      where: { id: competitionId },
+      data: {
+        display_mode: 'DEFAULT',
+        broadcast_player_id: null,
+      },
+    });
+
+    this.bus.emitImmediate({
+      target: 'display',
+      targetId: competitionId,
+      event: 'DISPLAY_MODE_CHANGED',
+      payload: {
+        mode: 'DEFAULT',
+        competitionId,
+      },
+    });
+  }
+
+  /**
+   * Get the current display mode for a competition.
+   * @param {string} competitionId
+   * @returns {Promise<string>} The current display mode (defaults to 'DEFAULT')
+   */
+  async getDisplayMode(competitionId) {
+    const prisma = getPrisma();
+    const competition = await prisma.competitions.findUnique({
+      where: { id: competitionId },
+      select: { display_mode: true },
+    });
+
+    return competition?.display_mode || 'DEFAULT';
   }
 
   // ─── Ranking Snapshots ─────────────────────────────────────────
@@ -91,6 +227,8 @@ class DisplayManager {
         id: true,
         name: true,
         status: true,
+        display_mode: true,
+        broadcast_player_id: true,
         competition_stages: {
           orderBy: { order_number: 'asc' },
           select: {
@@ -160,12 +298,42 @@ class DisplayManager {
       select: { id: true, name: true, min_age: true, max_age: true },
     });
 
+    // If broadcasting a player, fetch their details for polling recovery
+    let broadcastPlayer = null;
+    if (competition.display_mode === 'PLAYER_BROADCAST' && competition.broadcast_player_id) {
+      const bp = await prisma.players.findUnique({
+        where: { id: competition.broadcast_player_id },
+        select: {
+          id: true,
+          name: true,
+          school: true,
+          province: true,
+          age: true,
+          categories: {
+            select: { id: true, name: true, min_age: true, max_age: true },
+          },
+        },
+      });
+      if (bp) {
+        broadcastPlayer = {
+          id: bp.id,
+          name: bp.name,
+          school: bp.school,
+          province: bp.province,
+          age: bp.age,
+          category: bp.categories,
+        };
+      }
+    }
+
     return {
       competition: {
         id: competition.id,
         name: competition.name,
         status: competition.status,
+        displayMode: competition.display_mode || 'DEFAULT',
       },
+      broadcastPlayer,
       categories,
       stages: competition.competition_stages.map(stage => ({
         id: stage.id,
@@ -222,6 +390,67 @@ class DisplayManager {
       });
     } catch (e) {
       console.error('[DisplayManager] emitRankingUpdate error:', e.message);
+    }
+  }
+
+  // ─── Ranking Mode Emitters ────────────────────────────────────
+
+  /**
+   * Emit ROUND_RANKING mode: switch display mode and push updated snapshot.
+   * Called after a round finishes to show per-round rankings on big screen.
+   * @param {string} competitionId
+   * @param {string|null} categoryId
+   */
+  async emitRoundRanking(competitionId, categoryId = null) {
+    try {
+      await this.setDisplayMode(competitionId, 'ROUND_RANKING');
+      await this.emitRankingUpdate(competitionId, categoryId);
+    } catch (e) {
+      console.error('[DisplayManager] emitRoundRanking error:', e.message);
+    }
+  }
+
+  /**
+   * Emit STAGE_RANKING mode: switch display mode and push updated snapshot.
+   * Called after a stage finishes to show aggregated stage rankings.
+   * @param {string} competitionId
+   * @param {string|null} categoryId
+   */
+  async emitStageRanking(competitionId, categoryId = null) {
+    try {
+      await this.setDisplayMode(competitionId, 'STAGE_RANKING');
+      await this.emitRankingUpdate(competitionId, categoryId);
+    } catch (e) {
+      console.error('[DisplayManager] emitStageRanking error:', e.message);
+    }
+  }
+
+  /**
+   * Emit FINAL_RANKING mode: switch display mode and push final snapshot.
+   * Called after the competition ends to show final results.
+   * @param {string} competitionId
+   * @param {string|null} categoryId
+   */
+  async emitFinalRanking(competitionId, categoryId = null) {
+    try {
+      await this.setDisplayMode(competitionId, 'FINAL_RANKING');
+      await this.emitRankingUpdate(competitionId, categoryId);
+    } catch (e) {
+      console.error('[DisplayManager] emitFinalRanking error:', e.message);
+    }
+  }
+
+  /**
+   * Emit LIVE_RANKING mode: switch to live ranking during active rounds.
+   * @param {string} competitionId
+   * @param {string|null} categoryId
+   */
+  async emitLiveRanking(competitionId, categoryId = null) {
+    try {
+      await this.setDisplayMode(competitionId, 'LIVE_RANKING');
+      await this.emitRankingUpdate(competitionId, categoryId);
+    } catch (e) {
+      console.error('[DisplayManager] emitLiveRanking error:', e.message);
     }
   }
 

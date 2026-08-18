@@ -41,11 +41,13 @@ class GameOrchestrator {
    * @param {import('../db/index')} repos — repository factory
    * @param {import('../state/StateRepository')} state — StateRepository (Memory or Redis)
    * @param {import('../ws/EmissionBus')} bus — EmissionBus for decoupled emissions
+   * @param {import('./DisplayManager')} [displayManager] — optional display mode manager
    */
-  constructor(repos, state, bus) {
+  constructor(repos, state, bus, displayManager = null) {
     this.repos = repos;
     this.state = state;
     this.bus = bus;
+    this.displayManager = displayManager;
 
     // Services
     this.timer = new TimerService(state);
@@ -759,10 +761,32 @@ class GameOrchestrator {
       try {
         const stageFinishResult = await this.stages.finishStage();
         emissions.push(...stageFinishResult.emissions);
+
+        // Emit STAGE_RANKING display mode after stage finishes
+        if (this.displayManager) {
+          setTimeout(async () => {
+            try {
+              await this.displayManager.emitStageRanking(competitionId);
+            } catch (e) {
+              console.error('[GameOrchestrator] Failed to emit stage ranking:', e.message);
+            }
+          }, 100);
+        }
       } catch (e) {
         // Stage finish may fail if rounds aren't all finished (e.g., manual endRound)
         // This is non-fatal; judge can still trigger finishStage manually
       }
+    }
+
+    // Emit ROUND_RANKING display mode after round finishes (if not transitioning to stage finish)
+    if (hasNext && this.displayManager) {
+      setTimeout(async () => {
+        try {
+          await this.displayManager.emitRoundRanking(competitionId);
+        } catch (e) {
+          console.error('[GameOrchestrator] Failed to emit round ranking:', e.message);
+        }
+      }, 100);
     }
 
     return { result: { roundId, status: 'FINISHED' }, emissions };
@@ -906,6 +930,17 @@ class GameOrchestrator {
     // Delegate to StageManager (validates all rounds finished)
     const { result, emissions } = await this.stages.finishStage();
 
+    // Emit STAGE_RANKING display mode after stage finishes (judge-triggered path)
+    if (this.displayManager) {
+      setTimeout(async () => {
+        try {
+          await this.displayManager.emitStageRanking(competitionId);
+        } catch (e) {
+          console.error('[GameOrchestrator] Failed to emit stage ranking:', e.message);
+        }
+      }, 100);
+    }
+
     return { result, emissions };
   }
 
@@ -983,6 +1018,18 @@ class GameOrchestrator {
       target: 'competition', targetId: competitionId, event: 'TOURNAMENT_FINISHED',
       payload: { competitionId },
     });
+
+    // Emit FINAL_RANKING display mode after competition ends
+    if (this.displayManager) {
+      setTimeout(async () => {
+        try {
+          await this.displayManager.emitFinalRanking(competitionId);
+        } catch (e) {
+          console.error('[GameOrchestrator] Failed to emit final ranking:', e.message);
+        }
+      }, 100);
+    }
+
     return { result: { competitionId, status: 'FINISHED' }, emissions };
   }
 

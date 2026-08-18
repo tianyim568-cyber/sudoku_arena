@@ -3,12 +3,19 @@
  *
  * Public route: /display/:token
  * No auth required — uses the display token from the URL for access control.
- * Auto-refreshes ranking data every 10 seconds via polling.
+ * Receives real-time ranking updates via WebSocket when connected,
+ * falls back to HTTP polling every 10 seconds when the socket is down.
  * Supports category filtering via tabs.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import {
+  connectDisplaySocket,
+  disconnectDisplaySocket,
+  onDisplayEvent,
+  isDisplaySocketConnected,
+} from '../api/socket';
 
 const API_BASE = '/api';
 const POLL_INTERVAL_MS = 10000;
@@ -41,7 +48,12 @@ export default function DisplayPage() {
   const [error, setError] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [broadcastPlayer, setBroadcastPlayer] = useState(null);
+  const [displayMode, setDisplayMode] = useState('DEFAULT');
   const timerRef = useRef(null);
+  const dataRef = useRef(null);
+  dataRef.current = data;
 
   const load = useCallback(async () => {
     try {
@@ -51,6 +63,12 @@ export default function DisplayPage() {
         return;
       }
       setData(snapshot);
+      setDisplayMode(snapshot.competition.displayMode || 'DEFAULT');
+      if (snapshot.broadcastPlayer) {
+        setBroadcastPlayer(snapshot.broadcastPlayer);
+      } else if (snapshot.competition.displayMode !== 'PLAYER_BROADCAST') {
+        setBroadcastPlayer(null);
+      }
       setLastUpdated(new Date());
       setError('');
     } catch (e) {
@@ -58,11 +76,84 @@ export default function DisplayPage() {
     }
   }, [token, selectedCategoryId]);
 
+  // WebSocket connection + event handlers
   useEffect(() => {
+    const socket = connectDisplaySocket(token);
+    if (!socket) return;
+
+    // Track connection status
+    const handleConnect = () => setSocketConnected(true);
+    const handleDisconnect = () => setSocketConnected(false);
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    setSocketConnected(socket.connected);
+
+    // Listen for real-time events
+    const unsubscribe = onDisplayEvent((event) => {
+      if (event.type === 'RANKING_UPDATE') {
+        const snapshot = event.data.snapshot;
+        if (snapshot) {
+          setData(snapshot);
+          setDisplayMode(snapshot.competition.displayMode || 'DEFAULT');
+          if (snapshot.broadcastPlayer) {
+            setBroadcastPlayer(snapshot.broadcastPlayer);
+          } else if (snapshot.competition.displayMode !== 'PLAYER_BROADCAST') {
+            setBroadcastPlayer(null);
+          }
+          setLastUpdated(new Date());
+          setError('');
+        }
+      } else if (event.type === 'DISPLAY_MODE_CHANGED') {
+        const mode = event.data.mode;
+        if (mode) {
+          setDisplayMode(mode);
+          if (dataRef.current) {
+            setData({ ...dataRef.current, competition: { ...dataRef.current.competition, displayMode: mode } });
+          }
+          if (mode !== 'PLAYER_BROADCAST') {
+            setBroadcastPlayer(null);
+          }
+        }
+      } else if (event.type === 'DISPLAY_PLAYER_BROADCAST') {
+        const player = event.data.player;
+        if (player) {
+          setBroadcastPlayer(player);
+          setDisplayMode('PLAYER_BROADCAST');
+          if (dataRef.current) {
+            setData({ ...dataRef.current, competition: { ...dataRef.current.competition, displayMode: 'PLAYER_BROADCAST' } });
+          }
+        }
+      } else if (event.type === 'DISPLAY_TOKEN_REVOKED') {
+        setError('显示令牌已被撤销');
+        disconnectDisplaySocket();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      disconnectDisplaySocket();
+    };
+  }, [token]);
+
+  // HTTP polling fallback when WebSocket is disconnected
+  useEffect(() => {
+    // Always fetch once on mount
     load();
-    timerRef.current = setInterval(load, POLL_INTERVAL_MS);
-    return () => clearInterval(timerRef.current);
-  }, [load]);
+
+    // Only start polling if socket is not connected
+    if (!socketConnected) {
+      timerRef.current = setInterval(load, POLL_INTERVAL_MS);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [load, socketConnected]);
 
   if (error && !data) {
     return (
@@ -106,6 +197,41 @@ export default function DisplayPage() {
           </div>
         </div>
       </header>
+
+      {/* Broadcast Player Card */}
+      {displayMode === 'PLAYER_BROADCAST' && broadcastPlayer && (
+        <div className="px-6 pt-6 max-w-7xl mx-auto">
+          <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500/30 rounded-lg p-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <div className="w-20 h-2 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-3xl font-bold">
+                  {broadcastPlayer.name.charAt(0)}
+                </div>
+                <div>
+                  <div className="text-3xl font-bold mb-2">{broadcastPlayer.name}</div>
+                  <div className="flex items-center gap-4 text-gray-300">
+                    {broadcastPlayer.school && (
+                      <span className="text-sm">{broadcastPlayer.school}</span>
+                    )}
+                    {broadcastPlayer.age && (
+                      <span className="text-sm">{broadcastPlayer.age}岁</span>
+                    )}
+                    {broadcastPlayer.category && (
+                      <span className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-xs">
+                        {broadcastPlayer.category.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-blue-400">
+                <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium">LIVE</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Category Tabs */}
       {categories && categories.length > 0 && (
@@ -286,7 +412,7 @@ export default function DisplayPage() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 mt-8 px-6 py-3 text-center text-gray-600 text-xs">
-        数独竞技场 — 大屏排名显示 · 每 {POLL_INTERVAL_MS / 1000} 秒自动刷新
+        数独竞技场 — 大屏排名显示 · {socketConnected ? '实时连接' : `每 ${POLL_INTERVAL_MS / 1000} 秒自动刷新`}
       </footer>
     </div>
   );
