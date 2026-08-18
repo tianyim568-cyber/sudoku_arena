@@ -51,6 +51,7 @@ export default function RankingView({
   onSelectCategory,
   lastUpdated,
   pollIntervalSeconds,
+  socketConnected = false,
 }) {
   const { competition, categories, stages, finalRankings } = data;
   const statusBadge = STATUS_BADGE[competition.status] || STATUS_BADGE.PENDING;
@@ -256,9 +257,15 @@ export default function RankingView({
       {/* Footer — the refresh cadence is informational for the room. Kept
           inside the view so the gradient covers the whole screen; future
           views may carry their own footer. */}
+      {/* The footer states how the page stays fresh. Once the display socket
+          is connected, the refresh cadence is no longer the truth — saying
+          "refreshes every 10s" while updates arrive instantly would be a
+          small lie on a screen the whole room is reading. */}
       <footer className="border-t border-white/10 mt-8 px-6 py-3 text-center text-gray-600 text-xs">
         数独竞技场 — 大屏排名显示
-        {pollIntervalSeconds != null && <> · 每 {pollIntervalSeconds} 秒自动刷新</>}
+        {socketConnected
+          ? <> · 实时连接</>
+          : pollIntervalSeconds != null && <> · 每 {pollIntervalSeconds} 秒自动刷新</>}
       </footer>
     </div>
   );
