@@ -137,6 +137,12 @@ export const api = {
   pauseCompetition: (id) => request('POST', `/competitions/${id}/pause`),
   resumeCompetition: (id) => request('POST', `/competitions/${id}/resume`),
   endCompetition: (id) => request('POST', `/competitions/${id}/end`),
+  // Stage lifecycle. A round cannot start on its own: GameOrchestrator.startRound
+  // reads the stage context and refuses without it, so the judge must open a
+  // stage first. `startStage` opens a named one; `startNextStage` advances after
+  // the current one has finished, and refuses if no stage context is loaded.
+  startStage: (competitionId, stageId) => request('POST', `/competitions/${competitionId}/stages/${stageId}/start`),
+  startNextStage: (competitionId) => request('POST', `/competitions/${competitionId}/stages/next`),
   startRound: (competitionId, roundId) => request('POST', `/competitions/${competitionId}/rounds/${roundId}/start`),
   endRound: (competitionId, roundId) => request('POST', `/competitions/${competitionId}/rounds/${roundId}/end`),
 
