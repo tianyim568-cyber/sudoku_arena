@@ -9,6 +9,7 @@ const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
 const { createCompetitionRouter } = require('./routes/competitions');
 const { createDisplayRouter } = require('./routes/display');
+const { createMonitoringRouter } = require('./routes/monitoring');
 // TODO: These routes are disabled until rewritten for the new UUID-based schema (migration 018+).
 // The deprecated repositories they depend on query tables that were dropped.
 // Re-enable after creating new route files backed by updated repositories.
@@ -20,6 +21,7 @@ const EmissionBus = require('./ws/EmissionBus');
 const SocketManager = require('./ws/SocketManager');
 const GameOrchestrator = require('./engine/GameOrchestrator');
 const DisplayManager = require('./engine/DisplayManager');
+const PresenceService = require('./services/PresenceService');
 const { createStateRepository } = require('./state');
 const config = require('./config');
 
@@ -83,6 +85,13 @@ async function main() {
 
   // Mount display routes
   app.use('/api', createDisplayRouter(displayManager));
+
+  // Create and start PresenceService for heartbeat monitoring
+  const presenceService = new PresenceService(state, bus);
+  presenceService.start();
+
+  // Mount monitoring routes
+  app.use('/api', createMonitoringRouter(repos, state));
 
   // app.use('/api', createGameRouter(repos, orchestrator));
   // app.use('/api', createPuzzleBankRouter(repos));

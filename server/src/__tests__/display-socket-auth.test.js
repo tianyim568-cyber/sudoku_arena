@@ -65,6 +65,7 @@ function createMockSocket(auth = {}) {
     isDisplay: false,
     join(room) { rooms.push(room); },
     on(event, fn) { eventHandlers[event] = fn; },
+    use: jest.fn(),
     emit: jest.fn(),
     rooms,
     _eventHandlers: eventHandlers,

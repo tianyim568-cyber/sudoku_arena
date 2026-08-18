@@ -25,12 +25,6 @@ class SocketManager {
    * @param {import('../engine/GameOrchestrator')} orchestrator
    * @param {import('./EmissionBus')} bus
    */
-<<<<<<< HEAD
-  constructor(io, repos, orchestrator, bus) {
-    this.io = io;
-    this.repos = repos;
-    this.orchestrator = orchestrator;
-=======
   constructor(io, repos, orchestrator, bus, presenceService, displayManager) {
     this.io = io;
     this.repos = repos;
@@ -45,7 +39,6 @@ class SocketManager {
     // Rate limit config (per-connection token bucket)
     this._rateLimitMax = config.WS_RATE_LIMIT; // max tokens (events per second)
     this._rateLimitRefillRate = config.WS_RATE_LIMIT; // tokens refilled per second
->>>>>>> ac6c361 (feat(api): monitoring and broadcasting endpoints all built)
 
     // Subscribe to EmissionBus — both queued and immediate emissions
     bus.on('emission', (e) => this._routeEmission(e));
@@ -89,6 +82,10 @@ class SocketManager {
     if (e.target === 'tournament') {
       msg.tournamentId = e.targetId;
       this.io.to(`tournament_${e.targetId}`).emit('event', msg);
+    } else if (e.target === 'competition') {
+      // GameOrchestrator uses 'competition' target for round/stage events
+      msg.tournamentId = e.targetId;
+      this.io.to(`competition_${e.targetId}`).emit('event', msg);
     } else if (e.target === 'team') {
       msg.tournamentId = e.targetId.tournamentId;
       this.io.to(`team_${e.targetId.tournamentId}_${e.targetId.teamId}`).emit('event', msg);
@@ -141,6 +138,21 @@ class SocketManager {
 
   _setupConnection() {
     this.io.on('connection', (socket) => {
+      // Apply rate limiter to all connections (token bucket)
+      const bucket = { tokens: this._rateLimitMax, lastRefill: Date.now() };
+      socket.use((packet, next) => {
+        if (this._checkRateLimit(bucket)) {
+          next();
+        } else {
+          socket.emit('event', {
+            type: 'RATE_LIMIT_EXCEEDED',
+            timestamp: new Date().toISOString(),
+            payload: { message: 'Too many events, please slow down' }
+          });
+          next(new Error('Rate limit exceeded'));
+        }
+      });
+
       // Display socket: minimal handling, no game logic
       if (socket.isDisplay) {
         this._handleDisplayConnection(socket);
@@ -305,6 +317,9 @@ class SocketManager {
               timestamp: new Date().toISOString(),
               payload: { success: true, row, col, value }
             });
+
+            // Emit throttled PLAYER_GRID_UPDATE for judges
+            this._emitPlayerGridUpdate(data.tournamentId, player.id, socket.user.username, puzzleId, grid, row, col, value);
           } else {
             socket.emit('event', {
               type: 'PLAYER_MOVE_ERROR',
@@ -636,6 +651,70 @@ class SocketManager {
     } catch (e) {
       console.error('Late-join sync error:', e.message);
     }
+  }
+
+  // ─── PLAYER_GRID_UPDATE throttling ──────────────────────────
+
+  /**
+   * Emit PLAYER_GRID_UPDATE to the competition room (for judges),
+   * throttled to max 2 per second per player.
+   * @param {string} competitionId
+   * @param {string} playerId
+   * @param {string} playerName
+   * @param {string} puzzleId
+   * @param {Array} grid — current grid state
+   * @param {number} row
+   * @param {number} col
+   * @param {number} value
+   */
+  _emitPlayerGridUpdate(competitionId, playerId, playerName, puzzleId, grid, row, col, value) {
+    const key = `${competitionId}:${playerId}`;
+    const now = Date.now();
+    const lastEmit = this._gridUpdateThrottle.get(key) || 0;
+
+    if (now - lastEmit < this._gridUpdateThrottleIntervalMs) {
+      return; // Throttled — skip this emission
+    }
+
+    this._gridUpdateThrottle.set(key, now);
+
+    this.io.to(`competition_${competitionId}`).emit('event', {
+      type: 'PLAYER_GRID_UPDATE',
+      timestamp: new Date().toISOString(),
+      payload: {
+        playerId,
+        playerName,
+        puzzleId,
+        row,
+        col,
+        value,
+        grid // Full grid for judge dashboard rendering
+      }
+    });
+  }
+
+  // ─── WebSocket rate limiting (token bucket) ─────────────────
+
+  /**
+   * Token bucket rate limiter — called per incoming packet.
+   * Refills tokens based on elapsed time, then consumes one.
+   * @param {object} bucket — { tokens: number, lastRefill: number }
+   * @returns {boolean} true if allowed, false if rate limited
+   */
+  _checkRateLimit(bucket) {
+    const now = Date.now();
+    const elapsed = (now - bucket.lastRefill) / 1000; // seconds
+    bucket.tokens = Math.min(
+      this._rateLimitMax,
+      bucket.tokens + elapsed * this._rateLimitRefillRate
+    );
+    bucket.lastRefill = now;
+
+    if (bucket.tokens >= 1) {
+      bucket.tokens -= 1;
+      return true;
+    }
+    return false;
   }
 }
 

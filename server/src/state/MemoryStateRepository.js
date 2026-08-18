@@ -297,25 +297,55 @@ class MemoryStateRepository {
   }
 
   // ─── Active Players ────────────────────────────────────────
+  // Storage format: Map<competitionId, Map<userId, {socketId: string, lastHeartbeatAt: number}>>
 
-  async setActivePlayer(tournamentId, userId, socketId) {
-    if (!this._activePlayers.has(tournamentId)) {
-      this._activePlayers.set(tournamentId, new Map());
+  async setActivePlayer(competitionId, userId, socketId) {
+    if (!this._activePlayers.has(competitionId)) {
+      this._activePlayers.set(competitionId, new Map());
     }
-    this._activePlayers.get(tournamentId).set(userId, socketId);
+    this._activePlayers.get(competitionId).set(userId, {
+      socketId,
+      lastHeartbeatAt: Date.now()
+    });
   }
 
-  async removeActivePlayer(tournamentId, userId) {
-    const players = this._activePlayers.get(tournamentId);
+  async removeActivePlayer(competitionId, userId) {
+    const players = this._activePlayers.get(competitionId);
     if (players) {
       players.delete(userId);
     }
   }
 
-  async getActivePlayers(tournamentId) {
-    const players = this._activePlayers.get(tournamentId);
+  async getActivePlayers(competitionId) {
+    const players = this._activePlayers.get(competitionId);
     if (!players) return {};
-    return Object.fromEntries(players);
+    // Return enriched format: { userId: { socketId, lastHeartbeatAt } }
+    const result = {};
+    for (const [userId, data] of players) {
+      result[userId] = data;
+    }
+    return result;
+  }
+
+  /**
+   * Find players whose lastHeartbeatAt is older than (now - ttlMs).
+   * Used by PresenceService to detect offline players.
+   * @param {string} competitionId
+   * @param {number} ttlMs — stale threshold in milliseconds
+   * @returns {Promise<Array<{userId: string, socketId: string}>>}
+   */
+  async getStalePlayers(competitionId, ttlMs) {
+    const players = this._activePlayers.get(competitionId);
+    if (!players) return [];
+
+    const now = Date.now();
+    const stale = [];
+    for (const [userId, data] of players) {
+      if (now - data.lastHeartbeatAt > ttlMs) {
+        stale.push({ userId, socketId: data.socketId });
+      }
+    }
+    return stale;
   }
 
   // ─── Stage Context ─────────────────────────────────────────

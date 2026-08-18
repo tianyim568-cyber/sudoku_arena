@@ -37,6 +37,9 @@ module.exports = {
   HEARTBEAT_INTERVAL_MS: 30000,
   ACTIVE_PLAYER_TTL_S: 120,
 
+  // WebSocket rate limiting (max events per second per connection)
+  WS_RATE_LIMIT: parseInt(process.env.WS_RATE_LIMIT || '10', 10),
+
   // CORS
   CORS_ORIGINS: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(','),
 
