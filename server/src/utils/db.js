@@ -14,6 +14,7 @@ const { runner } = require('node-pg-migrate');
 const { createPostgresConnection } = require('../db/connection');
 const { getPrisma } = require('../db/prisma');
 const { createRepositoryFactory } = require('../db/index');
+const logger = require('./logger');
 
 let _helpers = null;
 let _repos = null;
@@ -67,7 +68,7 @@ async function _runMigrations(connection) {
 
   const migrationsDir = path.join(__dirname, '../../migrations');
 
-  console.log('Running pending migrations...');
+  logger.info('Running pending migrations...');
   await runner({
     databaseUrl,
     migrationsTable: 'pgmigrations',
@@ -76,7 +77,7 @@ async function _runMigrations(connection) {
     count: Infinity,
     verbose: false,
   });
-  console.log('Migrations complete.');
+  logger.info('Migrations complete.');
 }
 
 function getHelpers() {

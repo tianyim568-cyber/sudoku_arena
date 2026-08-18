@@ -11,18 +11,38 @@ export default function DashboardPage() {
   const { t } = useLanguage();
   const [competitions, setCompetitions] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Error state: without it, a failed listCompetitions call leaves
+  // `competitions` as [] and the page renders the "no competitions" empty
+  // state — which is a lie. The admin thinks their org has zero
+  // competitions when really the server just failed. Distinguishing the
+  // two is the whole point of the audit.
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       const res = await api.listCompetitions();
-      if (res.code === 200) setCompetitions(res.data);
+      if (res.code === 200) {
+        setCompetitions(res.data);
+        setError(null);
+      } else {
+        setError(res.message || t('dashboard.loadFailed'));
+      }
       setLoading(false);
     };
     load();
-  }, []);
+  }, [t]);
 
   if (loading) {
     return <div className="text-gray-500 p-4">{t('dashboard.loading')}</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4 sm:p-6 text-center">
+        <p className="text-red-700 text-sm sm:text-base">{t('dashboard.loadFailed')}</p>
+        <p className="text-red-500 text-xs mt-1">{error}</p>
+      </div>
+    );
   }
 
   // Count competitions by status. PENDING = upcoming, IN_PROGRESS/PAUSED = in progress, FINISHED = finished.

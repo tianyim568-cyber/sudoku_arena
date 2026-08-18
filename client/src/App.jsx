@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth, ADMIN_ROLES } from './hooks/useAuth';
 import { useLanguage } from './i18n/LanguageContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CompetitionListPage from './pages/CompetitionListPage';
@@ -14,6 +15,7 @@ import DashboardCompetitionsPage from './pages/DashboardCompetitionsPage';
 import DashboardPuzzleBankPage from './pages/DashboardPuzzleBankPage';
 import DashboardPage from './pages/DashboardPage';
 import ComingSoonPage from './pages/ComingSoonPage';
+import ErrorPage from './pages/ErrorPage';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -23,9 +25,13 @@ function PrivateRoute({ children }) {
   return children;
 }
 
+// RoleRoute redirects to /403 instead of silently bouncing to "/". A judge
+// who clicks an admin link must understand the refusal — not land on a page
+// that pretends nothing happened. The /403 page explains the role mismatch
+// and offers logout (the common fix when the user is in the wrong account).
 function RoleRoute({ children, roles }) {
   const { user } = useAuth();
-  if (!roles.includes(user?.role)) return <Navigate to="/" />;
+  if (!roles.includes(user?.role)) return <Navigate to="/403" replace />;
   return children;
 }
 
@@ -96,6 +102,17 @@ function AppRoutes() {
             child and render a completely blank page. */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
+      {/* Error pages. /403 is reached when RoleRoute refuses (a judge clicking
+          an admin link); /404 is the catch-all for any unknown top-level path
+          (a revoked display link, a stale bookmark); /500 is reserved for
+          server-side errors surfaced client-side. Each page offers a door out
+          — a dead end is no better than a blank page. */}
+      <Route path="/403" element={<ErrorPage status={403} />} />
+      <Route path="/500" element={<ErrorPage status={500} />} />
+      {/* The top-level catch-all. Must come AFTER every other route — React
+          Router scores `*` lowest, so declared routes still win. Before this,
+          an unknown address silently matched nothing and rendered blank. */}
+      <Route path="*" element={<ErrorPage status={404} />} />
     </Routes>
   );
 }
@@ -103,7 +120,13 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      {/* The global boundary is the safety net: any render exception that
+          escapes a local boundary (or that occurs in a page without one)
+          lands here instead of blanking the whole app. It does NOT catch
+          event-handler or async errors — those are documented limits. */}
+      <ErrorBoundary>
+        <AppRoutes />
+      </ErrorBoundary>
     </AuthProvider>
   );
 }

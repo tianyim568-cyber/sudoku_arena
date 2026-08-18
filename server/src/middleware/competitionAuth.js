@@ -16,6 +16,7 @@ const bcrypt = require('bcryptjs');
 const { z } = require('zod');
 const { authMiddleware, generateCompetitionToken } = require('./auth');
 const { getPrisma } = require('../db/prisma');
+const logger = require('../utils/logger');
 
 // Zod schema for competition login
 const competitionLoginSchema = z.object({
@@ -192,7 +193,7 @@ function competitionLogin(repos) {
         },
       });
     } catch (e) {
-      console.error('[competitionLogin] Error:', e.message);
+      logger.error('Competition login failed', { identifier, error: e.message });
       res.json({ code: 50000, message: '比赛登录失败，请稍后重试', data: null });
     }
   };

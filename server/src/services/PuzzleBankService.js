@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 
 class PuzzleBankService {
   /**
@@ -281,7 +282,7 @@ class PuzzleBankService {
         });
         successCount++;
       } catch (e) {
-        console.error('Import puzzle error:', e.message);
+        logger.error('Import puzzle failed', { roundId, puzzleId: p.id, error: e.message });
       }
     }
 
@@ -349,7 +350,7 @@ class PuzzleBankService {
         successCount++;
         orderIdx++;
       } catch (e) {
-        console.error('Import R1 JOC puzzle error:', e.message);
+        logger.error('Import R1 JOC puzzle failed', { roundId, puzzleId: p.id, error: e.message });
       }
     }
 
@@ -368,7 +369,7 @@ class PuzzleBankService {
         successCount++;
         orderIdx++;
       } catch (e) {
-        console.error('Import R1 FINAL puzzle error:', e.message);
+        logger.error('Import R1 FINAL puzzle failed', { roundId, puzzleId: p.id, error: e.message });
       }
     }
 
@@ -443,7 +444,7 @@ class PuzzleBankService {
         });
         successCount++;
       } catch (e) {
-        console.error('Import puzzle error:', e.message);
+        logger.error('Import R2 puzzle failed', { roundId, puzzleId: p.id, error: e.message });
       }
     }
 

@@ -35,7 +35,21 @@ const {
 } = require('../validations/competitions');
 const { getPrisma } = require('../db/prisma');
 const { competitionLogin } = require('../middleware/competitionAuth');
+const { evaluatePublishability } = require('../services/PublishabilityService');
 const config = require('../config');
+const logger = require('../utils/logger');
+
+// Stable, localisable messages for each unmet publishability criterion.
+// The client receives the machine code and maps it to a translated string;
+// the server still returns a readable Chinese fallback for callers that do
+// not localise (e.g. curl, E2E scripts).
+const MISSING_LABELS = {
+  NO_JUDGE: '尚未分配裁判',
+  NO_PARTICIPANT: '尚未添加参赛者',
+  NO_STAGE: '尚未创建任何阶段',
+  STAGE_EMPTY: '存在没有轮次的阶段',
+  ROUND_EMPTY: '存在没有题目的轮次',
+};
 
 /**
  * Generate a URL-safe, 8-character alphanumeric access code.
@@ -198,16 +212,289 @@ function createCompetitionRouter(repos) {
   // ── Protected endpoints (org-scoped auth + ORG_ADMIN) ──
 
   /**
+   * Build the publishability snapshot from the database.
+   *
+   * Used by both POST /:id/publish (the route re-verifies server-side, the
+   * client cannot be trusted) and GET /:id/publishability (the panel reads
+   * it to decide whether to enable the Publish button). Both must see the
+   * same data — centralising the fetch here keeps them in sync.
+   *
+   * @param {string} competitionId
+   * @returns {Promise<object>} snapshot in the shape evaluatePublishability expects.
+   */
+  async function fetchPublishabilitySnapshot(competitionId) {
+    const prisma = getPrisma();
+
+    // Judges — only need to know if there is at least one.
+    const judges = await prisma.competition_judges.findMany({
+      where: { competition_id: competitionId },
+      select: { user_id: true },
+    });
+
+    // Participants — only need to know if there is at least one.
+    const participants = await prisma.players.findMany({
+      where: { competition_id: competitionId },
+      select: { id: true },
+    });
+
+    // Stages with their rounds and the COUNT of puzzles per round. We do
+    // not need the puzzle bodies, only whether each round has any — a count
+    // keeps the payload small for competitions with many puzzles.
+    const stages = await prisma.competition_stages.findMany({
+      where: { competition_id: competitionId },
+      orderBy: { order_number: 'asc' },
+      select: {
+        id: true,
+        type: true,
+        order_number: true,
+        rounds: {
+          orderBy: { order_number: 'asc' },
+          select: {
+            id: true,
+            _count: { select: { round_puzzles: true } },
+          },
+        },
+      },
+    });
+
+    // Reshape to match evaluatePublishability's contract: each round needs
+    // a `puzzles` array whose length matters, not the _count object.
+    return {
+      judges,
+      participants,
+      stages: stages.map((s) => ({
+        id: s.id,
+        type: s.type,
+        order_number: s.order_number,
+        rounds: s.rounds.map((r) => ({
+          id: r.id,
+          puzzles: Array(r._count.round_puzzles).fill(null),
+        })),
+      })),
+    };
+  }
+
+  /**
+   * POST /:id/publish — Mark a competition as ready to start.
+   *
+   * The route re-runs the publishability check from the real database state.
+   * The client shows the same check in the panel, but a client can lie (or
+   * simply be one refresh behind); the server is the source of truth.
+   *
+   * If the check fails, the response lists every missing criterion as
+   * machine-readable codes plus a readable Chinese summary, so the admin
+   * knows exactly what to fix. "Impossible to publish" alone is useless.
+   *
+   * Publishing is also the moment the access link is generated — Louise's
+   * decision: the link that participants and judges receive is what makes
+   * the competition visible from the outside, and that happens here, not
+   * at creation. If a link already exists (e.g. the competition was
+   * cancelled and is being re-published), it is replaced: the old URL
+   * stops working.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   * Tenant: competition must belong to caller's organization
+   *
+   * Response:
+   *   200 { code: 200, data: { id, status: 'PUBLISHED' } }
+   *   400 { code: 40010, message, data: { missing: [...] } } — not publishable
+   *   400 { code: 40041 } — competition is RUNNING or FINISHED, cannot publish
+   *   404 { code: 40400 } — competition not found
+   */
+  router.post(
+    '/:id/publish',
+    authMiddleware,
+    roleMiddleware('ORG_ADMIN', 'SUPER_ADMIN'),
+    tenantGuard('competitions'),
+    async (req, res) => {
+      const { id } = req.params;
+      const prisma = getPrisma();
+
+      try {
+        const competition = await prisma.competitions.findUnique({ where: { id } });
+        if (!competition) {
+          return res.json({ code: 40400, message: '比赛不存在', data: null });
+        }
+
+        // A RUNNING or FINISHED competition cannot be (re)published. The
+        // status is forward-only once the game has started.
+        if (competition.status === 'RUNNING' || competition.status === 'FINISHED') {
+          return res.json({ code: 40041, message: '比赛已开始或已结束，无法发布', data: null });
+        }
+
+        // Re-verify from real state. The client may have toggled the button
+        // based on a stale snapshot.
+        const snapshot = await fetchPublishabilitySnapshot(id);
+        const { publishable, missing } = evaluatePublishability(snapshot);
+        if (!publishable) {
+          const summary = missing.map((c) => MISSING_LABELS[c] || c).join('；');
+          return res.json({
+            code: 40010,
+            message: `无法发布：${summary}`,
+            data: { missing },
+          });
+        }
+
+        // Publishing does NOT create the access link — it UNLOCKS creating
+        // one. Louise's rule: "publier doit activer le bouton générer; tant
+        // qu'une compétition n'est pas publiée on ne peut pas générer le lien."
+        // Keeping the two apart leaves the admin in charge of when the URL
+        // starts existing, and leaves exactly one way to mint it
+        // (POST /:id/access-link, which refuses while the status is DRAFT).
+        // Two code paths producing the same link would drift apart.
+        await prisma.competitions.update({
+          where: { id },
+          data: { status: 'PUBLISHED' },
+        });
+
+        res.json({
+          code: 200,
+          message: 'success',
+          data: { id, status: 'PUBLISHED' },
+        });
+      } catch (e) {
+        logger.error('Publish competition failed', { competitionId: id, error: e.message });
+        res.json({ code: 50000, message: '发布失败', data: null });
+      }
+    }
+  );
+
+  /**
+   * POST /:id/cancel — Cancel a publication.
+   *
+   * Louise's decision: "on ne dépublie pas. Mais on peut annuler."
+   * Cancelling is a DESTRUCTIVE action with consequences outside the system:
+   *   - the access link is destroyed (the column is cleared)
+   *   - anyone who already received the URL can no longer enter
+   *   - the competition becomes modifiable again (status → DRAFT)
+   *
+   * This is NOT a toggle. The admin interface must warn before calling this
+   * route — a stray click must not revoke a link that was already sent to a
+   * hundred participants. The route itself does not re-confirm; that is the
+   * client's responsibility.
+   *
+   * Allowed only while the competition has not started. Once RUNNING, the
+   * status is forward-only — the admin must end the competition instead.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   * Tenant: competition must belong to caller's organization
+   *
+   * Response:
+   *   200 { code: 200, data: { id, status: 'DRAFT' } }
+   *   400 { code: 40041 } — competition is RUNNING or FINISHED
+   *   404 { code: 40400 } — competition not found
+   */
+  router.post(
+    '/:id/cancel',
+    authMiddleware,
+    roleMiddleware('ORG_ADMIN', 'SUPER_ADMIN'),
+    tenantGuard('competitions'),
+    async (req, res) => {
+      const { id } = req.params;
+      const prisma = getPrisma();
+
+      try {
+        const competition = await prisma.competitions.findUnique({ where: { id } });
+        if (!competition) {
+          return res.json({ code: 40400, message: '比赛不存在', data: null });
+        }
+        if (competition.status === 'RUNNING' || competition.status === 'FINISHED') {
+          return res.json({ code: 40041, message: '比赛已开始或已结束，无法取消发布', data: null });
+        }
+        // Destroy the access link and revert to DRAFT. The competition
+        // becomes modifiable again. We clear competition_access_code rather
+        // than leaving it: GET /:id/access-link will return null, and the
+        // client AccessLinkSection will show the "Generate" state (which
+        // is also what a brand-new competition shows — that is fine, the
+        // admin knows they just cancelled).
+        await prisma.competitions.update({
+          where: { id },
+          data: {
+            status: 'DRAFT',
+            competition_access_code: null,
+          },
+        });
+        res.json({
+          code: 200,
+          message: 'success',
+          data: { id, status: 'DRAFT' },
+        });
+      } catch (e) {
+        logger.error('Cancel competition failed', { competitionId: id, error: e.message });
+        res.json({ code: 50000, message: '取消发布失败', data: null });
+      }
+    }
+  );
+
+  /**
+   * GET /:id/publishability — Compute whether the competition is publishable.
+   *
+   * The panel on the detail page reads this to decide whether to enable the
+   * Publish (and Start) buttons. The route re-uses the same snapshot+rule as
+   * POST /:id/publish, so what the panel shows is what the route will enforce.
+   *
+   * The response also returns the current status, so the panel can render
+   * the right badge without a second round-trip to GET /:id.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES — same gate as the publish
+   * action itself. A judge or player has no business asking "is this
+   * publishable" and should not learn about the internal readiness state.
+   *
+   * Response:
+   *   200 { code: 200, data: { status, publishable, missing: [...] } }
+   *   404 { code: 40400 } — competition not found
+   */
+  router.get(
+    '/:id/publishability',
+    authMiddleware,
+    roleMiddleware('ORG_ADMIN', 'SUPER_ADMIN'),
+    tenantGuard('competitions'),
+    async (req, res) => {
+      const { id } = req.params;
+      const prisma = getPrisma();
+
+      try {
+        const competition = await prisma.competitions.findUnique({
+          where: { id },
+          select: { id: true, status: true },
+        });
+        if (!competition) {
+          return res.json({ code: 40400, message: '比赛不存在', data: null });
+        }
+        const snapshot = await fetchPublishabilitySnapshot(id);
+        const { publishable, missing } = evaluatePublishability(snapshot);
+        res.json({
+          code: 200,
+          message: 'success',
+          data: { status: competition.status, publishable, missing },
+        });
+      } catch (e) {
+        logger.error('Get publishability failed', { competitionId: id, error: e.message });
+        res.json({ code: 50000, message: '获取发布状态失败', data: null });
+      }
+    }
+  );
+
+  /**
    * POST /:id/access-link — Generate a new access link for a competition.
    *
    * If the competition already has an access code, it is replaced with a new one.
    * Returns the access code and the full entry URL.
+   *
+   * Requires the competition to be PUBLISHED. Publishing does not create the
+   * link itself — it unlocks the ability to create one. A DRAFT competition
+   * has, by definition, an unfinished configuration; handing out an entry URL
+   * for it would invite people into something that is still being built.
+   *
+   * Cancelling a publication clears the code and reverts to DRAFT, which
+   * re-locks this route on its own — the status is the single gate.
    *
    * Auth: Bearer token (org-scoped) + ORG_ADMIN role
    * Tenant: competition must belong to caller's organization
    *
    * Response:
    *   200 { code: 200, data: { accessCode, entryUrl } }
+   *   400 { code: 40041 } — competition is not published
    *   404 { code: 40400 } — competition not found
    */
   router.post(
@@ -223,6 +510,11 @@ function createCompetitionRouter(repos) {
         const competition = await prisma.competitions.findUnique({ where: { id } });
         if (!competition) {
           return res.json({ code: 40400, message: '比赛不存在', data: null });
+        }
+        // Disabling the button in the UI is not the rule — this is. A direct
+        // call would otherwise mint an entry URL for a draft.
+        if (competition.status === 'DRAFT') {
+          return res.json({ code: 40041, message: '请先发布赛事，然后再生成访问链接', data: null });
         }
 
         // Generate a unique access code (retry on collision, extremely unlikely)
@@ -252,7 +544,7 @@ function createCompetitionRouter(repos) {
           },
         });
       } catch (e) {
-        console.error('[competitions] generate access link error:', e.message);
+        logger.error('Generate access link failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '生成访问链接失败', data: null });
       }
     }
@@ -299,7 +591,7 @@ function createCompetitionRouter(repos) {
           },
         });
       } catch (e) {
-        console.error('[competitions] get access link error:', e.message);
+        logger.error('Get access link failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '获取访问链接失败', data: null });
       }
     }
@@ -339,7 +631,7 @@ function createCompetitionRouter(repos) {
 
         res.json({ code: 200, message: 'success', data: null });
       } catch (e) {
-        console.error('[competitions] revoke access link error:', e.message);
+        logger.error('Revoke access link failed', { competitionId: id, error: e.message });
         res.json({ code: 50000, message: '撤销访问链接失败', data: null });
       }
     }
@@ -389,7 +681,7 @@ function createCompetitionRouter(repos) {
         },
       });
     } catch (e) {
-      console.error('[competitions] get by code error:', e.message);
+      logger.error('Get competition by access code failed', { accessCode, error: e.message });
       res.json({ code: 50000, message: '获取比赛信息失败', data: null });
     }
   });

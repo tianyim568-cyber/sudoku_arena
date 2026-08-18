@@ -3,12 +3,16 @@
  * Reads from environment variables with sensible defaults.
  */
 
+const logger = require('./utils/logger');
+
 const isProduction = process.env.NODE_ENV === 'production';
 
-// In production, require a strong JWT secret (no weak fallback)
+// In production, require a strong JWT secret (no weak fallback). This is a
+// fatal start-up failure: the server cannot run safely without it. logger.fatal
+// logs the reason then exits — same behaviour as the old console.error + exit,
+// but structured and consistent with the rest of the log output.
 if (isProduction && !process.env.JWT_SECRET) {
-  console.error('ERROR: JWT_SECRET must be set in production. Generate one with: openssl rand -base64 48');
-  process.exit(1);
+  logger.fatal('JWT_SECRET must be set in production. Generate one with: openssl rand -base64 48');
 }
 
 module.exports = {

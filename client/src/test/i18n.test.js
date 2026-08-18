@@ -1,6 +1,45 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import en from '../i18n/en';
 import zh from '../i18n/zh';
+
+const I18N_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'i18n');
+
+// A duplicate key is invisible to every test that inspects the imported
+// object: by then JavaScript has already resolved it, the last definition
+// having silently overwritten the earlier one. Nothing warns, and the key-set
+// comparison below still passes when BOTH files carry the same duplicates.
+// So this check reads the SOURCE TEXT instead.
+//
+// It relies on the house style of these two files: one `key: value,` per line,
+// and a nested object opened by a line ending in `{`.
+function findDuplicateKeys(source) {
+  const duplicates = [];
+  const scopes = [{ path: '', seen: new Map() }];
+
+  source.split(/\r?\n/).forEach((raw, index) => {
+    const lineNumber = index + 1;
+    const line = raw.replace(/\/\/.*$/, '').trim();
+    if (!line) return;
+
+    const match = line.match(/^([A-Za-z_$][\w$]*)\s*:/);
+    if (match) {
+      const key = match[1];
+      const scope = scopes[scopes.length - 1];
+      const path = scope.path ? `${scope.path}.${key}` : key;
+      const previous = scope.seen.get(key);
+      if (previous) duplicates.push(`${path} (lines ${previous} and ${lineNumber})`);
+      else scope.seen.set(key, lineNumber);
+      if (line.endsWith('{')) scopes.push({ path, seen: new Map() });
+      return;
+    }
+    if (line.startsWith('}') && scopes.length > 1) scopes.pop();
+  });
+
+  return duplicates;
+}
 
 // Collect every key path (e.g. "common.status.PENDING") from a dictionary.
 // Non-plain-object values (strings, arrays) are leaves — we only recurse
@@ -44,5 +83,14 @@ describe('i18n dictionaries', () => {
     const enPaths = collectKeyPaths(en).sort();
     const zhPaths = collectKeyPaths(zh).sort();
     expect(zhPaths).toEqual(enPaths);
+  });
+
+  // Regression guard for the residue left by the removed "Rounds" section of
+  // CompetitionDetailPage: `competitionDetail.addRound` and `addRoundSubmit`
+  // were each defined twice, so the stage-configuration panel silently showed
+  // the old wording. The key-set test above could not see it.
+  it.each([['en'], ['zh']])('%s dictionary defines every key exactly once', (lang) => {
+    const source = readFileSync(join(I18N_DIR, `${lang}.js`), 'utf8');
+    expect(findDuplicateKeys(source)).toEqual([]);
   });
 });

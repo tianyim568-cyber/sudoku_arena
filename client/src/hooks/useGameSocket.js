@@ -42,6 +42,30 @@ export function useGameSocket(competitionId) {
   });
   const [activeTeammates, setActiveTeammates] = useState({});
   const [rotationWarning, setRotationWarning] = useState(false);
+  // Preparation phase — distinct from the gameplay timer. The server tags
+  // preparation TIMER_TICKs with phase: 'preparation' and emits
+  // ROUND_PREPARATION_STARTED before the round goes live. Routing these into
+  // `preparation` (instead of overwriting `timerMeta`) keeps the header
+  // countdown mute during preparation — the countdown lives in
+  // PreparationScreen, not in the match timer.
+  const [preparation, setPreparation] = useState(null);
+  // Transition between two rounds of the same stage. The server emits
+  // ROUND_TRANSITION_STARTED when a round ends and another follows, carrying
+  // a duration (transitionSeconds) — NOT an absolute end time. We fabricate
+  // turnEndsAt = Date.now() + duration*1000 at event arrival and hand it to
+  // the same useTimer hook TransitionScreen uses for the countdown.
+  // `finishedRound` is rebuilt from the round the player was just playing,
+  // captured on every ROUND_STARTED, so the transition screen can show
+  // "Round N finished → Round N+1 next" without server help.
+  const [transition, setTransition] = useState(null);
+  // A REF, not state, and that distinction is load-bearing: the socket handler
+  // below is registered once (its effect depends only on [user, competitionId]),
+  // so it closes over whatever the render values were at registration time.
+  // Every other handler here mutates through functional updates
+  // (setX(prev => …)), which are immune. A plain `useState` read would not be:
+  // the handler would see the initial null forever, and the finished round's
+  // name would never appear. A ref is always read at call time.
+  const lastRoundRef = useRef(null);
   const warningTimerRef = useRef(null);
   const callbacksRef = useRef({});
 
@@ -74,11 +98,24 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'TIMER_TICK':
-          setTimerMeta(prev => ({
-            turnEndsAt: event.payload.turnEndsAt || prev.turnEndsAt,
-            timerStatus: event.payload.timerStatus || 'RUNNING',
-            durationSeconds: event.payload.totalSeconds || prev.durationSeconds
-          }));
+          // The server tags preparation ticks with phase: 'preparation'.
+          // Route them to the `preparation` state — NOT to `timerMeta`, or the
+          // header countdown would briefly show the preparation countdown and
+          // then snap back when the round goes live. Gameplay ticks (no phase
+          // field, or phase: 'round') keep the existing behavior.
+          if (event.payload.phase === 'preparation') {
+            setPreparation(prev => prev ? {
+              ...prev,
+              turnEndsAt: event.payload.turnEndsAt || prev.turnEndsAt,
+              durationSeconds: event.payload.totalSeconds || prev.durationSeconds,
+            } : prev);
+          } else {
+            setTimerMeta(prev => ({
+              turnEndsAt: event.payload.turnEndsAt || prev.turnEndsAt,
+              timerStatus: event.payload.timerStatus || 'RUNNING',
+              durationSeconds: event.payload.totalSeconds || prev.durationSeconds
+            }));
+          }
           break;
         case 'SCORE_UPDATE':
           setScoreUpdates(prev => [...prev.slice(-20), event.payload]);
@@ -97,8 +134,61 @@ export function useGameSocket(competitionId) {
           });
           break;
         }
+        case 'ROUND_PREPARATION_STARTED':
+          // The server emits this between "judge starts round" and "round goes
+          // live". Carries everything PreparationScreen needs: which round, what
+          // type, how long the prep phase lasts, and the server-authoritative
+          // end timestamp for the countdown.
+          setPreparation({
+            roundId: event.payload.roundId,
+            roundNumber: event.payload.roundNumber,
+            roundName: event.payload.roundName,
+            roundType: event.payload.roundType,
+            preparationSeconds: event.payload.preparationSeconds,
+            durationSeconds: event.payload.preparationSeconds,
+            turnEndsAt: event.payload.turnEndsAt,
+          });
+          // Defensive cleanup: a transition state that survives to this point
+          // would sit on top of PreparationScreen (transition has higher
+          // priority in PlayerGamePage). The server schedules preparation after
+          // the transition delay, so this normally already happened via
+          // ROUND_STARTED of the next round — but clear anyway in case event
+          // ordering ever changes.
+          setTransition(null);
+          break;
+        case 'ROUND_TRANSITION_STARTED':
+          // A round just ended and another follows. The server sends a
+          // duration (transitionSeconds), not an absolute end time — fabricate
+          // turnEndsAt now so useTimer can compute the remaining seconds.
+          // `finishedRound` is rebuilt from the round the player was just on;
+          // if the client reloaded during the transition window, lastRound is
+          // null and TransitionScreen falls back to a generic message.
+          setTransition({
+            finishedRound: lastRoundRef.current ? { ...lastRoundRef.current } : null,
+            nextRound: {
+              roundId: event.payload.nextRoundId,
+              roundName: event.payload.nextRoundName,
+              roundType: event.payload.nextRoundType,
+              roundNumber: event.payload.nextRoundOrder,
+            },
+            durationSeconds: event.payload.transitionSeconds,
+            turnEndsAt: Date.now() + (event.payload.transitionSeconds || 0) * 1000,
+          });
+          break;
         case 'ROUND_STARTED':
           setPuzzles([]);
+          setPreparation(null);
+          // The transition ends the moment the next round starts. Clearing
+          // here is the primary cleanup path; ROUND_PREPARATION_STARTED also
+          // clears as a safety net.
+          setTransition(null);
+          // Remember the round the player is entering, so the next
+          // ROUND_TRANSITION_STARTED can say "X finished" without server help.
+          lastRoundRef.current = {
+            roundId: event.payload.roundId,
+            roundName: event.payload.roundName,
+            roundType: event.payload.roundType,
+          };
           setTimerMeta({
             turnEndsAt: event.payload.turnEndsAt || null,
             timerStatus: 'RUNNING',
@@ -119,6 +209,7 @@ export function useGameSocket(competitionId) {
           break;
         case 'ROUND_FINISHED':
           setTimerMeta(prev => ({ ...prev, timerStatus: 'FINISHED' }));
+          setPreparation(null);
           break;
         case 'COMPETITION_PAUSED':
           setTimerMeta(prev => ({
@@ -501,6 +592,7 @@ export function useGameSocket(competitionId) {
   return {
     events, connected, puzzles, timerMeta, scoreUpdates,
     round1Progress, round2State, round3State, rotationWarning, activeTeammates,
+    preparation, transition,
     onLetterReveal, updateCell,
     proposeCell, acceptProposal, rejectProposal, withdrawProposal, focusUpdate,
     setRound2FromRest, setRound3FromRest, setTimerMetaFromRest

@@ -1,0 +1,50 @@
+feat(api): monitoring and broadcasting endpoints all built
+
+# Conflicts:
+#	server/package-lock.json
+#	server/src/index.js
+#	server/src/validations/competitions.js
+#	server/src/ws/SocketManager.js
+#
+# It looks like you may be committing a cherry-pick.
+# If this is not correct, please run
+#	git update-ref -d CHERRY_PICK_HEAD
+# and try again.
+
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# Date:      Tue Aug 18 16:31:35 2026 +0800
+#
+# On branch sylvin
+# Your branch is up to date with 'origin/sylvin'.
+#
+# You are currently cherry-picking commit ac6c361.
+#
+# Changes to be committed:
+#	modified:   client/src/api/socket.js
+#	modified:   client/src/pages/DisplayPage.jsx
+#	modified:   server/package-lock.json
+#	new file:   server/prisma/migrations/048_add_display_mode/migration.sql
+#	new file:   server/prisma/migrations/049_add_broadcast_player_id/migration.sql
+#	modified:   server/prisma/schema.prisma
+#	new file:   server/src/__tests__/display-broadcast.test.js
+#	new file:   server/src/__tests__/display-mode.test.js
+#	new file:   server/src/__tests__/display-ranking-emitters.test.js
+#	new file:   server/src/__tests__/display-socket-auth.test.js
+#	modified:   server/src/engine/DisplayManager.js
+#	new file:   server/src/engine/DisplayModes.js
+#	modified:   server/src/engine/GameOrchestrator.js
+#	modified:   server/src/index.js
+#	modified:   server/src/routes/display.js
+#	new file:   server/src/validations/competitions.js
+#	modified:   server/src/ws/SocketManager.js
+
+s is a commit
+
+
+
+:q
+qw
+

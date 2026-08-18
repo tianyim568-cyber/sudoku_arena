@@ -24,6 +24,7 @@ const DisplayManager = require('./engine/DisplayManager');
 const PresenceService = require('./services/PresenceService');
 const { createStateRepository } = require('./state');
 const config = require('./config');
+const logger = require('./utils/logger');
 
 async function main() {
   await initDB();
@@ -73,7 +74,7 @@ async function main() {
           db = 'ok';
         }
       } catch (dbErr) {
-        console.error('Health check DB probe failed:', dbErr.message);
+        logger.warn('Health check DB probe failed', { error: dbErr.message });
       }
 
       res.json({
@@ -150,7 +151,11 @@ async function main() {
   // DELETE really did kill it. Handlers that call next(err) land here; the
   // guard below covers the rest.
   app.use((err, req, res, next) => {
-    console.error(`[api] ${req.method} ${req.path} failed:`, err.message);
+    logger.error('API request failed', {
+      method: req.method,
+      path: req.path,
+      error: err.message,
+    });
     if (res.headersSent) return next(err);
     res.status(500).json({ code: 50000, message: '服务器内部错误', data: null });
   });
@@ -158,16 +163,17 @@ async function main() {
   process.on('unhandledRejection', (reason) => {
     // Log and keep serving. Crashing on one bad request is worse than
     // answering the next one.
-    console.error('[server] unhandled rejection:', reason instanceof Error ? reason.message : reason);
+    logger.error('Unhandled promise rejection', {
+      reason: reason instanceof Error ? reason.message : String(reason),
+    });
   });
 
   const PORT = config.PORT;
   server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    logger.info('Server listening', { port: PORT, url: `http://localhost:${PORT}` });
   });
 }
 
 main().catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
+  logger.fatal('Failed to start server', { error: err.message });
 });

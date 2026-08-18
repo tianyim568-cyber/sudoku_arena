@@ -4,6 +4,7 @@
  */
 
 const MemoryStateRepository = require('./MemoryStateRepository');
+const logger = require('../utils/logger');
 
 function createStateRepository() {
   const redisUrl = process.env.REDIS_URL;
@@ -21,21 +22,25 @@ function createStateRepository() {
       });
 
       redis.on('error', (err) => {
-        console.error('Redis connection error:', err.message);
+        logger.error('Redis connection error', { error: err.message });
       });
 
       redis.on('connect', () => {
-        console.log('Connected to Redis:', redisUrl.replace(/\/\/.*@/, '//***@'));
+        // The logger masks the credentials in the URL automatically
+        // (redis://:pass@host -> redis://***@host), so we can log the full
+        // configured URL safely. The previous code masked it by hand with
+        // a regex — that's now the logger's job.
+        logger.info('Connected to Redis', { url: redisUrl });
       });
 
       const RedisStateRepository = require('./RedisStateRepository');
       return new RedisStateRepository(redis);
     } catch (e) {
-      console.warn('Failed to initialize Redis, falling back to in-memory state:', e.message);
+      logger.warn('Failed to initialize Redis, falling back to in-memory state', { error: e.message });
     }
   }
 
-  console.log('Using in-memory state repository (set REDIS_URL for Redis)');
+  logger.info('Using in-memory state repository (set REDIS_URL for Redis)');
   return new MemoryStateRepository();
 }
 

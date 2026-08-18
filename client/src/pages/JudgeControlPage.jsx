@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
+import DisplayTokenSection from '../components/DisplayTokenSection';
 import { api } from '../api';
 
 export default function JudgeControlPage() {
   // The URL param is still named :competitionId (Phase 13 will rename the route).
   // We alias it locally to competitionId to match the api function signatures.
   const { competitionId } = useParams();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [competition, setCompetition] = useState(null);
@@ -213,6 +214,13 @@ export default function JudgeControlPage() {
             <p className="text-gray-400 text-xs sm:text-sm">{t('judge.noScores')}</p>
           )}
         </section>
+
+        {/* Display token — the server gates generate/revoke on
+            ORG_ADMIN / SUPER_ADMIN, so the block is shown only when isAdmin.
+            A plain judge never sees it and never hits a 403. */}
+        {isAdmin && (
+          <DisplayTokenSection competitionId={competitionId} />
+        )}
       </main>
     </div>
   );

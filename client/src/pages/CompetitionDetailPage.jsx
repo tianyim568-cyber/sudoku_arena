@@ -5,6 +5,8 @@ import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
 import ParticipantImport from '../components/ParticipantImport';
+import AccessLinkSection from '../components/AccessLinkSection';
+import PublishPanel from '../components/PublishPanel';
 
 export default function CompetitionDetailPage() {
   const { id } = useParams();
@@ -180,32 +182,14 @@ export default function CompetitionDetailPage() {
     }
   };
 
-  const handleStartCompetition = async () => {
-    const res = await api.startCompetition(id);
-    if (res.code === 200) {
-      msg(t('competitionDetail.competitionStarted'));
-      navigate(`/judge/${id}`);
-    } else {
-      msg(t('competitionDetail.startFailed', { msg: res.message || t('common.unknownError') }), 'error');
-    }
-  };
+  // The Start button now lives inside PublishPanel — it is enabled only when
+  // the server says publishable, which is the same condition Publish uses.
+  // Keeping Start next to Publish makes the dependency obvious: you cannot
+  // start what you have not published.
 
   const isPlayer = user?.role === 'PLAYER';
 
-  // Readiness checks
-  const has3Rounds = (competition?.rounds?.length || 0) >= 3;
-  const allRoundsHavePuzzles = has3Rounds && competition.rounds.every(r => (r.puzzles?.length || 0) > 0);
-  const hasTeam = (competition?.teams?.length || 0) >= 1;
-  const hasJudge = (competition?.judges?.length || 0) >= 1;
-  const allReady = has3Rounds && allRoundsHavePuzzles && hasTeam && hasJudge;
-
   if (!competition) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
-
-  const Check = ({ ok }) => (
-    <span className={`inline-block w-5 h-5 rounded-full text-center text-white text-xs leading-5 ${ok ? 'bg-green-500' : 'bg-red-400'}`}>
-      {ok ? '✓' : '✗'}
-    </span>
-  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -216,8 +200,10 @@ export default function CompetitionDetailPage() {
             <div>
               <h1 className="text-lg sm:text-xl font-bold text-gray-800">{competition.name}</h1>
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                competition.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
-                competition.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' :
+                competition.status === 'DRAFT' ? 'bg-gray-100 text-gray-700' :
+                competition.status === 'PUBLISHED' ? 'bg-blue-100 text-blue-700' :
+                competition.status === 'RUNNING' ? 'bg-green-100 text-green-700' :
+                competition.status === 'FINISHED' ? 'bg-gray-200 text-gray-600' :
                 competition.status === 'PAUSED' ? 'bg-orange-100 text-orange-700' :
                 'bg-gray-100 text-gray-700'
               }`}>{t(`common.status.${competition.status}`)}</span>
@@ -244,26 +230,17 @@ export default function CompetitionDetailPage() {
           }`}>{statusMsg.text}</div>
         )}
 
-        {/* Readiness Checklist (only when PENDING) */}
-        {competition.status === 'PENDING' && (
-          <section className="bg-white rounded-xl shadow p-4 sm:p-6">
-            <h2 className="text-base sm:text-lg font-semibold mb-3">{t('competitionDetail.readinessTitle')}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
-              <div className="flex items-center gap-2"><Check ok={has3Rounds} /> {t('competitionDetail.check3Rounds')}</div>
-              <div className="flex items-center gap-2"><Check ok={allRoundsHavePuzzles} /> {t('competitionDetail.checkPuzzles')}</div>
-              <div className="flex items-center gap-2"><Check ok={hasTeam} /> {t('competitionDetail.checkTeam')}</div>
-              <div className="flex items-center gap-2"><Check ok={hasJudge} /> {t('competitionDetail.checkJudge')}</div>
-            </div>
-            {allReady && (
-              <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                <p className="text-green-600 font-medium text-xs sm:text-sm">{t('competitionDetail.allReady')}</p>
-                <button onClick={handleStartCompetition}
-                  className="px-4 sm:px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs sm:text-sm font-medium">
-                  {t('competitionDetail.startCompetition')}
-                </button>
-              </div>
-            )}
-          </section>
+        {/* PublishPanel — the single, up-to-date readiness panel. Replaces
+            the v1 "ready to start" block that hardcoded three rounds and a
+            team. The rule is recomputed server-side on every publish call;
+            this panel only displays. Shown to admins only — a judge or
+            player on this page never sees it, so they never hit a 403 on
+            the publishability GET. */}
+        {isAdmin && (
+          <PublishPanel
+            competitionId={id}
+            status={competition.status}
+          />
         )}
 
         {/* Stages Section — a competition is a sequence of stages, each of
@@ -538,6 +515,23 @@ export default function CompetitionDetailPage() {
             <p className="text-gray-400 text-xs sm:text-sm">{t('competitionDetail.noJudges')}</p>
           )}
         </section>
+
+        {/* Access link — the server already generates/reads/revokes the entry
+            code; this block is the missing UI. Shown to admins only because
+            the underlying routes are gated on ORG_ADMIN / SUPER_ADMIN. A judge
+            on this page never sees it, so they never hit a 403. */}
+        {isAdmin && (
+          <AccessLinkSection
+            competitionId={id}
+            /* Publishing unlocks link generation; it does not perform it. A
+               DRAFT is still being configured, so its entry URL must not exist
+               yet. Anything past DRAFT (PUBLISHED, RUNNING, FINISHED) may hold
+               a link — a running competition still needs a reachable URL for a
+               player who lost theirs. The server refuses on DRAFT regardless;
+               this only keeps the button honest. */
+            canGenerate={!!competition && competition.status !== 'DRAFT'}
+          />
+        )}
       </main>
     </div>
   );

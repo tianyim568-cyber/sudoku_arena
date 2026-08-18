@@ -27,6 +27,18 @@ vi.mock('../api', () => ({
     listUsers: vi.fn(),
     getRoundTypes: vi.fn(),
     createStageRound: vi.fn(),
+    // AccessLinkSection renders on the admin view and calls these on mount.
+    // They are not asserted in this file, but must exist as mocks so the
+    // GET does not throw an unhandled rejection inside the test runner.
+    getAccessLink: vi.fn().mockResolvedValue({ code: 200, data: { accessCode: null, entryUrl: null } }),
+    generateAccessLink: vi.fn(),
+    revokeAccessLink: vi.fn(),
+    // PublishPanel also renders on the admin view and calls getPublishability
+    // on mount. Same reason: not asserted here, but must exist as a mock.
+    getPublishability: vi.fn().mockResolvedValue({ code: 200, data: { status: 'DRAFT', publishable: true, missing: [] } }),
+    publishCompetition: vi.fn(),
+    cancelCompetition: vi.fn(),
+    startCompetition: vi.fn(),
   },
   setToken: vi.fn(),
 }));
