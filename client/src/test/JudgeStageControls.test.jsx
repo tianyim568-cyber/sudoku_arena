@@ -36,13 +36,27 @@ vi.mock('../api', () => ({
   },
 }));
 
+// Mutable auth mock — tests can flip `authState` to simulate an admin.
+// Using vi.hoisted ensures the mock is installed before the page module is
+// imported. Default is a plain judge (isAdmin: false); the display-mode
+// gate test flips it to admin to verify the block appears.
+const { authState } = vi.hoisted(() => ({ authState: { user: { id: 'j1', role: 'JUDGE' }, isAdmin: false } }));
+
 vi.mock('../hooks/useAuth', () => ({
-  useAuth: () => ({ user: { id: 'j1', role: 'JUDGE' }, isAdmin: false }),
+  useAuth: () => authState,
 }));
 
 // DisplayTokenSection does its own fetching; it is covered by its own tests.
 vi.mock('../components/DisplayTokenSection', () => ({
   default: () => null,
+}));
+
+// DisplayModeControls is covered by its own test file. We stub it here so the
+// stage-control tests don't need to mock the display-mode API and socket —
+// those are a different concern. The stub still renders a marker so the
+// admin-gate test below can see whether the parent mounted it.
+vi.mock('../components/DisplayModeControls', () => ({
+  default: (props) => <div data-testid="display-mode-controls" data-current-mode={props.currentMode} />,
 }));
 
 // JudgeMonitoringPanel is covered by its own test file. We stub it here
@@ -56,10 +70,10 @@ const stage = (id, order, status) => ({
   id, order_number: order, type: 'INDIVIDUAL', status, rounds: [{ id: `${id}-r1` }],
 });
 
-function renderPage({ competitionStatus = 'RUNNING', stages = [] } = {}) {
+function renderPage({ competitionStatus = 'RUNNING', stages = [], displayMode = 'DEFAULT' } = {}) {
   api.getCompetition.mockResolvedValue({
     code: 200,
-    data: { id: 'c1', name: 'Spring Cup', status: competitionStatus, rounds: [] },
+    data: { id: 'c1', name: 'Spring Cup', status: competitionStatus, rounds: [], display_mode: displayMode },
   });
   api.listStages.mockResolvedValue({ code: 200, data: stages });
   api.getRoomStatus.mockResolvedValue({ code: 200, data: null });
@@ -80,6 +94,10 @@ function renderPage({ competitionStatus = 'RUNNING', stages = [] } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Reset to the default judge auth for every test; the display-mode gate
+  // test overrides to admin.
+  authState.user = { id: 'j1', role: 'JUDGE' };
+  authState.isAdmin = false;
 });
 
 describe('JudgeControlPage — competition status values', () => {
@@ -149,5 +167,30 @@ describe('JudgeControlPage — stage controls', () => {
     renderPage({ stages: [] });
     await screen.findByText('Spring Cup');
     expect(screen.queryByText(/stage controls|阶段控制/i)).toBeNull();
+  });
+});
+
+// The display-mode controls are admin-only: the server routes that switch the
+// mode are ORG_ADMIN / SUPER_ADMIN, so a plain judge gets a 403. The parent
+// gates the block on isAdmin — this verifies the gate, not the component's
+// internals (those are covered by DisplayModeControls.test.jsx). This is the
+// "a non-admin does not see the buttons" test the prompt asks for.
+describe('JudgeControlPage — display-mode controls are admin-only', () => {
+  it('does NOT render the display-mode block for a plain judge', async () => {
+    // Default auth is a plain judge (isAdmin: false).
+    renderPage();
+    await screen.findByText('Spring Cup');
+    expect(screen.queryByTestId('display-mode-controls')).toBeNull();
+  });
+
+  it('renders the display-mode block for an admin and passes the current mode', async () => {
+    authState.user = { id: 'admin1', role: 'ORG_ADMIN' };
+    authState.isAdmin = true;
+    renderPage({ displayMode: 'LIVE_RANKING' });
+    const block = await screen.findByTestId('display-mode-controls');
+    expect(block).toBeInTheDocument();
+    // The parent reads competition.display_mode and passes it down — the
+    // component must receive the server's value, not an assumed default.
+    expect(block).toHaveAttribute('data-current-mode', 'LIVE_RANKING');
   });
 });

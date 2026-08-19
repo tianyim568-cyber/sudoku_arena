@@ -525,6 +525,27 @@ export default {
     revokeFailed: 'Could not revoke the display token.',
   },
 
+  // Big-screen display mode controls — admin-only block on the judge console.
+  // The server knows six modes (engine/DisplayModes.js) but only two have a
+  // client view today: DEFAULT (the normal screen) and LIVE_RANKING (the live
+  // leaderboard). We expose only those two — a button for a mode with no view
+  // would silently fall back to the default, which is a button that lies.
+  displayMode: {
+    title: 'Big-screen mode',
+    subtitle: 'Choose what the screen in the room shows.',
+    currentLabel: 'Currently showing:',
+    modeDefault: 'Default view',
+    modeDefaultHint: 'The normal big-screen view.',
+    modeLiveRanking: 'Live ranking',
+    modeLiveRankingHint: 'Show the live leaderboard.',
+    modePlayerBroadcast: 'A projected player',
+    // Shown when a player is being projected and the judge clicks a mode
+    // button. The projection stops — made explicit so the judge is not
+    // surprised to see the player disappear from the screen.
+    projectedHint: 'A player is being projected. Switching mode will stop the projection.',
+    switchFailed: 'Could not switch the big-screen mode.',
+  },
+
   // Judge monitoring panel — the live participant list with presence, the
   // per-player detail, and the one-click "project to big screen" action.
   // Visibility of the projection buttons is gated on isAdmin because the

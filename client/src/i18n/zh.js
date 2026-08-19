@@ -508,6 +508,25 @@ export default {
     revokeFailed: '无法撤销显示令牌。',
   },
 
+  // 大屏显示模式控制 —— 裁判控制台上的管理员区块。服务端有六种模式
+  // （engine/DisplayModes.js），但目前只有两种有客户端视图：DEFAULT（正常
+  // 大屏）和 LIVE_RANKING（实时排行榜）。只暴露这两种 —— 没有视图的模式
+  // 会静默回退到默认视图，等于一个会撒谎的按钮。
+  displayMode: {
+    title: '大屏模式',
+    subtitle: '选择场地大屏当前显示的内容。',
+    currentLabel: '当前显示：',
+    modeDefault: '默认视图',
+    modeDefaultHint: '正常的大屏视图。',
+    modeLiveRanking: '实时排行榜',
+    modeLiveRankingHint: '显示实时排行榜。',
+    modePlayerBroadcast: '某位选手',
+    // 当正在投影某位选手时，裁判点击模式按钮会看到的提示。切换模式会停
+    // 止投影 —— 明确告知，避免选手从大屏消失时裁判感到意外。
+    projectedHint: '正在投影某位选手。切换模式将停止投影。',
+    switchFailed: '无法切换大屏模式。',
+  },
+
   // 裁判监控面板 —— 实时选手列表与在线状态、选手详情、一键投影到大屏。
   // 投影按钮仅对管理员可见：服务端路由要求 ORG_ADMIN，普通裁判会收到 403。
   judgeMonitoring: {

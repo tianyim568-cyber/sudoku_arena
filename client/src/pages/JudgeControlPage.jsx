@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import DisplayTokenSection from '../components/DisplayTokenSection';
+import DisplayModeControls from '../components/DisplayModeControls';
 import JudgeMonitoringPanel from '../components/JudgeMonitoringPanel';
 import { api } from '../api';
 
@@ -311,6 +312,19 @@ export default function JudgeControlPage() {
             <p className="text-gray-400 text-xs sm:text-sm">{t('judge.noScores')}</p>
           )}
         </section>
+
+        {/* Big-screen controls — both admin-only (ORG_ADMIN / SUPER_ADMIN),
+            same as the server routes they call. DisplayModeControls chooses
+            what the screen shows; DisplayTokenSection manages the screen
+            connection itself. Grouped here because they are the same concern
+            (what the room sees) from two angles. */}
+        {isAdmin && (
+          <DisplayModeControls
+            competitionId={competitionId}
+            currentMode={competition.display_mode || 'DEFAULT'}
+            onModeChanged={load}
+          />
+        )}
 
         {/* Display token — the server gates generate/revoke on
             ORG_ADMIN / SUPER_ADMIN, so the block is shown only when isAdmin.
