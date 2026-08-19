@@ -508,6 +508,40 @@ export default {
     revokeFailed: '无法撤销显示令牌。',
   },
 
+  // 裁判监控面板 —— 实时选手列表与在线状态、选手详情、一键投影到大屏。
+  // 投影按钮仅对管理员可见：服务端路由要求 ORG_ADMIN，普通裁判会收到 403。
+  judgeMonitoring: {
+    title: '选手',
+    subtitle: '{online} 在线 / {total}',
+    searchPlaceholder: '按姓名、学校或队伍搜索',
+    loading: '正在加载选手...',
+    loadFailed: '无法加载选手列表。',
+    empty: '暂无选手。导入选手后列表会自动填充。',
+    emptyOnline: '当前没有选手在线。选手连接后列表会自动更新。',
+    statusOnline: '在线',
+    statusOffline: '离线',
+    lastSeenNever: '从未上线',
+    detailTitle: '选手详情',
+    detailLoadFailed: '无法加载该选手的状态。',
+    noActiveRound: '当前没有进行中的轮次。轮次开始后才会出现选手状态。',
+    noSession: '该选手在当前轮次还没有会话。',
+    noPuzzles: '该选手还没有任何答题记录。',
+    puzzleProgress: '题目 {n}：{correct}/{total} 格（{pct}%）',
+    sessionStatus: '会话：{status}',
+    projectButton: '投影到大屏',
+    stopProjectButton: '停止投影',
+    projectFailed: '投影失败：{msg}',
+    stopProjectFailed: '无法停止投影：{msg}',
+    projectConfirm: '将此选手投影到大屏？',
+    stopProjectConfirm: '停止投影此选手？',
+    projectNotAllowed: '投影功能仅限机构管理员使用。',
+    refresh: '刷新',
+    overflow: '还有 {n} 人未显示 — 使用搜索缩小范围',
+    agoSeconds: '{n} 秒前',
+    agoMinutes: '{n} 分钟前',
+    agoHours: '{n} 小时前',
+  },
+
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的
   // 键用于未传自定义 fallback 时的默认兜底；其余键由 ErrorPage 使用。
   errors: {

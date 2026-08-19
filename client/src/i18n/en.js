@@ -525,6 +525,42 @@ export default {
     revokeFailed: 'Could not revoke the display token.',
   },
 
+  // Judge monitoring panel — the live participant list with presence, the
+  // per-player detail, and the one-click "project to big screen" action.
+  // Visibility of the projection buttons is gated on isAdmin because the
+  // server routes are ORG_ADMIN-only; a plain judge gets a 403.
+  judgeMonitoring: {
+    title: 'Participants',
+    subtitle: '{online} online / {total}',
+    searchPlaceholder: 'Search by name, school, or team',
+    loading: 'Loading participants...',
+    loadFailed: 'Could not load participants.',
+    empty: 'No participants yet. The list fills as soon as players are imported.',
+    emptyOnline: 'Nobody is online right now. The list will update on its own as players connect.',
+    statusOnline: 'Online',
+    statusOffline: 'Offline',
+    lastSeenNever: 'Never seen',
+    detailTitle: 'Player detail',
+    detailLoadFailed: 'Could not load this player\'s state.',
+    noActiveRound: 'No round is running. Player state appears once a round starts.',
+    noSession: 'This player has no session for the current round yet.',
+    noPuzzles: 'This player has no puzzle answers yet.',
+    puzzleProgress: 'Puzzle {n}: {correct}/{total} cells ({pct}%)',
+    sessionStatus: 'Session: {status}',
+    projectButton: 'Project to big screen',
+    stopProjectButton: 'Stop projection',
+    projectFailed: 'Projection failed: {msg}',
+    stopProjectFailed: 'Could not stop projection: {msg}',
+    projectConfirm: 'Project this player to the big screen?',
+    stopProjectConfirm: 'Stop projecting this player?',
+    projectNotAllowed: 'Projection is reserved for organization admins.',
+    refresh: 'Refresh',
+    overflow: '+{n} more — use search to narrow the list',
+    agoSeconds: '{n}s ago',
+    agoMinutes: '{n}m ago',
+    agoHours: '{n}h ago',
+  },
+
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The
   // boundary keys are used by the default fallback when no custom one is
   // passed; the title/message/door keys are used by ErrorPage.

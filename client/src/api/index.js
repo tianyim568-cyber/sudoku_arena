@@ -225,6 +225,21 @@ export const api = {
   generateDisplayToken: (competitionId) => request('POST', `/competitions/${competitionId}/display-token`),
   revokeDisplayToken: (competitionId) => request('DELETE', `/competitions/${competitionId}/display-token`),
 
+  // Display mode & broadcast (ORG_ADMIN). The monitoring panel exposes these
+  // so an ORG_ADMIN who is also judging can project a player from the console.
+  // A plain JUDGE gets a 403 from the server — the panel reflects that by
+  // hiding the button unless the user is an admin. See JudgeMonitoringPanel.
+  setDisplayMode: (competitionId, mode) => request('PUT', `/competitions/${competitionId}/display/mode`, { mode }),
+  broadcastPlayer: (competitionId, playerId) => request('PUT', `/competitions/${competitionId}/display/broadcast/${playerId}`),
+  stopBroadcast: (competitionId) => request('DELETE', `/competitions/${competitionId}/display/broadcast`),
+
+  // Participant monitoring — judge-only routes. GET /monitoring/participants
+  // returns the live presence list; GET /monitoring/player/:id returns one
+  // player's current grid/progress. Both require the caller to be an assigned
+  // judge for this competition, checked server-side.
+  getMonitoringParticipants: (competitionId) => request('GET', `/competitions/${competitionId}/monitoring/participants`),
+  getMonitoringPlayer: (competitionId, playerId) => request('GET', `/competitions/${competitionId}/monitoring/player/${playerId}`),
+
   // Competition access links (ORG_ADMIN)
   generateAccessLink: (competitionId) => request('POST', `/competitions/${competitionId}/access-link`),
   getAccessLink: (competitionId) => request('GET', `/competitions/${competitionId}/access-link`),

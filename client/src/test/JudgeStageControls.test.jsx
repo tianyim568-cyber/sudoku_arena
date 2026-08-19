@@ -45,6 +45,13 @@ vi.mock('../components/DisplayTokenSection', () => ({
   default: () => null,
 }));
 
+// JudgeMonitoringPanel is covered by its own test file. We stub it here
+// so the stage-control tests don't need to mock the monitoring API and
+// socket — those are a different concern.
+vi.mock('../components/JudgeMonitoringPanel', () => ({
+  default: () => null,
+}));
+
 const stage = (id, order, status) => ({
   id, order_number: order, type: 'INDIVIDUAL', status, rounds: [{ id: `${id}-r1` }],
 });
