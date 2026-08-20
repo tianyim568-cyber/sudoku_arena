@@ -313,18 +313,19 @@ export default function JudgeControlPage() {
           )}
         </section>
 
-        {/* Big-screen controls — both admin-only (ORG_ADMIN / SUPER_ADMIN),
-            same as the server routes they call. DisplayModeControls chooses
-            what the screen shows; DisplayTokenSection manages the screen
-            connection itself. Grouped here because they are the same concern
-            (what the room sees) from two angles. */}
-        {isAdmin && (
-          <DisplayModeControls
-            competitionId={competitionId}
-            currentMode={competition.display_mode || 'DEFAULT'}
-            onModeChanged={load}
-          />
-        )}
+        {/* Big-screen mode — admin-only buttons (ORG_ADMIN / SUPER_ADMIN,
+            same as the server's PUT /display/mode route). A plain judge
+            still sees the section (current mode + an explanatory note) so
+            they know what the room is watching — same pattern as the
+            projection block in JudgeMonitoringPanel. The gate lives inside
+            the component, not here, so the judge sees the explanation
+            instead of an empty gap. */}
+        <DisplayModeControls
+          competitionId={competitionId}
+          currentMode={competition.display_mode || 'DEFAULT'}
+          onModeChanged={load}
+          isAdmin={isAdmin}
+        />
 
         {/* Display token — the server gates generate/revoke on
             ORG_ADMIN / SUPER_ADMIN, so the block is shown only when isAdmin.

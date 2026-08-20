@@ -12,9 +12,11 @@
  * HTTP polling stays as a fallback and runs only while the socket is down: a
  * screen in front of a room must not go stale because a connection dropped.
  *
- * Views: PLAYER_BROADCAST spotlights one player; every other mode shows the
- * ranking. Further views (round podium, final podium) plug in as branches
- * here without touching the transport above.
+ * Views: PLAYER_BROADCAST spotlights one player; ROUND_RANKING shows the
+ * ranking of a single round (the live one, else the most recent finished
+ * one); every other mode shows the full ranking grid. Further views (stage
+ * podium, final podium) plug in as branches here without touching the
+ * transport above.
  *
  * Category filtering is a query parameter on the GET, so switching tab
  * triggers an immediate refetch rather than waiting for the next tick.
@@ -29,6 +31,7 @@ import {
 } from '../api/socket';
 import RankingView from '../components/RankingView';
 import BroadcastView from '../components/BroadcastView';
+import RoundRankingView from '../components/RoundRankingView';
 import { LocalErrorBoundary } from '../components/ErrorBoundary';
 
 const API_BASE = '/api';
@@ -178,6 +181,41 @@ export default function DisplayPage() {
 
   const showBroadcast = displayMode === 'PLAYER_BROADCAST' && broadcastPlayer;
 
+  // View selection. The server knows six display modes; three have client
+  // views today:
+  //   - PLAYER_BROADCAST → BroadcastView (spotlights one player)
+  //   - ROUND_RANKING    → RoundRankingView (ranking of one round, large)
+  //   - everything else  → RankingView (the full ranking grid)
+  // The remaining modes (STAGE_RANKING, FINAL_RANKING) have no view yet —
+  // they fall through to RankingView rather than showing a blank screen.
+  // Adding a view means adding a branch here; the transport above does not
+  // change.
+  const renderView = () => {
+    if (showBroadcast) {
+      return <BroadcastView player={broadcastPlayer} lastUpdated={lastUpdated} />;
+    }
+    if (displayMode === 'ROUND_RANKING') {
+      return (
+        <RoundRankingView
+          data={data}
+          lastUpdated={lastUpdated}
+          pollIntervalSeconds={POLL_INTERVAL_MS / 1000}
+          socketConnected={socketConnected}
+        />
+      );
+    }
+    return (
+      <RankingView
+        data={data}
+        selectedCategoryId={selectedCategoryId}
+        onSelectCategory={setSelectedCategoryId}
+        lastUpdated={lastUpdated}
+        pollIntervalSeconds={POLL_INTERVAL_MS / 1000}
+        socketConnected={socketConnected}
+      />
+    );
+  };
+
   // LOCAL BOUNDARY: both views render a lot of layout from a server snapshot,
   // and a malformed payload could crash one. The transport effects above sit
   // OUTSIDE the boundary, so they keep running — the next update may recover
@@ -185,18 +223,7 @@ export default function DisplayPage() {
   // which matters on a public display in front of a room.
   return (
     <LocalErrorBoundary>
-      {showBroadcast ? (
-        <BroadcastView player={broadcastPlayer} lastUpdated={lastUpdated} />
-      ) : (
-        <RankingView
-          data={data}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategory={setSelectedCategoryId}
-          lastUpdated={lastUpdated}
-          pollIntervalSeconds={POLL_INTERVAL_MS / 1000}
-          socketConnected={socketConnected}
-        />
-      )}
+      {renderView()}
     </LocalErrorBoundary>
   );
 }

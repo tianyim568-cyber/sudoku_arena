@@ -526,10 +526,11 @@ export default {
   },
 
   // Big-screen display mode controls — admin-only block on the judge console.
-  // The server knows six modes (engine/DisplayModes.js) but only two have a
-  // client view today: DEFAULT (the normal screen) and LIVE_RANKING (the live
-  // leaderboard). We expose only those two — a button for a mode with no view
-  // would silently fall back to the default, which is a button that lies.
+  // The server knows six modes (engine/DisplayModes.js); three have a client
+  // view today: DEFAULT (the normal ranking grid), LIVE_RANKING (the live
+  // leaderboard), and ROUND_RANKING (one round's ranking, large). We expose
+  // only those three — a button for a mode with no view would silently fall
+  // back to the default, which is a button that lies.
   displayMode: {
     title: 'Big-screen mode',
     subtitle: 'Choose what the screen in the room shows.',
@@ -538,12 +539,15 @@ export default {
     modeDefaultHint: 'The normal big-screen view.',
     modeLiveRanking: 'Live ranking',
     modeLiveRankingHint: 'Show the live leaderboard.',
+    modeRoundRanking: 'Round ranking',
+    modeRoundRankingHint: 'Show the ranking of the current round.',
     modePlayerBroadcast: 'A projected player',
     // Shown when a player is being projected and the judge clicks a mode
     // button. The projection stops — made explicit so the judge is not
     // surprised to see the player disappear from the screen.
     projectedHint: 'A player is being projected. Switching mode will stop the projection.',
     switchFailed: 'Could not switch the big-screen mode.',
+    notAllowed: 'Switching the big-screen mode is reserved for org admins.',
   },
 
   // Judge monitoring panel — the live participant list with presence, the
