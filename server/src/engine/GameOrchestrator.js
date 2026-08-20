@@ -173,6 +173,32 @@ class GameOrchestrator {
 
     const remaining = await this.getRemainingSeconds(activeRound.id);
 
+    // Build puzzles array with auto-saved grids from state repository
+    const puzzles = session ? await Promise.all(session.puzzle_answers.map(async (pa) => {
+      const puzzle = pa.puzzles;
+      const initialGrid = typeof puzzle.initial_grid === 'string'
+        ? JSON.parse(puzzle.initial_grid) : puzzle.initial_grid;
+
+      // Check state repository first (auto-saved moves), fall back to DB
+      let currentGrid = await this.state.getIndividualPlayerGrid(activeRound.id, userId, puzzle.id);
+      if (!currentGrid && pa.current_grid) {
+        currentGrid = typeof pa.current_grid === 'string'
+          ? JSON.parse(pa.current_grid) : pa.current_grid;
+      }
+
+      return {
+        puzzleId: puzzle.id,
+        puzzleType: puzzle.type,
+        orderInRound: pa.progress_percentage,
+        initialGrid,
+        currentGrid,
+        points: puzzle.score,
+        letter: null,
+        isFinal: puzzle.type === 'FINAL',
+        isLocked: puzzle.type === 'FINAL',
+      };
+    })) : [];
+
     const result = {
       competitionStatus: competition.status,
       currentRound: {
@@ -184,25 +210,7 @@ class GameOrchestrator {
         remainingSeconds: remaining,
         turnEndsAt: null,
       },
-      puzzles: session ? session.puzzle_answers.map(pa => {
-        const puzzle = pa.puzzles;
-        const initialGrid = typeof puzzle.initial_grid === 'string'
-          ? JSON.parse(puzzle.initial_grid) : puzzle.initial_grid;
-        const currentGrid = pa.current_grid
-          ? (typeof pa.current_grid === 'string' ? JSON.parse(pa.current_grid) : pa.current_grid)
-          : null;
-        return {
-          puzzleId: puzzle.id,
-          puzzleType: puzzle.type,
-          orderInRound: pa.progress_percentage,
-          initialGrid,
-          currentGrid,
-          points: puzzle.score,
-          letter: null,
-          isFinal: puzzle.type === 'FINAL',
-          isLocked: puzzle.type === 'FINAL',
-        };
-      }) : [],
+      puzzles,
     };
 
     const timer = await this.state.getRoundTimer(activeRound.id);
@@ -240,9 +248,7 @@ class GameOrchestrator {
       where: { id: competitionId },
     });
     if (!comp) throw new CompetitionError('比赛不存在');
-    if (comp.status !== 'DRAFT' && comp.status !== 'PUBLISHED') {
-      throw new CompetitionError('比赛状态不允许开始');
-    }
+    if (!['DRAFT', 'PUBLISHED'].includes(comp.status)) throw new CompetitionError('比赛状态不允许开始');
 
     // Validate competition structure via StageManager
     const allStages = await this.stages.loadAllStages(competitionId);
@@ -260,11 +266,16 @@ class GameOrchestrator {
     });
     if (hasTeamStages && teams.length === 0) throw new CompetitionError('没有队伍');
 
-    // Update competition to RUNNING
-    await this._prisma.competitions.update({
-      where: { id: competitionId },
+    // Atomic status transition: DRAFT/PUBLISHED → RUNNING.
+    // updateMany with a WHERE on status ensures only one concurrent request
+    // succeeds (prevents double-start TOCTOU race condition).
+    const updateResult = await this._prisma.competitions.updateMany({
+      where: { id: competitionId, status: { in: ['DRAFT', 'PUBLISHED'] } },
       data: { status: 'RUNNING' },
     });
+    if (updateResult.count === 0) {
+      throw new CompetitionError('比赛状态不允许开始 (already started or finished)');
+    }
 
     const firstStage = await this.stages.findFirstStage(competitionId);
 
@@ -404,7 +415,8 @@ class GameOrchestrator {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp || comp.status !== 'RUNNING') throw new CompetitionError('比赛状态不允许暂停');
+    if (!comp) throw new CompetitionError('比赛不存在');
+    if (comp.status !== 'RUNNING') throw new CompetitionError('比赛状态不允许暂停');
 
     const emissions = [];
 
@@ -431,11 +443,14 @@ class GameOrchestrator {
       }
     }
 
-    // Update competition status
-    await this._prisma.competitions.update({
-      where: { id: competitionId },
+    // Atomic competition status transition: RUNNING → PAUSED
+    const updateResult = await this._prisma.competitions.updateMany({
+      where: { id: competitionId, status: 'RUNNING' },
       data: { status: 'PAUSED' },
     });
+    if (updateResult.count === 0) {
+      throw new CompetitionError('比赛状态不允许暂停 (already paused or state changed)');
+    }
 
     emissions.push({
       target: 'competition', targetId: competitionId, event: 'COMPETITION_PAUSED',
@@ -449,7 +464,8 @@ class GameOrchestrator {
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp || comp.status !== 'PAUSED') throw new CompetitionError('比赛状态不允许恢复');
+    if (!comp) throw new CompetitionError('比赛不存在');
+    if (comp.status !== 'PAUSED') throw new CompetitionError('比赛状态不允许恢复');
 
     const emissions = [];
 
@@ -487,11 +503,14 @@ class GameOrchestrator {
       }
     }
 
-    // Update competition status
-    await this._prisma.competitions.update({
-      where: { id: competitionId },
+    // Atomic competition status transition: PAUSED → RUNNING
+    const updateResult = await this._prisma.competitions.updateMany({
+      where: { id: competitionId, status: 'PAUSED' },
       data: { status: 'RUNNING' },
     });
+    if (updateResult.count === 0) {
+      throw new CompetitionError('比赛状态不允许恢复 (already resumed or state changed)');
+    }
 
     emissions.push({
       target: 'competition', targetId: competitionId, event: 'COMPETITION_RESUMED',
@@ -504,10 +523,17 @@ class GameOrchestrator {
   // ─── End round ────────────────────────────────────────────────
 
   async endRound(competitionId, roundId) {
+    // Phase 1: Atomic status transition — claim this round for ending (prevents double-end)
+    const updateResult = await this._prisma.rounds.updateMany({
+      where: { id: roundId, status: { not: 'FINISHED' } },
+      data: { status: 'FINISHED', ended_at: new Date() },
+    });
+    if (updateResult.count === 0) throw new RoundError('轮次状态不允许结束 (already finished or concurrent end)');
+
+    // Phase 2: Read round data for post-end processing (bonuses, scoring, etc.)
     const round = await this._prisma.rounds.findUnique({
       where: { id: roundId },
     });
-    if (!round || round.status === 'FINISHED') throw new RoundError('轮次状态不允许结束');
 
     const emissions = [];
 
@@ -540,25 +566,26 @@ class GameOrchestrator {
       const teams = await this._prisma.teams.findMany({
         where: { competition_id: competitionId },
       });
+
+      // Batch-fetch puzzle data once (same for all teams)
+      const roundPuzzleIds = (await this._prisma.round_puzzles.findMany({
+        where: { round_id: roundId },
+        select: { puzzle_id: true },
+      })).map(rp => rp.puzzle_id);
+
+      const totalPuzzles = roundPuzzleIds.length;
+
+      const solvedAnswers = await this._prisma.puzzle_answers.findMany({
+        where: {
+          player_round_sessions: { round_id: roundId },
+          puzzle_id: { in: roundPuzzleIds },
+          progress_percentage: { gte: 100 },
+        },
+        distinct: ['puzzle_id'],
+      });
+      const solvedCount = solvedAnswers.length;
+
       for (const team of teams) {
-        // Count solved puzzles via puzzle_answers with 100% progress
-        const solvedAnswers = await this._prisma.puzzle_answers.findMany({
-          where: {
-            player_round_sessions: { round_id: roundId },
-            puzzle_id: { in: (await this._prisma.round_puzzles.findMany({
-              where: { round_id: roundId },
-              select: { puzzle_id: true },
-            })).map(rp => rp.puzzle_id) },
-            progress_percentage: { gte: 100 },
-          },
-          distinct: ['puzzle_id'],
-        });
-        const solvedCount = solvedAnswers.length;
-
-        const totalPuzzles = await this._prisma.round_puzzles.count({
-          where: { round_id: roundId },
-        });
-
         const completionBonus = await this.scoring.applyRound3CompletionBonus(
           competitionId, roundId, team.id, remaining, solvedCount, totalPuzzles
         );
@@ -590,19 +617,36 @@ class GameOrchestrator {
         include: { puzzles: true },
       });
 
+      // Batch-fetch all sessions for this round (replaces per-player findUnique)
+      const allSessions = await this._prisma.player_round_sessions.findMany({
+        where: { round_id: roundId },
+      });
+      const sessionMap = new Map(allSessions.map(s => [s.participant_id, s]));
+
+      // Batch-fetch all puzzle_answers for those sessions (replaces per-puzzle findFirst)
+      const sessionIds = allSessions.map(s => s.id);
+      const allAnswers = sessionIds.length > 0
+        ? await this._prisma.puzzle_answers.findMany({
+            where: { session_id: { in: sessionIds } },
+          })
+        : [];
+      const answerMap = new Map(allAnswers.map(a => [`${a.session_id}:${a.puzzle_id}`, a]));
+
+      // Batch-fetch all round_rankings for this round (replaces per-player findFirst)
+      const allRankings = await this._prisma.round_rankings.findMany({
+        where: { round_id: roundId },
+      });
+      const rankingMap = new Map(allRankings.map(r => [r.participant_id, r]));
+
+      // Collect all write operations for batch execution
+      const writeOps = [];
+
       for (const player of players) {
         let totalRoundScore = 0;
         let solvedCount = 0;
 
-        // Look up the actual player_round_sessions UUID (not a composite string)
-        const session = await this._prisma.player_round_sessions.findUnique({
-          where: {
-            round_id_participant_id: {
-              round_id: roundId,
-              participant_id: player.id,
-            },
-          },
-        });
+        // Use batch-fetched session map
+        const session = sessionMap.get(player.id);
 
         if (!session) {
           // No session found — player may not have started; skip scoring
@@ -614,9 +658,7 @@ class GameOrchestrator {
 
           // Flush in-memory grid to puzzle_answers
           const inMemoryGrid = await this.state.getIndividualPlayerGrid(roundId, player.id, puzzle.id);
-          const answer = await this._prisma.puzzle_answers.findFirst({
-            where: { session_id: session.id, puzzle_id: puzzle.id },
-          });
+          const answer = answerMap.get(`${session.id}:${puzzle.id}`);
 
           let playerGrid = inMemoryGrid || (answer?.current_grid
             ? (typeof answer.current_grid === 'string' ? JSON.parse(answer.current_grid) : answer.current_grid)
@@ -636,8 +678,8 @@ class GameOrchestrator {
           const maxPoints = puzzle.score || 100;
           const puzzleScore = Math.round(maxPoints * completion.completionRatio);
 
-          // Update puzzle_answers with final state using the real session UUID
-          await this._prisma.puzzle_answers.upsert({
+          // Queue puzzle_answers upsert for batch execution
+          writeOps.push(this._prisma.puzzle_answers.upsert({
             where: {
               session_id_puzzle_id: {
                 session_id: session.id,
@@ -658,23 +700,21 @@ class GameOrchestrator {
               total_empty_cells: completion.totalOriginallyEmptyCells,
               progress_percentage: completion.completionRatio * 100,
             },
-          });
+          }));
 
           totalRoundScore += puzzleScore;
           if (completion.completionRatio >= 1.0) solvedCount++;
         }
 
-        // Create or update round_rankings entry (no unique constraint, use findFirst)
-        const existingRanking = await this._prisma.round_rankings.findFirst({
-          where: { round_id: roundId, participant_id: player.id },
-        });
+        // Queue round_rankings upsert using batch-fetched map
+        const existingRanking = rankingMap.get(player.id);
         if (existingRanking) {
-          await this._prisma.round_rankings.update({
+          writeOps.push(this._prisma.round_rankings.update({
             where: { id: existingRanking.id },
             data: { score: totalRoundScore, category_id: player.category_id },
-          });
+          }));
         } else {
-          await this._prisma.round_rankings.create({
+          writeOps.push(this._prisma.round_rankings.create({
             data: {
               round_id: roundId,
               participant_id: player.id,
@@ -682,7 +722,7 @@ class GameOrchestrator {
               rank: 0,
               category_id: player.category_id,
             },
-          });
+          }));
         }
 
         // Emit score update
@@ -701,13 +741,18 @@ class GameOrchestrator {
         });
       }
 
+      // Execute all writes in a single transaction
+      if (writeOps.length > 0) {
+        await this._prisma.$transaction(writeOps);
+      }
+
       // Compute ranks within each category (descending score order)
       const rankings = await this._prisma.round_rankings.findMany({
         where: { round_id: roundId },
         orderBy: { score: 'desc' },
       });
 
-      // Group by category_id and assign ranks
+      // Group by category_id and assign ranks in batch transaction
       const categoryGroups = {};
       rankings.forEach(r => {
         const catId = r.category_id || 'null';
@@ -715,14 +760,18 @@ class GameOrchestrator {
         categoryGroups[catId].push(r);
       });
 
+      const rankOps = [];
       for (const catId in categoryGroups) {
         const group = categoryGroups[catId];
         for (let i = 0; i < group.length; i++) {
-          await this._prisma.round_rankings.update({
+          rankOps.push(this._prisma.round_rankings.update({
             where: { id: group[i].id },
             data: { rank: i + 1 },
-          });
+          }));
         }
+      }
+      if (rankOps.length > 0) {
+        await this._prisma.$transaction(rankOps);
       }
 
       // Clean up in-memory grids
@@ -1022,10 +1071,12 @@ class GameOrchestrator {
   // ─── End competition ───────────────────────────────────────────
 
   async endCompetition(competitionId) {
+    // Phase 1: Validate preconditions (read-only)
     const comp = await this._prisma.competitions.findUnique({
       where: { id: competitionId },
     });
-    if (!comp || comp.status === 'FINISHED') throw new CompetitionError('比赛状态不允许结束');
+    if (!comp) throw new CompetitionError('比赛不存在');
+    if (comp.status === 'FINISHED') throw new CompetitionError('比赛状态不允许结束');
 
     // Business rule: all rounds must be FINISHED before competition can end
     const unfinishedRounds = await this._prisma.rounds.findMany({
@@ -1038,11 +1089,15 @@ class GameOrchestrator {
       throw new CompetitionError('所有轮次必须完成后才能结束比赛');
     }
 
+    // Phase 2: Atomic status transition (prevents TOCTOU race condition)
     const emissions = [];
-    await this._prisma.competitions.update({
-      where: { id: competitionId },
+    const updateResult = await this._prisma.competitions.updateMany({
+      where: { id: competitionId, status: { not: 'FINISHED' } },
       data: { status: 'FINISHED' },
     });
+    if (updateResult.count === 0) {
+      throw new CompetitionError('比赛状态不允许结束 (concurrent end detected)');
+    }
     emissions.push({
       target: 'competition', targetId: competitionId, event: 'COMPETITION_FINISHED',
       payload: { competitionId },

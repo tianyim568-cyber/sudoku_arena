@@ -15,6 +15,7 @@ jest.mock('../../src/db/prisma', () => {
     competitions: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     teams: {
       findMany: jest.fn(),
@@ -59,6 +60,7 @@ function buildOrchestrator() {
 function resetPrismaMocks() {
   prisma.competitions.findUnique.mockReset();
   prisma.competitions.update.mockReset();
+  prisma.competitions.updateMany.mockReset();
   prisma.teams.findMany.mockReset();
   prisma.competition_stages.findMany.mockReset();
   prisma.competition_stages.findFirst.mockReset();
@@ -106,7 +108,7 @@ function mockTeams(teams) {
 }
 
 function mockCompetitionUpdate() {
-  prisma.competitions.update.mockResolvedValue({ id: COMP_ID, status: 'RUNNING' });
+  prisma.competitions.updateMany.mockResolvedValue({ count: 1 });
 }
 
 describe('GameOrchestrator.startCompetition — team requirement', () => {
@@ -133,8 +135,8 @@ describe('GameOrchestrator.startCompetition — team requirement', () => {
 
     expect(result.result.competitionId).toBe(COMP_ID);
     expect(result.result.status).toBe('RUNNING');
-    expect(prisma.competitions.update).toHaveBeenCalledWith({
-      where: { id: COMP_ID },
+    expect(prisma.competitions.updateMany).toHaveBeenCalledWith({
+      where: { id: COMP_ID, status: { in: ['DRAFT', 'PUBLISHED'] } },
       data: { status: 'RUNNING' },
     });
   });

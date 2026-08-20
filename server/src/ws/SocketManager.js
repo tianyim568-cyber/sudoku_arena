@@ -704,8 +704,8 @@ class SocketManager {
 
       // ─── Disconnect ──────────────────────────────────────────
 
-      socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.user.username}`);
+      socket.on('disconnect', (reason) => {
+        console.log(`[${socket.user.role}] disconnected: ${socket.user.username} (reason: ${reason})`);
         if (heartbeatInterval) {
           clearInterval(heartbeatInterval);
           heartbeatInterval = null;
@@ -714,6 +714,11 @@ class SocketManager {
         // because the player may reconnect shortly. The PresenceService
         // sweep will detect stale heartbeats and emit PARTICIPANT_STATUS_CHANGE
         // offline events once the TTL expires.
+
+        // Log judge disconnects for monitoring (judges don't affect game flow)
+        if (socket.user.role === 'JUDGE') {
+          console.log(`[monitoring] Judge offline: ${socket.user.username}`);
+        }
 
         // Clean up R3 player focus on disconnect so stale focus doesn't persist
         try {
