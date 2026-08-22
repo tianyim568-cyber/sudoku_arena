@@ -55,6 +55,13 @@ class StageError extends GameError {
   }
 }
 
+class PlayerError extends GameError {
+  constructor(message, code = 'PLAYER_ERROR') {
+    super(message, code);
+    this.name = 'PlayerError';
+  }
+}
+
 module.exports = {
   GameError,
   CompetitionError,
@@ -63,4 +70,5 @@ module.exports = {
   SubmissionError,
   StateError,
   StageError,
+  PlayerError,
 };

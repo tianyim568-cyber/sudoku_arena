@@ -37,8 +37,11 @@ class PuzzleBankService {
 
   // ─── Read operations ───────────────────────────────────────────
 
-  listPuzzles({ roundType, difficulty, puzzleType, limit, offset } = {}) {
+  listPuzzles({ roundType, difficulty, puzzleType, limit, offset, organizationId } = {}) {
     let puzzles = (this._load().puzzles || []).slice();
+
+    // SECURITY: Filter by organization
+    if (organizationId) puzzles = puzzles.filter(p => p.organizationId === organizationId);
 
     if (roundType) puzzles = puzzles.filter(p => p.roundType === roundType);
     if (difficulty) puzzles = puzzles.filter(p => p.difficulty === difficulty);
@@ -53,13 +56,15 @@ class PuzzleBankService {
     return { total: safe.length, puzzles: safe.slice(start, end), meta: this._bank.meta };
   }
 
-  getPuzzleDetail(id) {
+  getPuzzleDetail(id, organizationId) {
     const puzzle = this._load().puzzles.find(p => p.id === id);
-    return puzzle || null;
+    // SECURITY: Verify organization ownership
+    if (!puzzle || (organizationId && puzzle.organizationId !== organizationId)) return null;
+    return puzzle;
   }
 
-  getPuzzlePreview(id) {
-    const puzzle = this.getPuzzleDetail(id);
+  getPuzzlePreview(id, organizationId) {
+    const puzzle = this.getPuzzleDetail(id, organizationId);
     if (!puzzle) return null;
     return {
       id: puzzle.id,
@@ -75,7 +80,7 @@ class PuzzleBankService {
 
   // ─── Generate puzzles ──────────────────────────────────────────
 
-  generatePuzzles({ roundType, count = 1, teamsCount = 1 }) {
+  generatePuzzles({ roundType, count = 1, teamsCount = 1, organizationId }) {
     const { SudokuGenerator } = require('../utils/sudokuGenerator');
     const gen = new SudokuGenerator();
     const bank = this._load();
@@ -93,6 +98,7 @@ class PuzzleBankService {
             const sol = gen.generateSolution();
             newPuzzles.push({
               id: `R1-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
               roundType, puzzleType: 'JOC', difficulty: 'EASY',
               orderInRound: nextOrder(roundType),
               letter: null, points: 10,
@@ -104,6 +110,7 @@ class PuzzleBankService {
             const sol = gen.generateSolution();
             newPuzzles.push({
               id: `R1-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
               roundType, puzzleType: 'FINAL', difficulty: 'MEDIUM',
               orderInRound: nextOrder(roundType),
               letter: null, points: 10,
@@ -122,6 +129,7 @@ class PuzzleBankService {
             const sol = gen.generateSolution();
             newPuzzles.push({
               id: `R2-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
               roundType, puzzleType: 'STANDARD', difficulty: 'EASY',
               orderInRound: newPuzzles.length + 1,
               letter: null, points: 8,
@@ -133,6 +141,7 @@ class PuzzleBankService {
             const sol = gen.generateSolution();
             newPuzzles.push({
               id: `R2-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
               roundType, puzzleType: 'STANDARD', difficulty: 'MEDIUM',
               orderInRound: newPuzzles.length + 1,
               letter: null, points: 16,
@@ -144,6 +153,7 @@ class PuzzleBankService {
             const sol = gen.generateSolution();
             newPuzzles.push({
               id: `R2-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
               roundType, puzzleType: 'STANDARD', difficulty: 'HARD',
               orderInRound: newPuzzles.length + 1,
               letter: null, points: 20,
@@ -167,6 +177,7 @@ class PuzzleBankService {
             const sol = gen.generateSolution();
             newPuzzles.push({
               id: `R3-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
               roundType, puzzleType: 'STANDARD', difficulty: d.diff,
               orderInRound: newPuzzles.length + 1,
               letter: null, points: d.pts,
@@ -182,6 +193,7 @@ class PuzzleBankService {
         const initial = gen.createPuzzle(solution, { emptyCells: 35 });
         newPuzzles.push({
           id: `RX-${bank.puzzles.length + 1}`,
+          organizationId,
           roundType: roundType || 'UNKNOWN', puzzleType: 'STANDARD', difficulty: 'MEDIUM',
           orderInRound: 1,
           letter: null, points: 100,
@@ -211,10 +223,10 @@ class PuzzleBankService {
    * @param {number} teamsCount - number of teams
    * @returns {{ r1: object, r2: object, r3: object, totalGenerated: number, totalInBank: number }}
    */
-  generateBulk(teamsCount) {
-    const r1 = this.generatePuzzles({ roundType: 'ROUND1_NINE_ONE', teamsCount });
-    const r2 = this.generatePuzzles({ roundType: 'ROUND2_RELAY', teamsCount });
-    const r3 = this.generatePuzzles({ roundType: 'ROUND3_COLLABORATE' });
+  generateBulk(teamsCount, organizationId) {
+    const r1 = this.generatePuzzles({ roundType: 'ROUND1_NINE_ONE', teamsCount, organizationId });
+    const r2 = this.generatePuzzles({ roundType: 'ROUND2_RELAY', teamsCount, organizationId });
+    const r3 = this.generatePuzzles({ roundType: 'ROUND3_COLLABORATE', organizationId });
     return {
       r1, r2, r3,
       totalGenerated: r1.generated + r2.generated + r3.generated,
@@ -453,10 +465,16 @@ class PuzzleBankService {
 
   // ─── Delete operations ─────────────────────────────────────────
 
-  async deletePuzzle(id) {
+  async deletePuzzle(id, organizationId) {
     const bank = this._load();
     const index = bank.puzzles.findIndex(p => p.id === id);
     if (index === -1) return { deleted: false, message: '题目不存在' };
+
+    // SECURITY: Verify organization ownership
+    const puzzle = bank.puzzles[index];
+    if (organizationId && puzzle.organizationId !== organizationId) {
+      return { deleted: false, message: '无权删除此题目' };
+    }
 
     bank.puzzles.splice(index, 1);
     this._save();
@@ -470,14 +488,26 @@ class PuzzleBankService {
     return { deleted: true, id };
   }
 
-  async clearAll() {
+  async clearAll(organizationId) {
     const bank = this._load();
-    const count = bank.puzzles.length;
-    bank.puzzles = [];
+
+    // SECURITY: Only clear puzzles belonging to this organization
+    const originalCount = bank.puzzles.length;
+    if (organizationId) {
+      bank.puzzles = bank.puzzles.filter(p => p.organizationId !== organizationId);
+    } else {
+      bank.puzzles = [];
+    }
+    const count = originalCount - bank.puzzles.length;
+
     this._save();
 
-    // Also clear from DB
-    await this.repos.puzzles.clearAll();
+    // Also clear from DB (only puzzles from this organization's rounds)
+    if (organizationId) {
+      await this.repos.puzzles.clearByOrganization(organizationId);
+    } else {
+      await this.repos.puzzles.clearAll();
+    }
 
     return { deleted: count };
   }

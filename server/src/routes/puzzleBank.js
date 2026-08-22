@@ -12,20 +12,23 @@ function createPuzzleBankRouter(repos) {
   // List puzzles in bank (with filters)
   router.get('/puzzle-bank', authMiddleware, (req, res) => {
     const { roundType, difficulty, puzzleType, limit, offset } = req.query;
-    const data = puzzleBankService.listPuzzles({ roundType, difficulty, puzzleType, limit, offset });
+    const data = puzzleBankService.listPuzzles({
+      roundType, difficulty, puzzleType, limit, offset,
+      organizationId: req.user.organizationId,
+    });
     res.json({ code: 200, message: 'success', data });
   });
 
   // Get single puzzle detail (includes solution, ADMIN/JUDGE only)
   router.get('/puzzle-bank/:id', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), (req, res) => {
-    const puzzle = puzzleBankService.getPuzzleDetail(req.params.id);
+    const puzzle = puzzleBankService.getPuzzleDetail(req.params.id, req.user.organizationId);
     if (!puzzle) return res.json({ code: 40400, message: '题目不存在', data: null });
     res.json({ code: 200, message: 'success', data: puzzle });
   });
 
   // Preview puzzle grid (for admin to check)
   router.get('/puzzle-bank/:id/preview', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), (req, res) => {
-    const preview = puzzleBankService.getPuzzlePreview(req.params.id);
+    const preview = puzzleBankService.getPuzzlePreview(req.params.id, req.user.organizationId);
     if (!preview) return res.json({ code: 40400, message: '题目不存在', data: null });
     res.json({ code: 200, message: 'success', data: preview });
   });
@@ -33,14 +36,17 @@ function createPuzzleBankRouter(repos) {
   // Generate new puzzles and add to bank
   router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generatePuzzlesSchema), (req, res) => {
     const { roundType, count, teamsCount } = req.body;
-    const data = puzzleBankService.generatePuzzles({ roundType, count, teamsCount });
+    const data = puzzleBankService.generatePuzzles({
+      roundType, count, teamsCount,
+      organizationId: req.user.organizationId,
+    });
     res.json({ code: 200, message: 'success', data });
   });
 
   // Bulk generate puzzles for ALL rounds at once (given team count)
   router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generateBulkSchema), (req, res) => {
     const { teamsCount } = req.body;
-    const result = puzzleBankService.generateBulk(teamsCount);
+    const result = puzzleBankService.generateBulk(teamsCount, req.user.organizationId);
     res.json({ code: 200, message: 'success', data: result });
   });
 
@@ -57,14 +63,14 @@ function createPuzzleBankRouter(repos) {
 
   // Delete single puzzle from bank
   router.delete('/puzzle-bank/:id', authMiddleware, roleMiddleware(...ADMIN_ROLES), async (req, res) => {
-    const result = await puzzleBankService.deletePuzzle(req.params.id);
+    const result = await puzzleBankService.deletePuzzle(req.params.id, req.user.organizationId);
     if (!result.deleted) return res.json({ code: 40400, message: result.message, data: null });
     res.json({ code: 200, message: 'success', data: result });
   });
 
   // Clear all puzzles from bank
   router.delete('/puzzle-bank', authMiddleware, roleMiddleware(...ADMIN_ROLES), async (req, res) => {
-    const result = await puzzleBankService.clearAll();
+    const result = await puzzleBankService.clearAll(req.user.organizationId);
     res.json({ code: 200, message: 'success', data: result });
   });
 

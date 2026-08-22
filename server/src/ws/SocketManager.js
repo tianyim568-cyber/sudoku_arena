@@ -27,6 +27,7 @@
  */
 
 const jwt = require('jsonwebtoken');
+const { z } = require('zod');
 const config = require('../config');
 const { getPrisma } = require('../db/prisma');
 const {
@@ -35,6 +36,20 @@ const {
   cellFillSchema,
   answerSubmitSchema,
 } = require('../validations/socket');
+
+// Zod schema for player_move event (was missing validation)
+const playerMoveSchema = z.object({
+  competitionId: z.string().uuid(),
+  roundId: z.string().uuid(),
+  puzzleId: z.string().uuid(),
+  row: z.number().int().min(0),
+  col: z.number().int().min(0),
+  value: z.number().int().min(1).max(9).nullable(),
+});
+
+// Role categories for access control
+const JUDGE_ROLES = ['JUDGE', 'ORG_ADMIN', 'SUPER_ADMIN'];
+const PLAYER_ROLE = 'PLAYER';
 
 class SocketManager {
   /**
@@ -57,6 +72,10 @@ class SocketManager {
     // Rate limit config (per-connection token bucket)
     this._rateLimitMax = config.WS_RATE_LIMIT; // max tokens (events per second)
     this._rateLimitRefillRate = config.WS_RATE_LIMIT; // tokens refilled per second
+
+    // Connection limiting: track userId → Set of socket IDs
+    this._userConnections = new Map();
+    this._maxConnectionsPerUser = config.WS_MAX_CONNECTIONS_PER_USER;
 
     // Subscribe to EmissionBus — both queued and immediate emissions
     bus.on('emission', (e) => this._routeEmission(e));
@@ -294,6 +313,80 @@ class SocketManager {
     return result.data;
   }
 
+  // ─── Tenant & role security ────────────────────────────────────
+
+  /**
+   * Verify that a competition belongs to the socket user's organization.
+   * Returns the competition record if valid, null otherwise (and emits error).
+   * @param {import('socket.io').Socket} socket
+   * @param {string} competitionId
+   * @returns {Promise<object|null>}
+   */
+  async _verifyTenant(socket, competitionId) {
+    try {
+      const prisma = getPrisma();
+      const competition = await prisma.competitions.findFirst({
+        where: { id: competitionId, organization_id: socket.user.organizationId },
+        select: { id: true, status: true },
+      });
+      if (!competition) {
+        socket.emit('event', {
+          type: 'TENANT_ACCESS_DENIED',
+          timestamp: new Date().toISOString(),
+          payload: { code: 40301, message: '无权访问此竞赛' },
+        });
+        return null;
+      }
+      return competition;
+    } catch (e) {
+      console.error('[SocketManager] _verifyTenant error:', e.message);
+      socket.emit('event', {
+        type: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+        payload: { code: 50000, message: '服务器内部错误' },
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Verify that a round belongs to a specific competition.
+   * @param {string} roundId
+   * @param {string} competitionId
+   * @returns {Promise<boolean>}
+   */
+  async _validateRoundBelongsToCompetition(roundId, competitionId) {
+    const prisma = getPrisma();
+    const round = await prisma.rounds.findFirst({
+      where: {
+        id: roundId,
+        competition_stages: { competition_id: competitionId },
+      },
+      select: { id: true },
+    });
+    return !!round;
+  }
+
+  /**
+   * Check that the socket user has one of the required roles.
+   * Emits an error event and returns false if not authorized.
+   * @param {import('socket.io').Socket} socket
+   * @param {string[]} allowedRoles
+   * @param {string} eventName
+   * @returns {boolean}
+   */
+  _requireRole(socket, allowedRoles, eventName) {
+    if (!allowedRoles.includes(socket.user.role)) {
+      socket.emit('event', {
+        type: 'ROLE_ACCESS_DENIED',
+        timestamp: new Date().toISOString(),
+        payload: { code: 40302, message: '权限不足', event: eventName },
+      });
+      return false;
+    }
+    return true;
+  }
+
   // ─── Auth middleware ───────────────────────────────────────────
 
   _setupAuth() {
@@ -324,6 +417,29 @@ class SocketManager {
         const decoded = jwt.verify(token, config.JWT_SECRET);
         socket.user = decoded;
         socket.isDisplay = false;
+
+        // SECURITY: Enforce per-user connection limit
+        const userId = decoded.userId;
+        const currentConnections = this._userConnections.get(userId) || new Set();
+        if (currentConnections.size >= this._maxConnectionsPerUser) {
+          return next(new Error(`Max ${this._maxConnectionsPerUser} connections per user`));
+        }
+
+        // Track this connection
+        currentConnections.add(socket.id);
+        this._userConnections.set(userId, currentConnections);
+
+        // Cleanup on disconnect
+        socket.on('disconnect', () => {
+          const userSockets = this._userConnections.get(userId);
+          if (userSockets) {
+            userSockets.delete(socket.id);
+            if (userSockets.size === 0) {
+              this._userConnections.delete(userId);
+            }
+          }
+        });
+
         next();
       } catch (e) {
         next(new Error('Invalid token'));
@@ -358,6 +474,11 @@ class SocketManager {
         const parsed = this._validate(joinRoomSchema, data, socket, 'join_room');
         if (!parsed) return;
         const { competitionId } = parsed;
+
+        // SECURITY: Verify tenant ownership
+        const competition = await this._verifyTenant(socket, competitionId);
+        if (!competition) return;
+
         try {
           socket.join(`competition_${competitionId}`);
           console.log(`${socket.user.username} joined competition ${competitionId}`);
@@ -411,6 +532,11 @@ class SocketManager {
         const parsed = this._validate(leaveRoomSchema, data, socket, 'leave_room');
         if (!parsed) return;
         const { competitionId } = parsed;
+
+        // SECURITY: Verify tenant ownership
+        const competition = await this._verifyTenant(socket, competitionId);
+        if (!competition) return;
+
         try {
           socket.leave(`competition_${competitionId}`);
           // Leave all team rooms for this competition
@@ -447,8 +573,21 @@ class SocketManager {
 
       socket.on('cell_fill', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'cell_fill')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'cell_fill')) return;
         const parsed = this._validate(cellFillSchema, data, socket, 'cell_fill');
         if (!parsed) return;
+
+        // SECURITY: Verify tenant + round ownership
+        if (!await this._verifyTenant(socket, parsed.competitionId)) return;
+        if (!await this._validateRoundBelongsToCompetition(parsed.roundId, parsed.competitionId)) {
+          socket.emit('event', {
+            type: 'VALIDATION_ERROR',
+            timestamp: new Date().toISOString(),
+            payload: { message: '轮次不属于此竞赛' },
+          });
+          return;
+        }
+
         try {
           const { competitionId, roundId, puzzleId, row, col, value } = parsed;
           const { result, emissions } = await this.orchestrator.handleCellFill(
@@ -464,15 +603,28 @@ class SocketManager {
           socket.emit('event', {
             type: 'CELL_FILL_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
 
       socket.on('answer_submit', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'answer_submit')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'answer_submit')) return;
         const parsed = this._validate(answerSubmitSchema, data, socket, 'answer_submit');
         if (!parsed) return;
+
+        // SECURITY: Verify tenant + round ownership
+        if (!await this._verifyTenant(socket, parsed.competitionId)) return;
+        if (!await this._validateRoundBelongsToCompetition(parsed.roundId, parsed.competitionId)) {
+          socket.emit('event', {
+            type: 'VALIDATION_ERROR',
+            timestamp: new Date().toISOString(),
+            payload: { message: '轮次不属于此竞赛' },
+          });
+          return;
+        }
+
         try {
           const { competitionId, roundId, puzzleId, submissionType, row, col, value, grid } = parsed;
           const { result, emissions } = await this.orchestrator.submitAnswer(
@@ -488,21 +640,38 @@ class SocketManager {
           socket.emit('event', {
             type: 'ANSWER_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '提交失败，请重试' }
           });
         }
       });
 
       socket.on('player_move', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'player_move')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'player_move')) return;
+
+        // SECURITY: Add Zod validation
+        const parsed = this._validate(playerMoveSchema, data, socket, 'player_move');
+        if (!parsed) return;
+
+        // SECURITY: Verify tenant + round ownership
+        if (!await this._verifyTenant(socket, parsed.competitionId)) return;
+        if (!await this._validateRoundBelongsToCompetition(parsed.roundId, parsed.competitionId)) {
+          socket.emit('event', {
+            type: 'VALIDATION_ERROR',
+            timestamp: new Date().toISOString(),
+            payload: { message: '轮次不属于此竞赛' },
+          });
+          return;
+        }
+
         try {
-          const { roundId, puzzleId, row, col, value } = data;
+          const { roundId, puzzleId, row, col, value, competitionId } = parsed;
           const userId = socket.user.userId;
           const prisma = getPrisma();
 
           // Find player record
           const player = await prisma.players.findFirst({
-            where: { competition_id: data.competitionId, user_id: userId },
+            where: { competition_id: competitionId, user_id: userId },
           });
           if (!player) {
             socket.emit('event', {
@@ -554,7 +723,7 @@ class SocketManager {
             });
 
             // Emit throttled PLAYER_GRID_UPDATE to judges for real-time monitoring
-            this._emitPlayerGridUpdate(data.competitionId, player.id, puzzleId, grid);
+            this._emitPlayerGridUpdate(competitionId, player.id, puzzleId, grid);
           } else {
             socket.emit('event', {
               type: 'PLAYER_MOVE_ERROR',
@@ -566,15 +735,31 @@ class SocketManager {
           socket.emit('event', {
             type: 'PLAYER_MOVE_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
 
       socket.on('round2_cell_update', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'round2_cell_update')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'round2_cell_update')) return;
+
         try {
           const { roundId, puzzleId, row, col, value } = data;
+
+          // SECURITY: Resolve competition from round and verify tenant
+          const prisma = getPrisma();
+          const round = await prisma.rounds.findFirst({
+            where: { id: roundId },
+            select: { competition_stages: { select: { competition_id: true } } },
+          });
+          if (!round) {
+            socket.emit('event', { type: 'ROUND2_CELL_ERROR', timestamp: new Date().toISOString(), payload: { message: '轮次不存在' } });
+            return;
+          }
+          const competitionId = round.competition_stages.competition_id;
+          if (!await this._verifyTenant(socket, competitionId)) return;
+
           const { result, emissions } = await this.orchestrator.round2CellUpdate(
             socket.user.userId, roundId, puzzleId, row, col, value
           );
@@ -588,7 +773,7 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND2_CELL_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
@@ -597,8 +782,17 @@ class SocketManager {
 
       socket.on('round3_propose', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'round3_propose')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'round3_propose')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col, value } = data;
+
+          // SECURITY: Verify tenant + round ownership
+          if (!await this._verifyTenant(socket, competitionId)) return;
+          if (!await this._validateRoundBelongsToCompetition(roundId, competitionId)) {
+            socket.emit('event', { type: 'ROUND3_PROPOSE_ERROR', timestamp: new Date().toISOString(), payload: { message: '轮次不属于此竞赛' } });
+            return;
+          }
+
           const { result, emissions } = await this.orchestrator.round3ProposeCell(
             socket.user.userId, competitionId, roundId, puzzleId, row, col, value
           );
@@ -612,15 +806,24 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND3_PROPOSE_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
 
       socket.on('round3_accept', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'round3_accept')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'round3_accept')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
+
+          // SECURITY: Verify tenant + round ownership
+          if (!await this._verifyTenant(socket, competitionId)) return;
+          if (!await this._validateRoundBelongsToCompetition(roundId, competitionId)) {
+            socket.emit('event', { type: 'ROUND3_ACCEPT_ERROR', timestamp: new Date().toISOString(), payload: { message: '轮次不属于此竞赛' } });
+            return;
+          }
+
           const { result, emissions } = await this.orchestrator.round3AcceptProposal(
             socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
@@ -634,15 +837,24 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND3_ACCEPT_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
 
       socket.on('round3_reject', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'round3_reject')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'round3_reject')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
+
+          // SECURITY: Verify tenant + round ownership
+          if (!await this._verifyTenant(socket, competitionId)) return;
+          if (!await this._validateRoundBelongsToCompetition(roundId, competitionId)) {
+            socket.emit('event', { type: 'ROUND3_REJECT_ERROR', timestamp: new Date().toISOString(), payload: { message: '轮次不属于此竞赛' } });
+            return;
+          }
+
           const { result, emissions } = await this.orchestrator.round3RejectProposal(
             socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
@@ -656,15 +868,24 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND3_REJECT_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
 
       socket.on('round3_withdraw', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'round3_withdraw')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'round3_withdraw')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
+
+          // SECURITY: Verify tenant + round ownership
+          if (!await this._verifyTenant(socket, competitionId)) return;
+          if (!await this._validateRoundBelongsToCompetition(roundId, competitionId)) {
+            socket.emit('event', { type: 'ROUND3_WITHDRAW_ERROR', timestamp: new Date().toISOString(), payload: { message: '轮次不属于此竞赛' } });
+            return;
+          }
+
           const { result, emissions } = await this.orchestrator.round3WithdrawProposal(
             socket.user.userId, competitionId, roundId, puzzleId, row, col
           );
@@ -678,15 +899,21 @@ class SocketManager {
           socket.emit('event', {
             type: 'ROUND3_WITHDRAW_ERROR',
             timestamp: new Date().toISOString(),
-            payload: { message: e.message }
+            payload: { message: '操作失败，请重试' }
           });
         }
       });
 
       socket.on('round3_focus', async (data) => {
         if (!this._checkRateLimit(rateLimiter, socket, 'round3_focus')) return;
+        if (!this._requireRole(socket, [PLAYER_ROLE], 'round3_focus')) return;
         try {
           const { competitionId, roundId, puzzleId, row, col } = data;
+
+          // SECURITY: Verify tenant + round ownership
+          if (!await this._verifyTenant(socket, competitionId)) return;
+          if (!await this._validateRoundBelongsToCompetition(roundId, competitionId)) return;
+
           const { result, emissions } = await this.orchestrator.round3FocusUpdate(
             socket.user.userId, competitionId, roundId, puzzleId, row, col
           );

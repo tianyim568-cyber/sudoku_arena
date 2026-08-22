@@ -106,9 +106,20 @@ function buildRepos(overrides = {}) {
 }
 
 function buildApp(repos) {
+  // Mock Prisma for the two-hop security checks in competitionSetup.js.
+  // These checks verify round/stage/competition ownership via Prisma queries.
+  // The mock returns sensible defaults — individual tests override as needed.
+  const mockPrisma = {
+    competition_stages: {
+      findFirst: async () => ({ id: 'stage-1', competition_id: '1' }),
+    },
+    competitions: {
+      findFirst: async () => ({ id: 'comp-1', organization_id: 'org-admin' }),
+    },
+  };
   const app = express();
   app.use(express.json());
-  app.use('/api', createCompetitionSetupRouter(repos));
+  app.use('/api', createCompetitionSetupRouter(repos, mockPrisma));
   return app;
 }
 

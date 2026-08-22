@@ -37,7 +37,7 @@ const PuzzleAssignmentService = require('../services/PuzzleAssignmentService');
 const Round2NotificationService = require('../services/Round2NotificationService');
 const Round3CollaborationService = require('../services/Round3CollaborationService');
 const { isTeamRoundType, isIndividualRoundType } = require('./RoundTypes');
-const { CompetitionError, RoundError, StageError } = require('./errors');
+const { CompetitionError, RoundError, StageError, PlayerError } = require('./errors');
 
 // Default transition delay between rounds (seconds).
 // Gives clients time to show "next round" screen before preparation countdown starts.
@@ -1127,6 +1127,21 @@ class GameOrchestrator {
     if (!round) throw new RoundError('轮次不存在');
 
     const competitionId = round.competition_stages.competition_id;
+
+    // SECURITY: Verify player belongs to this competition (tenant isolation)
+    // The submission routes use roundId from request body (not URL), so they
+    // bypass tenantGuard. This check prevents cross-tenant submissions.
+    const player = await this._prisma.players.findFirst({
+      where: {
+        user_id: userId,
+        competition_id: competitionId,
+      },
+      select: { id: true },
+    });
+    if (!player) {
+      throw new PlayerError('您不是此竞赛的参赛者');
+    }
+
     const engine = this._getEngine(round.type);
     const { result, emissions } = await engine.submitAnswer(
       userId, competitionId, roundId, puzzleId, submissionType, data
