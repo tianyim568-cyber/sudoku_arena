@@ -111,9 +111,12 @@ export default function DashboardPuzzleBankPage() {
   const handleImport = async () => {
     if (!selectedRound) return alert(t('puzzleBank.selectRoundAlert'));
     setImporting(true);
+    // Omit `count` — the Zod schema on the server rejects `0` (`positive()`
+    // constraint). The service already treats an absent count as "all
+    // available" for team rounds. Sending `count: 0` used to surface as a
+    // cryptic "Too small: expected number to be >0" alert (BUG-05).
     const res = await api.request('POST', '/puzzle-bank/import-to-round', {
       roundId: selectedRound,
-      count: 0,
     });
     if (res.code === 200) {
       alert(t('puzzleBank.imported', { n: res.data.imported }));
