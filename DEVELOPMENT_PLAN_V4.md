@@ -153,53 +153,115 @@ docstring.
 
 ## 3. Real bugs and rough edges found during this audit
 
-### 3.1 P0 (fix before ship)
+> **Update 2026-08-24 — LIVE UI walkthrough.** After a code-only
+> pass, I sat down at a running dev server and drove the app as an
+> ORG_ADMIN. Two P0 bugs surfaced that a code trace alone missed —
+> both were bugs *in features I had just shipped*. Both fixed the
+> same day (commits `c5f38f6`). More bugs and rough edges below.
 
-**None.** After the F42 timer-expiry fix (ISSUE-014, committed
-2026-08-23 with a real test), no functional-critical bug is open. The
-core flow — competition runs, players play, rounds finish, ranking
-computes — is unblocked.
+### 3.1 P0 (blocked or discovered by live test)
 
-### 3.2 P1 (fix soon)
+- ✅ **BUG-06 (FIXED)** — Create-judge for ORG_ADMIN.
+  `POST /api/users` compared the raw `req.body.organizationId`
+  against `req.user.organizationId` *before* resolving
+  `effectiveOrgId`. The dashboard's judge-creation UI never sends
+  `organizationId` (it relies on the server auto-assigning the
+  caller's org), so every ORG_ADMIN attempt was rejected with 40301
+  "You cannot create a user in this organization". **My freshly-
+  shipped judges page was unusable for the very role it was built
+  for.** Fixed in commit `c5f38f6`: resolve effectiveOrgId first,
+  then compare. Regression test added — omitting the field is now
+  the *tested* happy path.
+- ✅ **BUG-05 (FIXED)** — Import-from-bank sent `count: 0`.
+  The Zod schema on the server is
+  `z.coerce.number().int().positive().optional()`, which rejects
+  0 with "Too small: expected number to be >0" — a Zod-internal
+  message displayed verbatim to the admin. Fixed in commit
+  `c5f38f6`: the client now omits the field (the service already
+  treats it as "all available" for team rounds).
+
+### 3.2 P1 (open, from the live walk-through)
 
 - **BUG-01 — Assign judge picker is broken.**
   `CompetitionDetailPage:handleAssignJudge` (line 155-161) hard-picks
   `users.find(u => u.role === 'JUDGE')` — always the same judge if the
   org has several. Needs a real dropdown of unassigned JUDGE users
-  inside the competition detail page. **Louise-side** (client-only
-  fix; the `assignJudge` API takes a `judgeId` param already).
+  inside the competition detail page. **Louise-side.**
+- **BUG-02 — Publish panel doesn't refresh after inline edits.**
+  Add a stage or a round from the competition detail page and the
+  "Publishing" checklist keeps the state it had at load time. The
+  admin has to reload to see the check flip. **Louise-side**
+  (`CompetitionDetailPage` needs to re-fetch publishability after
+  each mutation). Confirmed live during the audit.
+- **BUG-03 — Round display shows raw enum, not the friendly label.**
+  Inside a stage's rounds list, each round card reads
+  `Type: INDIVIDUAL_STANDARD | Duration: 60s | Puzzles: 0` — the
+  ENUM value, not "Standard Sudoku". The i18n key
+  `common.roundName.INDIVIDUAL_STANDARD` exists and is used elsewhere
+  (dropdown labels). **Louise-side** — 1-line fix in
+  `CompetitionDetailPage`. Confirmed live.
+- **BUG-04 / F88 (unrelated but adjacent) — No way to generate
+  individual-round puzzles from the UI.** The puzzle bank page only
+  offers R1/R2/R3 generation buttons (all TEAM rounds). An admin
+  who creates an INDIVIDUAL stage cannot populate its rounds through
+  the UI. The server's `importToRound` for individual round types
+  reads `bank.puzzles.filter(p => p.roundType === type)` — but
+  nothing writes `INDIVIDUAL_*` typed puzzles to the bank. **The
+  individual-round happy path is broken end-to-end.** This is
+  distinct from F88 (PDF import, Sylvain's task). Needs a product
+  decision: is F88 supposed to solve this, or do we need a separate
+  "generate individual sudoku" button? Confirmed live.
 - **F65 — Score/age/category in monitoring payload.** `/monitoring/
-  participants` returns presence + identity only. The judge cannot see
-  the scoreboard from the console without a second fetch. **Sylvain-
-  side** (his `routes/monitoring.js`).
+  participants` returns presence + identity only. **Sylvain-side.**
 - **F107 — ~33 remaining `console.*` in Sylvain's files.**
-  SocketManager (13), DisplayManager (5), GameOrchestrator (5),
-  routes/display.js (7), plus 3 others. Skips log-level filtering and
-  secret redaction. **Sylvain-side.**
-- **F88 — PDF import service.** Sylvain took the task; nothing shipped
-  yet. **Sylvain-side.**
-- **ISSUE-018 — Rotation of the exposed prod secrets.** The
-  `.env.production` file is untracked in git going forward, but the
-  values already in history need to be rotated (new DB password + new
-  `JWT_SECRET`). **Human action, not code.**
+  **Sylvain-side.**
+- **F88 — PDF import service.** Sylvain took the task; nothing
+  shipped yet. **Sylvain-side.**
+- **ISSUE-018 — Rotation of the exposed prod secrets.**
+  `.env.production` untracked going forward, but the values already
+  in history need to be rotated. **Human action.**
 - **ISSUE-019 — Per-IP rate limit blocks a whole competition room.**
-  `authLimiter` (30 logins / 15 min / IP) would refuse legitimate
-  players once >30 in the same room log in behind one NAT. Needs
-  per-user keying for logged-in routes. **Design decision + Sylvain's
-  middleware.**
+  `authLimiter` (30 logins / 15 min / IP) refuses legitimate
+  players behind one NAT. **Design decision + Sylvain.**
 
-### 3.3 P2 (nice-to-have, not shipping blockers)
+### 3.3 P2 / A11y / rough edges (found live)
 
+- **Stage-type buttons have no accessible name.** When the admin
+  clicks "+ Add a stage", the two enabled options (INDIVIDUAL /
+  TEAM) render as `<button>` with content that isn't picked up as
+  an accessible name — a screen reader announces "button, button".
+  Third option ("Head-to-head stages are not available yet") does
+  have a name because it's disabled with a title. **Louise-side.**
+- **Round-form file input has no accessible name.** The "Puzzle
+  file (PDF)" input in the round creation form is a bare `<input
+  type="file">` — screen reader announces "button" with no label.
+  **Louise-side.**
+- **Round-list header shows "Round 1 Round 1 quick test"** — the
+  round order label ("Round 1") and the round name ("Round 1
+  quick test") sit side by side with no separator. Minor visual.
+  **Louise-side.**
+- **Puzzle-bank generation alert says "The bank now has 396"**
+  after a freshly-registered org generates 10 puzzles. The count
+  is coming from the shared JSON bank file, not the org-scoped
+  view — the alert message is misleading. ISSUE-025 tracks this
+  design flaw at the storage level (flat JSON file, unbounded
+  growth); the misleading alert is a symptom. **Louise-side.**
+- **Vacuous ✓ in the publish checklist when nothing is configured.**
+  Before any stage exists, "Every stage has at least one round" and
+  "Every round has at least one puzzle" show ✓ (technically
+  vacuously true). Reads as "2/5 already done" to a new admin. Once
+  BUG-02 (stale panel) is fixed, this UX quirk also disappears —
+  the check will flip to ✗ as soon as a stage without rounds is
+  added, which is honest. **Louise-side.**
 - Post-publish stage config lock (F26) — engine still allows
-  reshaping stages/rounds after publish. Sylvain's file.
+  reshaping. **Sylvain-side.**
 - End-of-competition player screen shows only "thanks for taking
-  part" — no view of their own result. Product decision needed.
-- Broadcast player: only ORG_ADMIN can project, not JUDGE. Product
-  decision.
-- `dashboard.superAdminComingSoon` i18n key is now unreferenced
-  (route replaced by `AdminDashboardPage`). Dead code.
-- The `louise/` (lowercase) folder is a case-insensitive duplicate of
-  `Louise/` on Windows — a single Git rename would clean it.
+  part" — no view of their own result. **Product decision.**
+- Broadcast player: only ORG_ADMIN, not JUDGE. **Product decision.**
+- `dashboard.superAdminComingSoon` i18n key unreferenced. Dead
+  code.
+- `louise/` (lowercase) folder is a case-insensitive duplicate of
+  `Louise/` on Windows.
 
 ### 3.4 Confirmed non-issues (assumed by design)
 
@@ -439,16 +501,22 @@ the app on a real screen this pass — see §8):
 
 ## 8. What v4 does NOT cover (be honest)
 
-- **A live end-to-end session in the browser.** I did not run the
-  dev server this pass and walk through the UI myself. Every ✅
-  above is a code-level trace or a test-suite green, not a live
-  screenshot. Louise should play Scenario A end-to-end (see §5) to
-  confirm the code-level reading matches reality.
-- **Load testing.** No test of "100 players connecting at once" was
-  ever done. ISSUE-019 (rate limit) hints at a real problem but
-  has not been reproduced.
-- **Accessibility.** No axe scan, no keyboard-only walkthrough, no
-  screen-reader check.
+- ~~A live end-to-end session in the browser.~~ ✅ **Done
+  2026-08-24 evening** — an ORG_ADMIN walk-through from
+  registration through stage config surfaced BUG-01 through BUG-06
+  documented above.
+- **Full player + judge live session.** The live pass stopped at
+  "admin cannot populate an INDIVIDUAL round from the UI"
+  (BUG-04) — beyond that, playing as a judge and a player would
+  need real puzzles seeded through a different path. Deferred
+  until BUG-04 (or F88) lands.
+- **Load testing.** No test of "100 players connecting at once".
+  ISSUE-019 (rate limit) hints at a real problem but has not been
+  reproduced.
+- **Accessibility.** Two issues surfaced in the live pass (unlabeled
+  stage-type buttons, unlabeled file input) but there was no
+  systematic axe scan, no keyboard-only walkthrough, no screen-
+  reader check.
 - **Mobile responsive on real devices.** The dashboard uses
   responsive Tailwind classes; behaviour on a real phone is
   untested this pass.
@@ -457,11 +525,26 @@ the app on a real screen this pass — see §8):
 
 ## 9. Next steps
 
-**Louise:**
+**Already done during the 2026-08-24 audit:**
+- ✅ BUG-05 (import-from-bank count=0) — fixed + shipped in `c5f38f6`.
+- ✅ BUG-06 (create-judge for ORG_ADMIN) — fixed + shipped +
+   regression test in `c5f38f6`.
+- ✅ Full French-in-UI scan — zero user-visible French leaks
+   (2 code comments in `LanguageContext.jsx` fixed in `dc493af`).
+- ✅ Live UI walkthrough from admin registration through stage
+   config — surfaced BUG-01 through BUG-04 above.
+
+**Louise, next:**
 1. Fix **BUG-01** (assign judge picker) — small, self-contained,
    client-only.
-2. Play **Scenario A** on the running dev server. Report any
-   step that diverges from the ✅ column.
+2. Fix **BUG-02** (publish panel doesn't refresh) — refetch
+   publishability after each stage/round/participant/judge mutation.
+3. Fix **BUG-03** (raw enum in round list) — 1-line i18n swap.
+4. Fix the two a11y issues (stage-type buttons + file input labels).
+5. **BUG-04** (individual round puzzle flow) — needs a product
+   decision first: is F88 (PDF import) supposed to cover this, or
+   should the puzzle bank grow an "Individual sudoku generator"
+   button too? Discuss with Sylvain.
 
 **Team meeting with Sylvain:**
 1. Confirm his ETA on F88 (PDF), F65 (monitoring payload),
