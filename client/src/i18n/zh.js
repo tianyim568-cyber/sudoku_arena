@@ -667,6 +667,31 @@ export default {
     loadFailed: '无法加载裁判列表。',
   },
 
+  // 选手总览页 —— 只读的跨赛事视图（F32）。每个赛事详情页里保留的
+  // 导入 / 删除 / 导出凭证仍然是唯一的写入路径，本页不做任何修改操作。
+  // 服务端在 WHERE 子句中强制机构隔离，客户端无法绕过。
+  participants: {
+    title: '选手',
+    subtitle: '本机构下所有赛事的参赛选手总览。仅供查看 —— 导入与删除请前往对应赛事详情页。',
+    filterByCompetition: '赛事',
+    filterByCategory: '组别',
+    filterAllCompetitions: '全部赛事',
+    filterAllCategories: '全部组别',
+    searchLabel: '搜索',
+    searchPlaceholder: '按姓名或学校搜索…',
+    count: '共 {n} 名选手',
+    colName: '姓名',
+    colSchool: '学校',
+    colAge: '年龄',
+    colCategory: '组别',
+    colCompetition: '赛事',
+    colCreated: '导入时间',
+    emptyOrg: '暂无选手。请前往某个赛事的详情页导入。',
+    emptyFiltered: '没有符合筛选条件的选手。',
+    loading: '加载中…',
+    loadFailed: '无法加载选手列表。',
+  },
+
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的
   // 键用于未传自定义 fallback 时的默认兜底；其余键由 ErrorPage 使用。
   errors: {

@@ -694,6 +694,32 @@ export default {
     loadFailed: 'Could not load the judges list.',
   },
 
+  // Participants dashboard — global read-only view (F32). Complements the
+  // per-competition import/delete/export that already lives inside
+  // CompetitionDetailPage — this page never mutates. The server enforces
+  // tenant isolation in its WHERE clause; the client cannot bypass it.
+  participants: {
+    title: 'Participants',
+    subtitle: 'All participants across your organization\'s competitions. Read-only — import and delete live inside each competition\'s detail page.',
+    filterByCompetition: 'Competition',
+    filterByCategory: 'Category',
+    filterAllCompetitions: 'All competitions',
+    filterAllCategories: 'All categories',
+    searchLabel: 'Search',
+    searchPlaceholder: 'Search by name or school…',
+    count: '{n} participants',
+    colName: 'Name',
+    colSchool: 'School',
+    colAge: 'Age',
+    colCategory: 'Category',
+    colCompetition: 'Competition',
+    colCreated: 'Added',
+    emptyOrg: 'No participants yet. Import them from a competition\'s detail page.',
+    emptyFiltered: 'No participants match these filters.',
+    loading: 'Loading participants…',
+    loadFailed: 'Could not load the participants list.',
+  },
+
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The
   // boundary keys are used by the default fallback when no custom one is
   // passed; the title/message/door keys are used by ErrorPage.

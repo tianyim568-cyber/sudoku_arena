@@ -188,6 +188,19 @@ export const api = {
   listParticipants: (competitionId) => request('GET', `/competitions/${competitionId}/participants`),
   deleteParticipants: (competitionId) => request('DELETE', `/competitions/${competitionId}/participants`),
 
+  // Global participants list — across every competition of the caller's
+  // organization. Read-only. Filters are optional; omit for "all". The
+  // server enforces the tenant filter (organization_id) in the WHERE
+  // clause — the client cannot bypass it by omitting a param.
+  listAllParticipants: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.competitionId) params.set('competitionId', filters.competitionId);
+    if (filters.categoryId) params.set('categoryId', filters.categoryId);
+    if (filters.search) params.set('search', filters.search);
+    const qs = params.toString();
+    return request('GET', `/participants${qs ? '?' + qs : ''}`);
+  },
+
   // Export participants with credentials. This endpoint returns a binary XLSX
   // blob, not JSON, so it cannot go through request() — but we still wrap the
   // fetch so a network failure (server down, DNS) returns an envelope
