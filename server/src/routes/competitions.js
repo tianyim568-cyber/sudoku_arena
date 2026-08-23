@@ -75,7 +75,7 @@ function buildEntryUrl(accessCode) {
   return `${config.CLIENT_URL}/competition/${accessCode}`;
 }
 
-function createCompetitionRouter(repos) {
+function createCompetitionRouter(repos, displayManager) {
   const router = express.Router();
 
   // ── CRUD endpoints (moved from routes/competitions.js in Phase 4) ──
@@ -151,6 +151,49 @@ function createCompetitionRouter(repos) {
       }
       const judges = await repos.teams.getJudges(req.params.id);
       res.json({ code: 200, message: 'success', data: { ...t, rounds, teams, judges } });
+    }
+  );
+
+  /**
+   * GET /:id/results — Historical results for the admin dashboard.
+   *
+   * Returns the same ranking snapshot the big-screen display uses, but behind
+   * org-scoped admin auth instead of a display token. The admin can review
+   * every round's ranking and the final rankings from the dashboard without
+   * having to generate (and revoke) a display token just to look.
+   *
+   * Reuses DisplayManager.getRankingSnapshot so the admin and the big screen
+   * always see the same numbers — two code paths producing rankings would
+   * drift apart.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   * Tenant: competition must belong to caller's organization
+   *
+   * Response:
+   *   200 { code: 200, data: { competition, stages[], finalRankings[], categories[] } }
+   *   404 { code: 40400 } — competition not found
+   *   500 { code: 50000 } — snapshot failed
+   */
+  router.get(
+    '/:id/results',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      const { id } = req.params;
+      if (!displayManager) {
+        return res.json({ code: 50000, message: '结果快照不可用', data: null });
+      }
+      try {
+        const snapshot = await displayManager.getRankingSnapshot(id);
+        res.json({ code: 200, message: 'success', data: snapshot });
+      } catch (e) {
+        if (e.message === 'Competition not found') {
+          return res.json({ code: 40400, message: '比赛不存在', data: null });
+        }
+        logger.error('Get competition results failed', { competitionId: id, error: e.message });
+        res.json({ code: 50000, message: '获取结果失败', data: null });
+      }
     }
   );
 

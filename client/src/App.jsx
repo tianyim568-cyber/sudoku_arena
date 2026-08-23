@@ -14,6 +14,8 @@ import DashboardLayout from './components/DashboardLayout';
 import DashboardCompetitionsPage from './pages/DashboardCompetitionsPage';
 import DashboardPuzzleBankPage from './pages/DashboardPuzzleBankPage';
 import DashboardPage from './pages/DashboardPage';
+import DashboardResultsPage from './pages/DashboardResultsPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import ErrorPage from './pages/ErrorPage';
 
@@ -58,18 +60,19 @@ function AppRoutes() {
       <Route path="/" element={
         <PrivateRoute>
           {user?.role === 'SUPER_ADMIN'
-            ? <Navigate to="/admin-coming-soon" replace />
+            ? <Navigate to="/admin" replace />
             : ADMIN_ROLES.includes(user?.role)
               ? <Navigate to="/dashboard" replace />
               : <CompetitionListPage />}
         </PrivateRoute>
       } />
-      {/* Phase 11: Super Admin landing page. The platform-admin interface is not
-          built yet (Appendix A, P2). Routing SUPER_ADMIN here instead of
-          /dashboard avoids showing them a mixed-org competition list. */}
-      <Route path="/admin-coming-soon" element={
+      {/* R11: Super Admin dashboard — platform-wide read-only overview (orgs,
+          competitions, users). Replaces /admin-coming-soon. The router
+          enforces SUPER_ADMIN on every route under /api/admin, so the page
+          is safe to mount with a RoleRoute gate here. */}
+      <Route path="/admin" element={
         <PrivateRoute><RoleRoute roles={['SUPER_ADMIN']}>
-          <ComingSoonPage titleKey="superAdmin" messageKey="dashboard.superAdminComingSoon" showLogout />
+          <AdminDashboardPage />
         </RoleRoute></PrivateRoute>
       } />
       {/* Plural: the admin detail page. See the note on /competition/:accessCode. */}
@@ -97,7 +100,7 @@ function AppRoutes() {
         <Route path="participants" element={<ComingSoonPage titleKey="participants" />} />
         <Route path="judges" element={<ComingSoonPage titleKey="judges" />} />
         <Route path="teams" element={<ComingSoonPage titleKey="teams" />} />
-        <Route path="results" element={<ComingSoonPage titleKey="results" />} />
+        <Route path="results" element={<DashboardResultsPage />} />
         {/* Safety net: an unknown /dashboard/* path would otherwise match no
             child and render a completely blank page. */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

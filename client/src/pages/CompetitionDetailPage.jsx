@@ -29,7 +29,7 @@ export default function CompetitionDetailPage() {
   const [openStageId, setOpenStageId] = useState(null);
   const [roundTypes, setRoundTypes] = useState({});
   const [roundTypesError, setRoundTypesError] = useState(null);
-  const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, pdf: null });
+  const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, preparationSeconds: 10, pdf: null });
 
   const load = async () => {
     const res = await api.getCompetition(id);
@@ -79,6 +79,7 @@ export default function CompetitionDetailPage() {
       name: '',
       roundType: (roundTypes[stage.type] || [])[0] || '',
       durationSeconds: 600,
+      preparationSeconds: 10,
       pdf: null,
     });
   };
@@ -89,6 +90,7 @@ export default function CompetitionDetailPage() {
       name: roundForm.name,
       roundType: roundForm.roundType,
       durationSeconds: roundForm.durationSeconds,
+      preparationSeconds: roundForm.preparationSeconds,
     });
     if (res.code === 200) {
       setRoundForm(f => ({ ...f, name: '', pdf: null }));
@@ -374,6 +376,24 @@ export default function CompetitionDetailPage() {
                                 placeholder={t('competitionDetail.roundDuration')} value={roundForm.durationSeconds}
                                 onChange={e => setRoundForm({ ...roundForm, durationSeconds: parseInt(e.target.value) || 600 })}
                                 className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
+
+                              {/* Preparation time — how long players read the
+                                  round's rules before the board opens. The
+                                  column has always existed with a 10s default;
+                                  nothing let an admin change it, so every round
+                                  in the product used the same value whether or
+                                  not it suited. */}
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">
+                                  {t('competitionDetail.roundPreparation')}
+                                </label>
+                                <input type="number" min="0" max="300"
+                                  aria-label={t('competitionDetail.roundPreparation')}
+                                  value={roundForm.preparationSeconds}
+                                  onChange={e => setRoundForm({ ...roundForm, preparationSeconds: parseInt(e.target.value) || 0 })}
+                                  className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
+                                <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
+                              </div>
 
                               {/* PDF import is not built: the extraction pipeline
                                   cannot be designed without a sample file (see

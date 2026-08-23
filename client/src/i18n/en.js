@@ -164,6 +164,8 @@ export default {
     roundName: 'Round name',
     roundType: 'Round type',
     roundDuration: 'Duration (seconds)',
+    roundPreparation: 'Preparation time (seconds)',
+    roundPreparationHint: 'How long players see the round rules before the board opens. 0 starts it immediately.',
     roundPdf: 'Puzzle file (PDF)',
     roundPdfHint: 'PDF extraction is not built yet — a sample file is needed first. You can already create the round and import its puzzles from the Puzzle Bank.',
     addRoundSubmit: 'Add the round',
@@ -521,6 +523,120 @@ export default {
     copyFailed: 'Copy failed — please select the URL manually.',
     generateFailed: 'Could not generate the display token.',
     revokeFailed: 'Could not revoke the display token.',
+  },
+
+  // Big-screen display mode controls — admin-only block on the judge console.
+  // The server knows six modes (engine/DisplayModes.js); three have a client
+  // view today: DEFAULT (the normal ranking grid), LIVE_RANKING (the live
+  // leaderboard), and ROUND_RANKING (one round's ranking, large). We expose
+  // only those three — a button for a mode with no view would silently fall
+  // back to the default, which is a button that lies.
+  //
+  // Results page — historical rankings for the admin dashboard. The data
+  // comes from the same snapshot as the big screen (DisplayManager.
+  // getRankingSnapshot), so the two never drift apart.
+  results: {
+    title: 'Results',
+    subtitle: 'Review rankings for every round and the final standings.',
+    selectCompetition: 'Competition',
+    roundTab: 'Round {n}',
+    finalTab: 'Final',
+    colRank: 'Rank',
+    colName: 'Name',
+    colSchool: 'School',
+    colCategory: 'Category',
+    colScore: 'Score',
+    noRankings: 'No rankings yet — rankings appear once a round ends.',
+    noCompetitions: 'No competitions yet.',
+    notAllowed: 'You do not have permission to view results.',
+    loadFailed: 'Could not load the results.',
+    loadListFailed: 'Could not load the competitions list.',
+    unknownPlayer: 'Unknown player',
+    stageLabel: 'Stage {n}',
+  },
+
+  displayMode: {
+    title: 'Big-screen mode',
+    subtitle: 'Choose what the screen in the room shows.',
+    currentLabel: 'Currently showing:',
+    modeDefault: 'Default view',
+    modeDefaultHint: 'The normal big-screen view.',
+    modeLiveRanking: 'Live ranking',
+    modeLiveRankingHint: 'Show the live leaderboard.',
+    modeRoundRanking: 'Round ranking',
+    modeRoundRankingHint: 'Show the ranking of the current round.',
+    modeFinalRanking: 'Final ranking',
+    modeFinalRankingHint: 'Show the final podium.',
+    modePlayerBroadcast: 'A projected player',
+    // Shown when a player is being projected and the judge clicks a mode
+    // button. The projection stops — made explicit so the judge is not
+    // surprised to see the player disappear from the screen.
+    projectedHint: 'A player is being projected. Switching mode will stop the projection.',
+    switchFailed: 'Could not switch the big-screen mode.',
+    notAllowed: 'Switching the big-screen mode is reserved for org admins.',
+  },
+
+  // Judge monitoring panel — the live participant list with presence, the
+  // per-player detail, and the one-click "project to big screen" action.
+  // Visibility of the projection buttons is gated on isAdmin because the
+  // server routes are ORG_ADMIN-only; a plain judge gets a 403.
+  judgeMonitoring: {
+    title: 'Participants',
+    subtitle: '{online} online / {total}',
+    searchPlaceholder: 'Search by name, school, or team',
+    loading: 'Loading participants...',
+    loadFailed: 'Could not load participants.',
+    empty: 'No participants yet. The list fills as soon as players are imported.',
+    emptyOnline: 'Nobody is online right now. The list will update on its own as players connect.',
+    statusOnline: 'Online',
+    statusOffline: 'Offline',
+    lastSeenNever: 'Never seen',
+    detailTitle: 'Player detail',
+    detailLoadFailed: 'Could not load this player\'s state.',
+    noActiveRound: 'No round is running. Player state appears once a round starts.',
+    noSession: 'This player has no session for the current round yet.',
+    noPuzzles: 'This player has no puzzle answers yet.',
+    puzzleProgress: 'Puzzle {n}: {correct}/{total} cells ({pct}%)',
+    sessionStatus: 'Session: {status}',
+    projectButton: 'Project to big screen',
+    stopProjectButton: 'Stop projection',
+    projectFailed: 'Projection failed: {msg}',
+    stopProjectFailed: 'Could not stop projection: {msg}',
+    projectConfirm: 'Project this player to the big screen?',
+    stopProjectConfirm: 'Stop projecting this player?',
+    projectNotAllowed: 'Projection is reserved for organization admins.',
+    refresh: 'Refresh',
+    overflow: '+{n} more — use search to narrow the list',
+    agoSeconds: '{n}s ago',
+    agoMinutes: '{n}m ago',
+    agoHours: '{n}h ago',
+  },
+
+  // Super Admin dashboard — platform-wide read-only overview (R11). Mounted
+  // at /admin with a SUPER_ADMIN RoleRoute. The page shows counts (orgs,
+  // competitions, players, judges), a competitions-by-status grid, the org
+  // list, and the recent competitions list. Read-only: no create/disable/delete
+  // — those are platform-mutation operations with cross-tenant impact and need
+  // Sylvain's review before they ship.
+  admin: {
+    appTitle: 'Sudoku Arena — Super Admin',
+    subtitle: 'Platform-wide overview',
+    loading: 'Loading overview...',
+    loadFailed: 'Could not load the platform overview.',
+    organizations: 'Organizations',
+    competitionsTotal: 'Competitions',
+    players: 'Players',
+    judges: 'Judges',
+    competitionsByStatus: 'Competitions by status',
+    noOrganizations: 'No organizations yet.',
+    noCompetitions: 'No competitions yet.',
+    recentCompetitions: 'Recent competitions',
+    colOrgName: 'Organization',
+    colUsers: 'Users',
+    colCompetitions: 'Competitions',
+    colCreated: 'Created',
+    colCompName: 'Competition',
+    colStatus: 'Status',
   },
 
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The

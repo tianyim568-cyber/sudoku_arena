@@ -132,7 +132,7 @@ class RoundRepository {
    * @param {number} params.durationSeconds - Round duration in seconds.
    * @returns {Promise<object>} The created round.
    */
-  async create({ competitionId, stageId, roundNumber, name, roundType, durationSeconds }) {
+  async create({ competitionId, stageId, roundNumber, name, roundType, durationSeconds, preparationSeconds }) {
     let resolvedStageId = stageId;
 
     if (!resolvedStageId && competitionId) {
@@ -169,6 +169,9 @@ class RoundRepository {
         type: roundType || 'STANDARD',
         order_number: roundNumber !== undefined ? roundNumber : existingCount + 1,
         duration_seconds: durationSeconds,
+        // Only written when the caller supplied one, so the schema default
+        // (10s) stays the single place that number is decided.
+        ...(preparationSeconds != null ? { preparation_seconds: preparationSeconds } : {}),
         // status defaults to 'WAITING' via schema.
       },
     });

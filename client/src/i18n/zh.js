@@ -158,6 +158,8 @@ export default {
     roundName: '轮次名称',
     roundType: '轮次类型',
     roundDuration: '时长（秒）',
+    roundPreparation: '准备时长（秒）',
+    roundPreparationHint: '选手在题目出现前阅读本轮规则的时间。填 0 表示立即开始。',
     roundPdf: '题目文件（PDF）',
     roundPdfHint: 'PDF 解析功能尚未实现，需要先提供样例文件。您现在可以创建轮次，并从题库导入题目。',
     addRoundSubmit: '添加轮次',
@@ -504,6 +506,112 @@ export default {
     copyFailed: '复制失败，请手动选中链接复制。',
     generateFailed: '无法生成显示令牌。',
     revokeFailed: '无法撤销显示令牌。',
+  },
+
+  // 大屏显示模式控制 —— 裁判控制台上的管理员区块。服务端有六种模式
+  // （engine/DisplayModes.js），但目前只有三种有客户端视图：DEFAULT（正常
+  // 大屏）、LIVE_RANKING（实时排行榜）和 ROUND_RANKING（单轮排名，放大）。
+  // 只暴露这三种 —— 没有视图的模式会静默回退到默认视图，等于一个会撒谎的按钮。
+  //
+  // 结果页 —— 管理员后台的历史排名。数据来自与大屏相同的快照
+  // （DisplayManager.getRankingSnapshot），两处永远不会不一致。
+  results: {
+    title: '成绩',
+    subtitle: '查看每一轮的排名以及最终排名。',
+    selectCompetition: '赛事',
+    roundTab: '第 {n} 轮',
+    finalTab: '最终',
+    colRank: '名次',
+    colName: '姓名',
+    colSchool: '学校',
+    colCategory: '组别',
+    colScore: '分数',
+    noRankings: '暂无排名 —— 一轮结束后排名会出现。',
+    noCompetitions: '暂无赛事。',
+    notAllowed: '您没有权限查看成绩。',
+    loadFailed: '无法加载成绩。',
+    loadListFailed: '无法加载赛事列表。',
+    unknownPlayer: '未知选手',
+    stageLabel: '阶段 {n}',
+  },
+
+  displayMode: {
+    title: '大屏模式',
+    subtitle: '选择场地大屏当前显示的内容。',
+    currentLabel: '当前显示：',
+    modeDefault: '默认视图',
+    modeDefaultHint: '正常的大屏视图。',
+    modeLiveRanking: '实时排行榜',
+    modeLiveRankingHint: '显示实时排行榜。',
+    modeRoundRanking: '单轮排名',
+    modeRoundRankingHint: '显示当前轮次的排名。',
+    modeFinalRanking: '最终排名',
+    modeFinalRankingHint: '显示最终领奖台。',
+    modePlayerBroadcast: '某位选手',
+    // 当正在投影某位选手时，裁判点击模式按钮会看到的提示。切换模式会停
+    // 止投影 —— 明确告知，避免选手从大屏消失时裁判感到意外。
+    projectedHint: '正在投影某位选手。切换模式将停止投影。',
+    switchFailed: '无法切换大屏模式。',
+    notAllowed: '切换大屏模式仅限机构管理员使用。',
+  },
+
+  // 裁判监控面板 —— 实时选手列表与在线状态、选手详情、一键投影到大屏。
+  // 投影按钮仅对管理员可见：服务端路由要求 ORG_ADMIN，普通裁判会收到 403。
+  judgeMonitoring: {
+    title: '选手',
+    subtitle: '{online} 在线 / {total}',
+    searchPlaceholder: '按姓名、学校或队伍搜索',
+    loading: '正在加载选手...',
+    loadFailed: '无法加载选手列表。',
+    empty: '暂无选手。导入选手后列表会自动填充。',
+    emptyOnline: '当前没有选手在线。选手连接后列表会自动更新。',
+    statusOnline: '在线',
+    statusOffline: '离线',
+    lastSeenNever: '从未上线',
+    detailTitle: '选手详情',
+    detailLoadFailed: '无法加载该选手的状态。',
+    noActiveRound: '当前没有进行中的轮次。轮次开始后才会出现选手状态。',
+    noSession: '该选手在当前轮次还没有会话。',
+    noPuzzles: '该选手还没有任何答题记录。',
+    puzzleProgress: '题目 {n}：{correct}/{total} 格（{pct}%）',
+    sessionStatus: '会话：{status}',
+    projectButton: '投影到大屏',
+    stopProjectButton: '停止投影',
+    projectFailed: '投影失败：{msg}',
+    stopProjectFailed: '无法停止投影：{msg}',
+    projectConfirm: '将此选手投影到大屏？',
+    stopProjectConfirm: '停止投影此选手？',
+    projectNotAllowed: '投影功能仅限机构管理员使用。',
+    refresh: '刷新',
+    overflow: '还有 {n} 人未显示 — 使用搜索缩小范围',
+    agoSeconds: '{n} 秒前',
+    agoMinutes: '{n} 分钟前',
+    agoHours: '{n} 小时前',
+  },
+
+  // 超级管理员控制台 —— 平台级只读概览（R11）。挂载于 /admin，带 SUPER_ADMIN
+  // RoleRoute。页面显示计数（组织、赛事、选手、裁判）、按状态分布的赛事网格、
+  // 组织列表和最近赛事列表。只读：无创建/禁用/删除 —— 这些是跨租户的平台变更
+  // 操作，需要 Sylvain 审阅后再上线。
+  admin: {
+    appTitle: '数独竞技场 — 超级管理员',
+    subtitle: '平台概览',
+    loading: '加载中...',
+    loadFailed: '无法加载平台概览。',
+    organizations: '组织',
+    competitionsTotal: '赛事',
+    players: '选手',
+    judges: '裁判',
+    competitionsByStatus: '按状态统计赛事',
+    noOrganizations: '暂无组织。',
+    noCompetitions: '暂无赛事。',
+    recentCompetitions: '最近赛事',
+    colOrgName: '组织',
+    colUsers: '用户',
+    colCompetitions: '赛事',
+    colCreated: '创建时间',
+    colCompName: '赛事',
+    colStatus: '状态',
   },
 
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的

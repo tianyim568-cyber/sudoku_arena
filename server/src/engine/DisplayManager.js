@@ -282,21 +282,50 @@ class DisplayManager {
           },
           ...(categoryId ? { category_id: categoryId } : {}),
         },
-        orderBy: [{ competition_stage_id: 'asc' }, { rank: 'asc' }],
-        select: {
-          competition_stage_id: true,
-          category_id: true,
-          entity_type: true,
-          entity_id: true,
-          rank: true,
-          score: true,
-        },
-      }),
-      prisma.categories.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true, min_age: true, max_age: true },
-      }),
+        ...(categoryId ? { category_id: categoryId } : {}),
+      },
+      orderBy: [{ competition_stage_id: 'asc' }, { rank: 'asc' }],
+      select: {
+        competition_stage_id: true,
+        category_id: true,
+        entity_type: true,
+        entity_id: true,
+        rank: true,
+        score: true,
+      },
+    });
+
+    // Resolve entity names — final_rankings stores a UUID in entity_id and a
+    // discriminator in entity_type (PLAYER or TEAM). The display view shows
+    // the name on the podium, not a truncated UUID, so we join both tables
+    // in two passes and merge the names back. Two passes because the schema
+    // has no polymorphic relation — entity_id is just a String column, so
+    // Prisma cannot include the related row in a single query.
+    const playerIds = finalRankings.filter(fr => fr.entity_type === 'PLAYER').map(fr => fr.entity_id);
+    const teamIds = finalRankings.filter(fr => fr.entity_type === 'TEAM').map(fr => fr.entity_id);
+    const [players, teams] = await Promise.all([
+      playerIds.length
+        ? prisma.players.findMany({
+            where: { id: { in: playerIds } },
+            select: { id: true, name: true, school: true, age: true, category_id: true },
+          })
+        : [],
+      teamIds.length
+        ? prisma.teams.findMany({
+            where: { id: { in: teamIds } },
+            select: { id: true, name: true },
+          })
+        : [],
     ]);
+    const entityNameById = new Map();
+    for (const p of players) entityNameById.set(p.id, { name: p.name, school: p.school, age: p.age });
+    for (const t of teams) entityNameById.set(t.id, { name: t.name });
+
+    // Get categories for filtering UI
+    const categories = await prisma.categories.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, min_age: true, max_age: true },
+    });
 
     // If broadcasting a player, fetch their details for polling recovery
     let broadcastPlayer = null;
@@ -358,14 +387,20 @@ class DisplayManager {
           })),
         })),
       })),
-      finalRankings: finalRankings.map(fr => ({
-        stageId: fr.competition_stage_id,
-        categoryId: fr.category_id,
-        entityType: fr.entity_type,
-        entityId: fr.entity_id,
-        rank: fr.rank,
-        score: fr.score,
-      })),
+      finalRankings: finalRankings.map(fr => {
+        const meta = entityNameById.get(fr.entity_id);
+        return {
+          stageId: fr.competition_stage_id,
+          categoryId: fr.category_id,
+          entityType: fr.entity_type,
+          entityId: fr.entity_id,
+          entityName: meta?.name || null,
+          school: meta?.school ?? null,
+          age: meta?.age ?? null,
+          rank: fr.rank,
+          score: fr.score,
+        };
+      }),
       generatedAt: new Date().toISOString(),
     };
   }

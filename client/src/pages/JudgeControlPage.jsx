@@ -4,6 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import DisplayTokenSection from '../components/DisplayTokenSection';
+import DisplayModeControls from '../components/DisplayModeControls';
+import JudgeMonitoringPanel from '../components/JudgeMonitoringPanel';
 import { api } from '../api';
 
 // Status values, written down once because getting them wrong is invisible:
@@ -251,6 +253,15 @@ export default function JudgeControlPage() {
           </div>
         </section>
 
+        {/* Participant monitoring — live presence + per-player detail +
+            one-click projection to the big screen. The panel subscribes
+            to PARTICIPANT_LIST_STATE_UPDATE on its own; it does not
+            piggyback on the 5-second roomStatus polling below, which is
+            a different concern (teams/room status, not presence). */}
+        {(competition.status === 'RUNNING' || competition.status === 'PAUSED') && (
+          <JudgeMonitoringPanel competitionId={competitionId} />
+        )}
+
         {/* Room Status */}
         {roomStatus && (
           <section className="bg-white rounded-xl shadow p-4 sm:p-6">
@@ -301,6 +312,20 @@ export default function JudgeControlPage() {
             <p className="text-gray-400 text-xs sm:text-sm">{t('judge.noScores')}</p>
           )}
         </section>
+
+        {/* Big-screen mode — admin-only buttons (ORG_ADMIN / SUPER_ADMIN,
+            same as the server's PUT /display/mode route). A plain judge
+            still sees the section (current mode + an explanatory note) so
+            they know what the room is watching — same pattern as the
+            projection block in JudgeMonitoringPanel. The gate lives inside
+            the component, not here, so the judge sees the explanation
+            instead of an empty gap. */}
+        <DisplayModeControls
+          competitionId={competitionId}
+          currentMode={competition.display_mode || 'DEFAULT'}
+          onModeChanged={load}
+          isAdmin={isAdmin}
+        />
 
         {/* Display token — the server gates generate/revoke on
             ORG_ADMIN / SUPER_ADMIN, so the block is shown only when isAdmin.

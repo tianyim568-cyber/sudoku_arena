@@ -22,6 +22,11 @@ const createRoundSchema = z.object({
   name: z.string().min(1).max(100),
   roundType: z.enum(Object.values(RoundType)),
   durationSeconds: z.coerce.number().int().positive(),
+  // How long players see the preparation screen before the board opens.
+  // Optional: the column defaults to 10s, so an admin who does not care can
+  // leave the field alone. Capped at 5 minutes — this is a countdown in front
+  // of a waiting room, not an intermission.
+  preparationSeconds: z.coerce.number().int().min(0).max(300).optional(),
 });
 
 // Zod schema for PUT /api/competitions/:id (update competition — partial)

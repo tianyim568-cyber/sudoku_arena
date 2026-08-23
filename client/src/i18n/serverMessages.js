@@ -88,6 +88,65 @@ const EN = {
   '获取访问链接失败': 'Failed to retrieve access link',
   '撤销访问链接失败': 'Failed to revoke access link',
   '获取比赛信息失败': 'Failed to retrieve competition info',
+
+  // Publish / unpublish / results (competitions.js)
+  '比赛已开始或已结束，无法发布': 'The competition has already started or finished and cannot be published',
+  '发布失败': 'Failed to publish',
+  '比赛已开始或已结束，无法取消发布': 'The competition has already started or finished and cannot be unpublished',
+  '取消发布失败': 'Failed to unpublish',
+  '获取发布状态失败': 'Failed to retrieve the publish status',
+  '请先发布赛事，然后再生成访问链接': 'Publish the competition first before generating an access link',
+  '结果快照不可用': 'The results snapshot is unavailable',
+  '获取结果失败': 'Failed to retrieve the results',
+  // NOTE: `无法发布：${summary}` (code 40010) is built at runtime from a
+  // per-criterion Chinese label list (MISSING_LABELS) and cannot be matched
+  // by this exact-string table — it passes through untranslated in English
+  // mode. Same limitation as any message built from `e.message`. See
+  // Louise/KNOWN_ISSUES.md.
+
+  // Super Admin (admin.js)
+  '无法加载平台概览': 'Failed to load the platform overview',
+
+  // Display / big screen (routes/display.js, engine/DisplayManager.js)
+  '生成显示令牌失败': 'Failed to generate the display token',
+  '撤销显示令牌失败': 'Failed to revoke the display token',
+  '设置显示模式失败': 'Failed to set the display mode',
+  '设置选手直播失败': 'Failed to start the player broadcast',
+  '停止直播失败': 'Failed to stop the broadcast',
+  '显示令牌无效': 'The display token is invalid',
+  '显示令牌已被撤销': 'The display token has been revoked',
+  '获取排行榜失败': 'Failed to retrieve the rankings',
+  '获取显示模式失败': 'Failed to retrieve the display mode',
+
+  // Tenant / access control (middleware/tenantGuard.js)
+  '用户未关联任何组织，无法访问': 'Your account is not linked to any organization',
+  '无权访问此资源': 'You do not have permission to access this resource',
+  '租户验证失败': 'Tenant verification failed',
+
+  // Rate limiting (middleware/rateLimiters.js)
+  '操作过于频繁，请稍后再试': 'Too many requests, please try again later',
+
+  // File upload (middleware/fileType.js)
+  '请上传文件': 'Please upload a file',
+  '文件内容与类型不符，请上传有效的文件': 'The file content does not match its type, please upload a valid file',
+
+  // Competition setup — stages/rounds (routes/competitionSetup.js)
+  '阶段不存在': 'Stage not found',
+  '阶段不属于该赛事': 'This stage does not belong to this competition',
+  '轮次类型与阶段类型不匹配': 'The round type does not match the stage type',
+
+  // Users (routes/users.js)
+  '状态值无效': 'Invalid status value',
+
+  // WebSocket (ws/SocketManager.js)
+  '未找到参赛者记录': 'Participant record not found',
+  '未找到答题记录': 'Submission record not found',
+
+  // Server (index.js)
+  '服务器内部错误': 'Internal server error',
+
+  // Participant import (routes/participants.js)
+  '存在无效的数据行，无法导入': 'Some rows are invalid and cannot be imported',
 };
 
 /**
