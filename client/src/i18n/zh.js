@@ -520,6 +520,8 @@ export default {
     title: '成绩',
     subtitle: '查看每一轮的排名以及最终排名。',
     selectCompetition: '赛事',
+    filterByCategory: '组别',
+    allCategories: '全部组别',
     roundTab: '第 {n} 轮',
     finalTab: '最终',
     colRank: '名次',

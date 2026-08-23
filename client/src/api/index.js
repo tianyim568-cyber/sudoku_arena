@@ -91,8 +91,14 @@ export const api = {
   listCompetitions: () => request('GET', '/competitions'),
   getCompetition: (id) => request('GET', `/competitions/${id}`),
   // Reuses the big-screen ranking snapshot behind admin auth — admin and
-  // big screen always see the same numbers.
-  getResults: (id) => request('GET', `/competitions/${id}/results`),
+  // big screen always see the same numbers. Optional categoryId query param
+  // — omit for all categories. Mirrors the display page's fetchRanking so
+  // admin and big screen use the same code path server-side and cannot
+  // drift apart.
+  getResults: (id, categoryId = null) => {
+    const params = categoryId ? `?categoryId=${categoryId}` : '';
+    return request('GET', `/competitions/${id}/results${params}`);
+  },
   createCompetition: (data) => request('POST', '/competitions', data),
   updateCompetition: (id, data) => request('PUT', `/competitions/${id}`, data),
   deleteCompetition: (id) => request('DELETE', `/competitions/${id}`),

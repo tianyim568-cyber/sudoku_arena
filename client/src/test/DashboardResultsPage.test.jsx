@@ -1,13 +1,18 @@
 // Unit tests for DashboardResultsPage (R7 — historical results page).
 //
 // The page calls api.listCompetitions() to populate the picker, then
-// api.getResults(id) to fetch the ranking snapshot for the selected
-// competition. We verify:
+// api.getResults(id, categoryId) to fetch the ranking snapshot for the
+// selected competition. We verify:
 //   1. The admin sees the picker and the round tabs.
 //   2. Selecting a round shows its ranking rows.
 //   3. The Final tab shows the final rankings.
 //   4. A non-admin sees the "not allowed" message.
 //   5. A competition with no rankings shows the empty state.
+//   6. Category filter: dropdown appears when the snapshot has categories.
+//   7. Category filter: selecting a category re-calls api.getResults with
+//      the new (id, categoryId) pair.
+//   8. Category filter: changing competition resets the categoryId to null
+//      (no stale filter leaks into the new competition).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -73,7 +78,10 @@ const SNAPSHOT = {
   finalRankings: [
     { stageId: 'stage-1', categoryId: 'cat-1', entityType: 'PLAYER', entityId: 'p1', rank: 1, score: 120 },
   ],
-  categories: [],
+  categories: [
+    { id: 'cat-u12', name: 'U12', min_age: 9, max_age: 12 },
+    { id: 'cat-u8', name: 'U8', min_age: 5, max_age: 8 },
+  ],
 };
 
 describe('DashboardResultsPage', () => {
@@ -151,6 +159,89 @@ describe('DashboardResultsPage', () => {
     renderPage();
     await waitFor(() => {
       expect(screen.getByText(/DB down/)).not.toBeNull();
+    });
+  });
+});
+
+describe('DashboardResultsPage — category filter', () => {
+  it('shows the category dropdown when the snapshot has categories', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: COMPETITIONS });
+    api.getResults.mockResolvedValue({ code: 200, data: SNAPSHOT });
+    renderPage();
+    // The dropdown's "All categories" default option is the only unambiguous
+    // marker that the dropdown itself is rendered. Looking for the "Category"
+    // label alone would match the ranking-table column header, which uses
+    // the same word in both languages.
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /All categories|全部组别/ })).not.toBeNull();
+    });
+    // Both category names are rendered as options.
+    expect(screen.getByRole('option', { name: 'U12' })).not.toBeNull();
+    expect(screen.getByRole('option', { name: 'U8' })).not.toBeNull();
+  });
+
+  it('does NOT show the category dropdown when the snapshot has no categories', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: COMPETITIONS });
+    api.getResults.mockResolvedValue({
+      code: 200,
+      data: { ...SNAPSHOT, categories: [] },
+    });
+    renderPage();
+    // Wait for the snapshot to load (round tab appears).
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Round 1|第 1 轮/ })).not.toBeNull();
+    });
+    // The "All categories" option — unique to the dropdown — must be absent.
+    // Testing on the label word alone would false-match the table column
+    // header, which uses "Category" / "组别" too.
+    expect(screen.queryByRole('option', { name: /All categories|全部组别/ })).toBeNull();
+  });
+
+  it('re-calls api.getResults with (id, categoryId) when a category is selected', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: COMPETITIONS });
+    api.getResults.mockResolvedValue({ code: 200, data: SNAPSHOT });
+    renderPage();
+    // Wait for the first load (no categoryId).
+    await waitFor(() => {
+      expect(api.getResults).toHaveBeenCalledWith('comp-1', null);
+    });
+
+    // Pick the U12 category in the dropdown.
+    const catSelect = screen.getByDisplayValue(/All categories|全部组别/);
+    fireEvent.change(catSelect, { target: { value: 'cat-u12' } });
+
+    // The effect refetches with the new categoryId.
+    await waitFor(() => {
+      expect(api.getResults).toHaveBeenCalledWith('comp-1', 'cat-u12');
+    });
+  });
+
+  it('resets the categoryId to null when the competition changes', async () => {
+    api.listCompetitions.mockResolvedValue({ code: 200, data: COMPETITIONS });
+    api.getResults.mockResolvedValue({ code: 200, data: SNAPSHOT });
+    renderPage();
+    // Wait for first load.
+    await waitFor(() => {
+      expect(api.getResults).toHaveBeenCalledWith('comp-1', null);
+    });
+
+    // Pick U12 — categoryId is now set.
+    const catSelect = screen.getByDisplayValue(/All categories|全部组别/);
+    fireEvent.change(catSelect, { target: { value: 'cat-u12' } });
+    await waitFor(() => {
+      expect(api.getResults).toHaveBeenCalledWith('comp-1', 'cat-u12');
+    });
+
+    // Now switch to the second competition — the categoryId must reset to
+    // null, otherwise the stale "cat-u12" leaks into comp-2 (and the server
+    // filter would silently return 0 rows if comp-2 has no U12 category).
+    const compSelect = screen.getByDisplayValue(/Spring Cup/);
+    fireEvent.change(compSelect, { target: { value: 'comp-2' } });
+
+    await waitFor(() => {
+      // The most recent call for comp-2 must pass null — not the stale
+      // "cat-u12" from before.
+      expect(api.getResults).toHaveBeenCalledWith('comp-2', null);
     });
   });
 });

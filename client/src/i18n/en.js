@@ -540,6 +540,8 @@ export default {
     title: 'Results',
     subtitle: 'Review rankings for every round and the final standings.',
     selectCompetition: 'Competition',
+    filterByCategory: 'Category',
+    allCategories: 'All categories',
     roundTab: 'Round {n}',
     finalTab: 'Final',
     colRank: 'Rank',
