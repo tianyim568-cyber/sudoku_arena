@@ -282,18 +282,21 @@ class DisplayManager {
           },
           ...(categoryId ? { category_id: categoryId } : {}),
         },
-        ...(categoryId ? { category_id: categoryId } : {}),
-      },
-      orderBy: [{ competition_stage_id: 'asc' }, { rank: 'asc' }],
-      select: {
-        competition_stage_id: true,
-        category_id: true,
-        entity_type: true,
-        entity_id: true,
-        rank: true,
-        score: true,
-      },
-    });
+        orderBy: [{ competition_stage_id: 'asc' }, { rank: 'asc' }],
+        select: {
+          competition_stage_id: true,
+          category_id: true,
+          entity_type: true,
+          entity_id: true,
+          rank: true,
+          score: true,
+        },
+      }),
+      prisma.categories.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, min_age: true, max_age: true },
+      }),
+    ]);
 
     // Resolve entity names — final_rankings stores a UUID in entity_id and a
     // discriminator in entity_type (PLAYER or TEAM). The display view shows
@@ -320,12 +323,6 @@ class DisplayManager {
     const entityNameById = new Map();
     for (const p of players) entityNameById.set(p.id, { name: p.name, school: p.school, age: p.age });
     for (const t of teams) entityNameById.set(t.id, { name: t.name });
-
-    // Get categories for filtering UI
-    const categories = await prisma.categories.findMany({
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, min_age: true, max_age: true },
-    });
 
     // If broadcasting a player, fetch their details for polling recovery
     let broadcastPlayer = null;
