@@ -172,11 +172,14 @@ class StageManager {
       throw new StageError(`Cannot start stage: current status is ${this._context.stageStatus}`);
     }
 
-    // Update database
-    await this._prisma.competition_stages.update({
-      where: { id: stageId },
+    // Atomic DB status transition: WAITING → RUNNING (prevents double-start)
+    const updateResult = await this._prisma.competition_stages.updateMany({
+      where: { id: stageId, status: StageState.WAITING },
       data: { status: StageState.RUNNING },
     });
+    if (updateResult.count === 0) {
+      throw new StageError('Stage cannot be started (already started or state changed)');
+    }
 
     // Update local context
     this._context.stageStatus = StageState.RUNNING;
@@ -232,11 +235,14 @@ class StageManager {
       throw new StageError(`Cannot finish stage: ${unfinishedRounds.length} rounds are not finished`);
     }
 
-    // Update database
-    await this._prisma.competition_stages.update({
-      where: { id: this._context.stageId },
+    // Atomic DB status transition: RUNNING → FINISHED (prevents double-finish)
+    const updateResult = await this._prisma.competition_stages.updateMany({
+      where: { id: this._context.stageId, status: StageState.RUNNING },
       data: { status: StageState.FINISHED },
     });
+    if (updateResult.count === 0) {
+      throw new StageError('Stage cannot be finished (already finished or state changed)');
+    }
 
     // Update local context
     this._context.stageStatus = StageState.FINISHED;

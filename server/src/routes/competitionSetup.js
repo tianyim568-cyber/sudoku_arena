@@ -29,7 +29,14 @@ const ROUND_TYPES_BY_STAGE = {
 //
 // repos.rounds.create(), repos.teams.create() and repos.teams.assignJudge()
 // take `competitionId` — the competition UUID from req.params.id.
-function createCompetitionSetupRouter(repos) {
+//
+// `prisma` is optional — when omitted, the real Prisma client is used via
+// getPrisma(). Tests pass a mock to avoid hitting the database.
+function createCompetitionSetupRouter(repos, prisma) {
+  if (!prisma) {
+    const { getPrisma } = require('../db/prisma');
+    prisma = getPrisma();
+  }
   const router = express.Router();
 
   // Round types allowed in each kind of stage. Served rather than duplicated
@@ -87,7 +94,7 @@ function createCompetitionSetupRouter(repos) {
   // Import puzzles — :roundId is a round. The ownership chain is
   // rounds → competition_stages → competitions → organization_id (two hops),
   // which tenantGuard's single-hop `via` cannot express. We fall back to
-  // tenantGuard() (org-membership only). See JOURNAL_MODIFICATIONS for debt.
+  // tenantGuard() (org-membership only) and add manual two-hop validation.
   router.post('/rounds/:roundId/puzzles/import', authMiddleware, tenantGuard(), roleMiddleware(...ADMIN_ROLES), async (req, res) => {
     const { puzzles } = req.body;
     if (!puzzles || !Array.isArray(puzzles)) {
@@ -95,6 +102,17 @@ function createCompetitionSetupRouter(repos) {
     }
     const round = await repos.rounds.findById(req.params.roundId);
     if (!round) return res.json({ code: 40400, message: '轮次不存在', data: null });
+
+    // SECURITY: Two-hop validation — verify round belongs to user's organization
+    const stage = await prisma.competition_stages.findFirst({
+      where: {
+        id: round.stage_id,
+        competitions: { organization_id: req.user.organizationId },
+      },
+    });
+    if (!stage) {
+      return res.json({ code: 40301, message: '无权访问此轮次', data: null });
+    }
 
     let successCount = 0;
     let failCount = 0;
@@ -116,14 +134,28 @@ function createCompetitionSetupRouter(repos) {
         successCount++;
       } catch (e) {
         failCount++;
-        errors.push({ index: i, message: e.message });
+        errors.push({ index: i, message: e.message || '导入失败' });
       }
     }
     res.json({ code: 200, message: 'success', data: { successCount, failCount, errors } });
   });
 
-  // List puzzles — :roundId is a round. Same two-hop chain debt as above.
+  // List puzzles — :roundId is a round. Same two-hop chain as above.
   router.get('/rounds/:roundId/puzzles', authMiddleware, tenantGuard(), async (req, res) => {
+    const round = await repos.rounds.findById(req.params.roundId);
+    if (!round) return res.json({ code: 40400, message: '轮次不存在', data: null });
+
+    // SECURITY: Two-hop validation — verify round belongs to user's organization
+    const stage = await prisma.competition_stages.findFirst({
+      where: {
+        id: round.stage_id,
+        competitions: { organization_id: req.user.organizationId },
+      },
+    });
+    if (!stage) {
+      return res.json({ code: 40301, message: '无权访问此轮次', data: null });
+    }
+
     const puzzles = await repos.puzzles.findByRoundSummary(req.params.roundId);
     res.json({ code: 200, message: 'success', data: puzzles });
   });
@@ -143,16 +175,24 @@ function createCompetitionSetupRouter(repos) {
   });
 
   // Add team member — :teamId is a team. The ownership chain is
-  // teams → competitions → organization_id, but tenantGuard's `via` joins on a
-  // column of the same name in both tables, and here the FK is
-  // teams.competition_id while the PK is competitions.id. We fall back to
-  // tenantGuard() (org-membership only). See JOURNAL_MODIFICATIONS for debt.
+  // teams → competitions → organization_id. We add manual validation
+  // to verify the team's competition belongs to the user's organization.
   router.post('/teams/:teamId/members', authMiddleware, tenantGuard(), roleMiddleware(...ADMIN_ROLES), validateBody(addTeamMemberSchema), async (req, res) => {
     const { playerId, position } = req.body;
     if (await repos.teams.memberExists(req.params.teamId, playerId)) {
       return res.json({ code: 40030, message: '选手已在该队伍中', data: null });
     }
     const team = await repos.teams.findById(req.params.teamId);
+    if (!team) return res.json({ code: 40400, message: '队伍不存在', data: null });
+
+    // SECURITY: Verify team's competition belongs to user's organization
+    const competition = await prisma.competitions.findFirst({
+      where: { id: team.competition_id, organization_id: req.user.organizationId },
+    });
+    if (!competition) {
+      return res.json({ code: 40301, message: '无权访问此队伍', data: null });
+    }
+
     // findById returns the raw `teams` row, whose FK column is
     // `competition_id`. It was read as `team.tournament_id` here — a column
     // that has not existed since the UUID migration — so this guard passed

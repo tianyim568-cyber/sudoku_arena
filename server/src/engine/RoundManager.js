@@ -297,11 +297,14 @@ class RoundManager {
     // Clean up preparation timer
     await this.timer.cleanup(`prep_${this._context.roundId}`);
 
-    // Update DB status
-    await this._prisma.rounds.update({
-      where: { id: this._context.roundId },
+    // Atomic DB status transition: WAITING → IN_PROGRESS (prevents double-activate)
+    const updateResult = await this._prisma.rounds.updateMany({
+      where: { id: this._context.roundId, status: { in: ['WAITING', 'PREPARATION'] } },
       data: { status: RoundStatus.IN_PROGRESS, started_at: new Date() },
     });
+    if (updateResult.count === 0) {
+      throw new RoundError('轮次状态不允许激活 (already active or state changed)');
+    }
 
     // Update local context
     this._context.dbStatus = RoundStatus.IN_PROGRESS;
@@ -390,9 +393,11 @@ class RoundManager {
     // Clean up timer
     await this.timer.cleanup(this._context.roundId);
 
-    // Update DB status
-    await this._prisma.rounds.update({
-      where: { id: this._context.roundId },
+    // Atomic DB status transition: IN_PROGRESS/PAUSED → FINISHED (prevents double-finish).
+    // Note: GameOrchestrator.endRound() already does an atomic update to FINISHED before
+    // calling this method, so this will succeed (count === 0 is OK — already finished).
+    await this._prisma.rounds.updateMany({
+      where: { id: this._context.roundId, status: { not: 'FINISHED' } },
       data: { status: RoundStatus.FINISHED, ended_at: new Date() },
     });
 
@@ -447,11 +452,14 @@ class RoundManager {
     // Pause timer
     const remainingSeconds = await this.timer.pause(this._context.roundId);
 
-    // Update DB
-    await this._prisma.rounds.update({
-      where: { id: this._context.roundId },
+    // Atomic DB status transition: IN_PROGRESS → PAUSED (prevents double-pause)
+    const updateResult = await this._prisma.rounds.updateMany({
+      where: { id: this._context.roundId, status: 'IN_PROGRESS' },
       data: { status: RoundStatus.PAUSED, waiting_seconds: remainingSeconds },
     });
+    if (updateResult.count === 0) {
+      throw new RoundError('轮次状态不允许暂停 (already paused or state changed)');
+    }
 
     this._context.dbStatus = RoundStatus.PAUSED;
 
@@ -497,11 +505,14 @@ class RoundManager {
     // Resume timer
     const timerResult = await this.timer.resume(this._context.roundId);
 
-    // Update DB
-    await this._prisma.rounds.update({
-      where: { id: this._context.roundId },
+    // Atomic DB status transition: PAUSED → IN_PROGRESS (prevents double-resume)
+    const updateResult = await this._prisma.rounds.updateMany({
+      where: { id: this._context.roundId, status: 'PAUSED' },
       data: { status: RoundStatus.IN_PROGRESS },
     });
+    if (updateResult.count === 0) {
+      throw new RoundError('轮次状态不允许恢复 (already resumed or state changed)');
+    }
 
     this._context.dbStatus = RoundStatus.IN_PROGRESS;
 
