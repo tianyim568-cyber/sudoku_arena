@@ -388,8 +388,18 @@ class GameOrchestrator {
     emissions.push(...setupResult.emissions);
 
     // Start gameplay timer (after engine setup)
-    const { turnEndsAt } = await this.rounds.startGameplayTimer(competitionId, (compId, rId) => {
-      this.endRound(compId, rId);
+    // The onTimerExpire callback fires when the round's gameplay time elapses
+    // with no HTTP request involved — so unlike the judge's "end round" button
+    // (whose route handler calls handleOrchestratorResult → processEmissions),
+    // the timer callback must itself dispatch the emissions returned by
+    // endRound. Otherwise the DB is updated (round FINISHED, bonuses applied,
+    // next round started) but no client ever sees the ROUND_FINISHED,
+    // INDIVIDUAL_ROUND_COMPLETE, ROUND_RANKING or STAGE_RANKING events —
+    // players stay on the game screen and the big screen stays in LIVE_RANKING
+    // forever. See ISSUE-14 in louise/KNOWN_ISSUES.md for the history.
+    const { turnEndsAt } = await this.rounds.startGameplayTimer(competitionId, async (compId, rId) => {
+      const result = await this.endRound(compId, rId);
+      this.processEmissions(result.emissions);
     });
 
     // Start R2 rotation intervals
@@ -482,9 +492,14 @@ class GameOrchestrator {
         const resumeResult = await this.rounds.resumeRound();
         emissions.push(...resumeResult.emissions);
 
-        // Restart timer tick interval
-        this.rounds.startTimerTick(competitionId, (compId, rId) => {
-          this.endRound(compId, rId);
+        // Restart timer tick interval.
+        // Same dispatch pattern as the startRound gameplay timer callback above:
+        // no HTTP request → the callback must itself flush emissions to the bus,
+        // otherwise a round that naturally expires after a resume stays silent
+        // to clients even though the DB has been updated.
+        this.rounds.startTimerTick(competitionId, async (compId, rId) => {
+          const result = await this.endRound(compId, rId);
+          this.processEmissions(result.emissions);
         });
 
         // Restart R2 rotation intervals

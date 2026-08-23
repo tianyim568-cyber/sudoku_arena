@@ -25,6 +25,11 @@ jest.mock('../db/prisma', () => {
     players: {
       findFirst: jest.fn(),
     },
+    // Added for the ISSUE-014 timer-expiry callback test:
+    // _activateAndStartRound calls teams.findMany to feed the engine setup.
+    teams: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
   return { getPrisma: () => mockPrisma };
 });
@@ -55,6 +60,7 @@ describe('Disconnect Recovery', () => {
     bus = {
       emit: jest.fn(),
       emitImmediate: jest.fn(),
+      emitAll: jest.fn(),
       on: jest.fn(),
     };
 
@@ -206,13 +212,64 @@ describe('Disconnect Recovery', () => {
     });
   });
 
-  describe('Round auto-end on timer expiry', () => {
-    it('should continue timer regardless of player disconnect', () => {
-      // This is verified by the architecture: timer runs server-side via setInterval
-      // Player disconnect only clears heartbeat, not timer
-      // The existing TimerService.startTickInterval() runs independently
+  describe('Round auto-end on timer expiry (ISSUE-014)', () => {
+    // The bug: startGameplayTimer's onTimerExpire callback used to call
+    // endRound() and discard its return value. endRound() computes bonuses,
+    // starts the next round and RETURNS the resulting emissions — nothing
+    // dispatches them by itself. So on natural timer expiry the DB was
+    // updated but no client ever saw ROUND_FINISHED, no auto-transition
+    // fired, the big screen stayed on LIVE_RANKING forever. The fix wires
+    // the callback to dispatch via processEmissions, mirroring what the
+    // route handler does for the judge's manual "end round" path.
+    //
+    // This test wraps the exact production path: it patches
+    // rounds.startGameplayTimer to capture the callback the orchestrator
+    // hands in, runs _activateAndStartRound, then invokes the captured
+    // callback and asserts (1) endRound was called, and (2) the emissions
+    // endRound returned reached bus.emitAll (processEmissions' one line).
+    it('dispatches emissions returned by endRound when the gameplay timer fires', async () => {
+      // Arrange — patch rounds.startGameplayTimer to capture the callback
+      const capture = { cb: null };
+      orchestrator.rounds = {
+        activateRound: jest.fn().mockResolvedValue({ emissions: [] }),
+        getRoundType: jest.fn().mockReturnValue('INDIVIDUAL_STANDARD'),
+        getPuzzlesForEngine: jest.fn().mockReturnValue([]),
+        startGameplayTimer: jest.fn(async (compId, cb) => {
+          capture.cb = cb;
+          return { turnEndsAt: Date.now() + 1000 };
+        }),
+      };
+      // _prisma is a getter on the class — the teams.findMany stub was
+      // added at the top-level jest.mock('../db/prisma') block.
+      // Stub the individual engine — _getEngine reads from an engines map
+      // set up in the real constructor path, but this test only exercises
+      // the callback wiring, so a lightweight engine is enough.
+      orchestrator._getEngine = jest.fn().mockReturnValue({
+        setup: jest.fn().mockResolvedValue({ emissions: [] }),
+      });
+      const fakeEmissions = [
+        { target: 'competition', targetId: COMP_ID, event: 'ROUND_FINISHED', payload: { roundId: ROUND_ID } },
+        { target: 'user', targetId: USER_ID, event: 'SCORE_UPDATE', payload: { score: 42 } },
+      ];
+      orchestrator.endRound = jest.fn().mockResolvedValue({
+        result: { roundId: ROUND_ID, status: 'FINISHED' },
+        emissions: fakeEmissions,
+      });
+      // processEmissions delegates to bus.emitAll — the bus mock in the
+      // outer beforeEach already exposes emitAll as a jest.fn, so we can
+      // assert on it directly rather than re-spying.
+      orchestrator.bus.emitAll.mockClear();
 
-      expect(true).toBe(true); // Architectural guarantee, no code change needed
+      // Act — go through the real production path that wires the callback
+      await orchestrator._activateAndStartRound(COMP_ID, ROUND_ID);
+      expect(capture.cb).toBeInstanceOf(Function);
+
+      // The judge did NOT click "end round"; the timer fires on its own.
+      await capture.cb(COMP_ID, ROUND_ID);
+
+      // Assert — the two halves of the fix
+      expect(orchestrator.endRound).toHaveBeenCalledWith(COMP_ID, ROUND_ID);
+      expect(orchestrator.bus.emitAll).toHaveBeenCalledWith(fakeEmissions);
     });
   });
 
