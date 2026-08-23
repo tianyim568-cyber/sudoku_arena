@@ -39,6 +39,104 @@ const exportService = new ParticipantExportService();
 function createParticipantRouter(repos) {
   const router = express.Router();
 
+  // GET /api/participants — global list across every competition of the
+  // caller's organization. Read-only; import/delete/export remain on the
+  // per-competition routes below.
+  //
+  // SECURITY (tenant isolation): this route intentionally does NOT go
+  // through tenantGuard('competitions') because it is not scoped to a
+  // single competition id. The tenant guard is the WHERE clause below —
+  // every row returned must belong to a competition owned by the
+  // caller's org. Any change to that clause is a tenant-isolation
+  // change and needs Louise's review.
+  //
+  // Query params (all optional):
+  //   competitionId — restrict to one competition; the org filter still
+  //                   applies, so a request for another org's
+  //                   competition returns [].
+  //   categoryId    — filter by player category
+  //   search        — case-insensitive substring on name OR school
+  //
+  // Pagination is intentionally NOT implemented: real-world org sizes
+  // (a few hundred participants max) fit in a single response, and the
+  // page does client-side rendering of a compact table. Add limit/offset
+  // if that ever grows past ~500.
+  router.get(
+    '/participants',
+    authMiddleware,
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      try {
+        const { getPrisma } = require('../db/prisma');
+        const prisma = getPrisma();
+        const { competitionId, categoryId, search } = req.query;
+
+        // The tenant guard. ORG_ADMIN sees only their org; SUPER_ADMIN
+        // sees every org. The nested `competitions:` clause forces a
+        // join and applies organization_id at the parent level.
+        const where = {
+          competitions: req.user.role === 'SUPER_ADMIN'
+            ? {}
+            : { organization_id: req.user.organizationId },
+        };
+
+        if (competitionId && typeof competitionId === 'string') {
+          where.competition_id = competitionId;
+        }
+        if (categoryId && typeof categoryId === 'string') {
+          where.category_id = categoryId;
+        }
+        if (search && typeof search === 'string' && search.trim()) {
+          const term = search.trim();
+          where.OR = [
+            { name:   { contains: term, mode: 'insensitive' } },
+            { school: { contains: term, mode: 'insensitive' } },
+          ];
+        }
+
+        const participants = await prisma.players.findMany({
+          where,
+          select: {
+            id: true,
+            name: true,
+            school: true,
+            age: true,
+            province: true,
+            city: true,
+            created_at: true,
+            categories: { select: { id: true, name: true } },
+            competitions: { select: { id: true, name: true, status: true } },
+          },
+          orderBy: [
+            { competitions: { created_at: 'desc' } },
+            { name: 'asc' },
+          ],
+        });
+
+        // Flatten relations into a predictable row shape for the page.
+        const rows = participants.map(p => ({
+          id: p.id,
+          name: p.name,
+          school: p.school,
+          age: p.age,
+          province: p.province,
+          city: p.city,
+          createdAt: p.created_at,
+          categoryId: p.categories?.id || null,
+          categoryName: p.categories?.name || null,
+          competitionId: p.competitions.id,
+          competitionName: p.competitions.name,
+          competitionStatus: p.competitions.status,
+        }));
+
+        res.json({ code: 200, message: 'success', data: rows });
+      } catch (err) {
+        logger.error('List global participants failed', { error: err.message });
+        res.json({ code: 50000, message: '查询选手失败', data: null });
+      }
+    }
+  );
+
   // POST /api/competitions/:id/participants/upload
   // Upload Excel, parse & validate, return preview data
   router.post(

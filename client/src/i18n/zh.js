@@ -7,6 +7,7 @@ export default {
     back: '返回',
     loading: '加载中...',
     cancel: '取消',
+    dismiss: '关闭',
     unknownError: '未知错误',
     status: {
       DRAFT: '草稿',
@@ -454,6 +455,22 @@ export default {
     startingIn: '即将开始',
   },
 
+  // 阶段结束与比赛结束界面。服务端在某一阶段最后一轮结束时发出
+  // STAGE_FINISHED（裁判决定何时开始下一阶段——没有倒计时），并在整
+  // 场比赛结束时发出 COMPETITION_FINISHED。不显示分数、排名、领奖台：
+  // 比赛中的排名是给裁判和大屏看的，不是给即将进入下一轮的选手看的
+  // （产品决策，2026-08-15）。
+  stageFinished: {
+    stageKicker: '阶段完成',
+    stageTitle: '第 {n} 阶段已结束',
+    stageTitleNoNumber: '阶段已结束',
+    stageSubtitleIndividual: '个人赛阶段',
+    stageSubtitleTeam: '团队赛阶段',
+    stageWait: '等待裁判开始下一阶段…',
+    competitionTitle: '比赛已结束',
+    competitionThanks: '感谢您的参与！',
+  },
+
   accessLink: {
     title: '选手访问链接',
     noneYet: '尚未生成访问链接。点击生成以获取可分享给选手的链接。',
@@ -519,6 +536,8 @@ export default {
     title: '成绩',
     subtitle: '查看每一轮的排名以及最终排名。',
     selectCompetition: '赛事',
+    filterByCategory: '组别',
+    allCategories: '全部组别',
     roundTab: '第 {n} 轮',
     finalTab: '最终',
     colRank: '名次',
@@ -545,6 +564,8 @@ export default {
     modeLiveRankingHint: '显示实时排行榜。',
     modeRoundRanking: '单轮排名',
     modeRoundRankingHint: '显示当前轮次的排名。',
+    modeStageRanking: '阶段排名',
+    modeStageRankingHint: '显示当前阶段的综合排名。',
     modeFinalRanking: '最终排名',
     modeFinalRankingHint: '显示最终领奖台。',
     modePlayerBroadcast: '某位选手',
@@ -612,6 +633,63 @@ export default {
     colCreated: '创建时间',
     colCompName: '赛事',
     colStatus: '状态',
+  },
+
+  // 裁判管理页 —— 机构管理员在此创建和管理本机构的裁判账号。走 POST /users
+  // 并传 role: 'JUDGE'，绕开 /competitions/:id/judges（分配）与创建同占一个
+  // 动词+路径的 ISSUE-027 冲突，等路由正式拆分后再迁移。
+  judges: {
+    title: '裁判',
+    subtitle: '为本机构创建和管理裁判账号。',
+    createButton: '创建裁判',
+    createSubmit: '创建账号',
+    createFailed: '无法创建裁判账号。',
+    createdBanner: '裁判已创建 —— 请在关闭提示前将凭证告知本人。',
+    credentialsHint: '密码已在服务器端哈希，无法再次显示。',
+    copyCredentials: '复制',
+    usernameLabel: '用户名',
+    passwordLabel: '密码',
+    passwordHint: '至少 6 个字符。点击「重新生成」获取新的随机密码。',
+    regenerate: '重新生成',
+    listTitle: '现有裁判',
+    empty: '暂无裁判 —— 请在上方创建第一位。',
+    colUsername: '用户名',
+    colStatus: '状态',
+    colCreated: '创建时间',
+    colActions: '操作',
+    status: {
+      ACTIVE: '启用',
+      INACTIVE: '停用',
+    },
+    activate: '启用',
+    deactivate: '停用',
+    statusFailed: '无法更新状态。',
+    loadFailed: '无法加载裁判列表。',
+  },
+
+  // 选手总览页 —— 只读的跨赛事视图（F32）。每个赛事详情页里保留的
+  // 导入 / 删除 / 导出凭证仍然是唯一的写入路径，本页不做任何修改操作。
+  // 服务端在 WHERE 子句中强制机构隔离，客户端无法绕过。
+  participants: {
+    title: '选手',
+    subtitle: '本机构下所有赛事的参赛选手总览。仅供查看 —— 导入与删除请前往对应赛事详情页。',
+    filterByCompetition: '赛事',
+    filterByCategory: '组别',
+    filterAllCompetitions: '全部赛事',
+    filterAllCategories: '全部组别',
+    searchLabel: '搜索',
+    searchPlaceholder: '按姓名或学校搜索…',
+    count: '共 {n} 名选手',
+    colName: '姓名',
+    colSchool: '学校',
+    colAge: '年龄',
+    colCategory: '组别',
+    colCompetition: '赛事',
+    colCreated: '导入时间',
+    emptyOrg: '暂无选手。请前往某个赛事的详情页导入。',
+    emptyFiltered: '没有符合筛选条件的选手。',
+    loading: '加载中…',
+    loadFailed: '无法加载选手列表。',
   },
 
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的

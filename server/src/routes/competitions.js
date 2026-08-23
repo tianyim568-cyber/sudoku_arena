@@ -166,6 +166,12 @@ function createCompetitionRouter(repos, displayManager) {
    * always see the same numbers — two code paths producing rankings would
    * drift apart.
    *
+   * Query: ?categoryId=<UUID> — optional filter, omit for all categories.
+   *   Mirrors the display page's GET /display/:token/ranking so admin and
+   *   big screen use the same code path server-side and cannot drift apart.
+   *   The filtering itself happens in DisplayManager.getRankingSnapshot —
+   *   this handler only passes the param through.
+   *
    * Auth: Bearer token (org-scoped) + ADMIN_ROLES
    * Tenant: competition must belong to caller's organization
    *
@@ -181,11 +187,19 @@ function createCompetitionRouter(repos, displayManager) {
     roleMiddleware(...ADMIN_ROLES),
     async (req, res) => {
       const { id } = req.params;
+      // Optional category filter. Accept only a non-empty string — the client
+      // omits the param for "all categories". A malformed value falls through
+      // to Prisma's UUID validation, which surfaces as a 500; that is fine for
+      // an admin-only route (tenantGuard + ADMIN_ROLES already gate it).
+      const categoryId = typeof req.query.categoryId === 'string' && req.query.categoryId
+        ? req.query.categoryId
+        : null;
+
       if (!displayManager) {
         return res.json({ code: 50000, message: '结果快照不可用', data: null });
       }
       try {
-        const snapshot = await displayManager.getRankingSnapshot(id);
+        const snapshot = await displayManager.getRankingSnapshot(id, categoryId);
         res.json({ code: 200, message: 'success', data: snapshot });
       } catch (e) {
         if (e.message === 'Competition not found') {

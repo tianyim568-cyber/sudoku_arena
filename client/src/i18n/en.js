@@ -6,6 +6,7 @@ export default {
     back: 'Back',
     loading: 'Loading...',
     cancel: 'Cancel',
+    dismiss: 'Dismiss',
     unknownError: 'Unknown error',
     // Competition lifecycle, as the server actually writes it:
     // DRAFT (on creation) → PUBLISHED (not reachable yet — "publish" is not
@@ -460,6 +461,23 @@ export default {
     startingIn: 'Starting in',
   },
 
+  // End-of-stage and end-of-competition screens. The server emits
+  // STAGE_FINISHED when the last round of a stage ends (the judge decides
+  // when to start the next stage — no countdown), and COMPETITION_FINISHED
+  // when the whole competition is over. No score, no ranking, no podium:
+  // mid-competition rankings are for the judge and the big screen, not for
+  // a player about to play another round (product decision, 2026-08-15).
+  stageFinished: {
+    stageKicker: 'Stage complete',
+    stageTitle: 'Stage {n} finished',
+    stageTitleNoNumber: 'Stage finished',
+    stageSubtitleIndividual: 'Individual stage',
+    stageSubtitleTeam: 'Team stage',
+    stageWait: 'Waiting for the judge to start the next stage…',
+    competitionTitle: 'Competition finished',
+    competitionThanks: 'Thanks for taking part!',
+  },
+
   accessLink: {
     title: 'Player access link',
     noneYet: 'No access link has been generated yet. Generate one to get a URL you can share with players.',
@@ -539,6 +557,8 @@ export default {
     title: 'Results',
     subtitle: 'Review rankings for every round and the final standings.',
     selectCompetition: 'Competition',
+    filterByCategory: 'Category',
+    allCategories: 'All categories',
     roundTab: 'Round {n}',
     finalTab: 'Final',
     colRank: 'Rank',
@@ -565,6 +585,8 @@ export default {
     modeLiveRankingHint: 'Show the live leaderboard.',
     modeRoundRanking: 'Round ranking',
     modeRoundRankingHint: 'Show the ranking of the current round.',
+    modeStageRanking: 'Stage ranking',
+    modeStageRankingHint: 'Show the aggregated ranking of the current stage.',
     modeFinalRanking: 'Final ranking',
     modeFinalRankingHint: 'Show the final podium.',
     modePlayerBroadcast: 'A projected player',
@@ -637,6 +659,65 @@ export default {
     colCreated: 'Created',
     colCompName: 'Competition',
     colStatus: 'Status',
+  },
+
+  // Judges dashboard — org admin creates and manages judge accounts. Goes
+  // through POST /users with role: 'JUDGE' rather than the /competitions/
+  // :id/judges route (which assigns), sidestepping the ISSUE-027 verb+path
+  // collision until the routes are formally split.
+  judges: {
+    title: 'Judges',
+    subtitle: 'Create judge accounts and manage them for your organization.',
+    createButton: 'Create judge',
+    createSubmit: 'Create account',
+    createFailed: 'Could not create the judge.',
+    createdBanner: 'Judge created — share the credentials before dismissing this banner.',
+    credentialsHint: 'The password is hashed on the server and cannot be retrieved again.',
+    copyCredentials: 'Copy',
+    usernameLabel: 'Username',
+    passwordLabel: 'Password',
+    passwordHint: 'At least 6 characters. Regenerate for a fresh random password.',
+    regenerate: 'Regenerate',
+    listTitle: 'Existing judges',
+    empty: 'No judges yet — create the first one above.',
+    colUsername: 'Username',
+    colStatus: 'Status',
+    colCreated: 'Created',
+    colActions: 'Actions',
+    status: {
+      ACTIVE: 'Active',
+      INACTIVE: 'Inactive',
+    },
+    activate: 'Activate',
+    deactivate: 'Deactivate',
+    statusFailed: 'Could not update status.',
+    loadFailed: 'Could not load the judges list.',
+  },
+
+  // Participants dashboard — global read-only view (F32). Complements the
+  // per-competition import/delete/export that already lives inside
+  // CompetitionDetailPage — this page never mutates. The server enforces
+  // tenant isolation in its WHERE clause; the client cannot bypass it.
+  participants: {
+    title: 'Participants',
+    subtitle: 'All participants across your organization\'s competitions. Read-only — import and delete live inside each competition\'s detail page.',
+    filterByCompetition: 'Competition',
+    filterByCategory: 'Category',
+    filterAllCompetitions: 'All competitions',
+    filterAllCategories: 'All categories',
+    searchLabel: 'Search',
+    searchPlaceholder: 'Search by name or school…',
+    count: '{n} participants',
+    colName: 'Name',
+    colSchool: 'School',
+    colAge: 'Age',
+    colCategory: 'Category',
+    colCompetition: 'Competition',
+    colCreated: 'Added',
+    emptyOrg: 'No participants yet. Import them from a competition\'s detail page.',
+    emptyFiltered: 'No participants match these filters.',
+    loading: 'Loading participants…',
+    loadFailed: 'Could not load the participants list.',
   },
 
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The

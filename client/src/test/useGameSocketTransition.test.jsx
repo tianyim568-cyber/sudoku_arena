@@ -5,13 +5,20 @@
 // in as a prop. That proves they render correctly — it proves nothing about
 // whether the hook ever builds that state correctly from real events.
 //
-// The bug this file exists for: the socket handler is registered inside an
-// effect that depends only on [user, competitionId], so it is created ONCE and
-// closes over the render values of that moment. Every other handler mutates
-// through functional updates (setX(prev => …)), which are immune. Reading a
-// plain useState value inside the handler is NOT: it would see the initial
-// null forever. The finished round's name comes from exactly such a read, so
-// it must live in a ref. Nothing in a component test can see this.
+// The bug this file exists for (part 1, between-rounds): the socket handler
+// is registered inside an effect that depends only on
+// [user, competitionId], so it is created ONCE and closes over the render
+// values of that moment. Every other handler mutates through functional
+// updates (setX(prev => …)), which are immune. Reading a plain useState
+// value inside the handler is NOT: it would see the initial null forever.
+// The finished round's name comes from exactly such a read, so it must live
+// in a ref. Nothing in a component test can see this.
+//
+// Part 2 (stage-end and competition-end): the hook must also listen to
+// STAGE_FINISHED and COMPETITION_FINISHED, set the terminal states, and
+// clear them when a new live event arrives (STAGE_STARTED /
+// ROUND_PREPARATION_STARTED / ROUND_STARTED). Without this, the player
+// silently fell back to WaitingScreen mid-event — the bug F69 fixes.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
@@ -51,7 +58,10 @@ vi.mock('../hooks/useAuth', () => ({
 
 // Renders the two between-rounds states as text so assertions can read them.
 function Probe() {
-  const { preparation, transition } = useGameSocket('comp-1');
+  const {
+    preparation, transition,
+    stageFinished, competitionFinished,
+  } = useGameSocket('comp-1');
   return (
     <div>
       <span data-testid="prep">{preparation ? preparation.roundName : 'none'}</span>
@@ -60,6 +70,12 @@ function Probe() {
       </span>
       <span data-testid="next">
         {transition ? transition.nextRound.roundName : 'none'}
+      </span>
+      <span data-testid="stageFinished">
+        {stageFinished ? JSON.stringify(stageFinished) : 'none'}
+      </span>
+      <span data-testid="competitionFinished">
+        {competitionFinished ? 'true' : 'false'}
       </span>
     </div>
   );
@@ -156,5 +172,118 @@ describe('useGameSocket — between-rounds states', () => {
       totalSeconds: 10, turnEndsAt: Date.now() + 7000,
     });
     expect(screen.getByTestId('prep')).toHaveTextContent('Round One');
+  });
+});
+
+// ─── Stage-end and competition-end ───────────────────────────────────────
+// The server emits STAGE_FINISHED at the end of a stage's last round, and
+// COMPETITION_FINISHED at the end of the whole competition. Before the hook
+// listened to them, the player silently fell back to WaitingScreen mid-event
+// — misleading. These tests pin the hook's behavior for both events, plus
+// the defensive clearing when a new live event arrives.
+describe('useGameSocket — stage-end and competition-end', () => {
+  it('stores stageFinished with stageOrder and stageType from the payload', () => {
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 2, stageType: 'TEAM' });
+    const sf = screen.getByTestId('stageFinished').textContent;
+    expect(sf).toContain('"stageOrder":2');
+    expect(sf).toContain('"stageType":"TEAM"');
+  });
+
+  it('stores null stageOrder/stageType when the payload omits them', () => {
+    send('STAGE_FINISHED', { stageId: 's-1' });
+    const sf = screen.getByTestId('stageFinished').textContent;
+    expect(sf).toContain('"stageOrder":null');
+    expect(sf).toContain('"stageType":null');
+  });
+
+  it('clears currentRound, preparation, transition when STAGE_FINISHED arrives', () => {
+    startRound1();
+    send('ROUND_PREPARATION_STARTED', {
+      roundId: 'r-1', roundNumber: 1, roundName: 'Round One',
+      roundType: 'ROUND1_NINE_ONE', preparationSeconds: 10, turnEndsAt: Date.now() + 10000,
+    });
+    transitionToRound2();
+    // Pre-conditions: the live states are set.
+    expect(screen.getByTestId('prep')).toHaveTextContent('Round One');
+    expect(screen.getByTestId('next')).toHaveTextContent('Round Two');
+
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 1, stageType: 'INDIVIDUAL' });
+    // The terminal state takes over — live states cleared so chooseScreen
+    // can't accidentally fall through to ROUND_VIEW/ROUND_LOADING.
+    expect(screen.getByTestId('prep')).toHaveTextContent('none');
+    expect(screen.getByTestId('next')).toHaveTextContent('none');
+    expect(screen.getByTestId('stageFinished').textContent).not.toBe('none');
+  });
+
+  it('sets competitionFinished to true on COMPETITION_FINISHED', () => {
+    send('COMPETITION_FINISHED', {});
+    expect(screen.getByTestId('competitionFinished')).toHaveTextContent('true');
+  });
+
+  it('clears stageFinished when COMPETITION_FINISHED arrives (competition wins)', () => {
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 2, stageType: 'TEAM' });
+    expect(screen.getByTestId('stageFinished').textContent).not.toBe('none');
+
+    send('COMPETITION_FINISHED', {});
+    expect(screen.getByTestId('stageFinished')).toHaveTextContent('none');
+    expect(screen.getByTestId('competitionFinished')).toHaveTextContent('true');
+  });
+
+  it('clears live states (currentRound/preparation/transition) on COMPETITION_FINISHED', () => {
+    startRound1();
+    transitionToRound2();
+    send('COMPETITION_FINISHED', {});
+    expect(screen.getByTestId('next')).toHaveTextContent('none');
+  });
+
+  it('clears stageFinished on STAGE_STARTED (next stage begins)', () => {
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 1, stageType: 'INDIVIDUAL' });
+    expect(screen.getByTestId('stageFinished').textContent).not.toBe('none');
+
+    send('STAGE_STARTED', { stageId: 's-2', stageOrder: 2 });
+    expect(screen.getByTestId('stageFinished')).toHaveTextContent('none');
+    expect(screen.getByTestId('competitionFinished')).toHaveTextContent('false');
+  });
+
+  it('clears stageFinished + competitionFinished on ROUND_PREPARATION_STARTED (defensive)', () => {
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 1, stageType: 'INDIVIDUAL' });
+    send('COMPETITION_FINISHED', {}); // both terminal states set (synthetic)
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 1, stageType: 'INDIVIDUAL' });
+    expect(screen.getByTestId('stageFinished').textContent).not.toBe('none');
+
+    send('ROUND_PREPARATION_STARTED', {
+      roundId: 'r-1', roundNumber: 1, roundName: 'Round One',
+      roundType: 'ROUND1_NINE_ONE', preparationSeconds: 10, turnEndsAt: Date.now() + 10000,
+    });
+    expect(screen.getByTestId('stageFinished')).toHaveTextContent('none');
+    expect(screen.getByTestId('competitionFinished')).toHaveTextContent('false');
+  });
+
+  it('clears stageFinished + competitionFinished on ROUND_STARTED (defensive)', () => {
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 1, stageType: 'INDIVIDUAL' });
+    expect(screen.getByTestId('stageFinished').textContent).not.toBe('none');
+
+    startRound1();
+    expect(screen.getByTestId('stageFinished')).toHaveTextContent('none');
+    expect(screen.getByTestId('competitionFinished')).toHaveTextContent('false');
+  });
+
+  it('does not leave stageFinished set across a full stage → next-stage cycle', () => {
+    // End of stage 1 → STAGE_FINISHED. Then judge starts stage 2 →
+    // STAGE_STARTED. Then round 1 of stage 2 → ROUND_PREPARATION_STARTED +
+    // ROUND_STARTED. At no point after STAGE_STARTED should stageFinished
+    // still be set.
+    send('STAGE_FINISHED', { stageId: 's-1', stageOrder: 1, stageType: 'INDIVIDUAL' });
+    send('STAGE_STARTED', { stageId: 's-2', stageOrder: 2 });
+    send('ROUND_PREPARATION_STARTED', {
+      roundId: 'r-2', roundNumber: 1, roundName: 'Round One',
+      roundType: 'ROUND1_NINE_ONE', preparationSeconds: 10, turnEndsAt: Date.now() + 10000,
+    });
+    send('ROUND_STARTED', {
+      roundId: 'r-2', roundNumber: 1, roundName: 'Round One',
+      roundType: 'ROUND1_NINE_ONE', turnEndsAt: Date.now() + 60000, durationSeconds: 60,
+    });
+    expect(screen.getByTestId('stageFinished')).toHaveTextContent('none');
+    expect(screen.getByTestId('competitionFinished')).toHaveTextContent('false');
   });
 });

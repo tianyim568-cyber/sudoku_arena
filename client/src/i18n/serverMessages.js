@@ -147,6 +147,23 @@ const EN = {
 
   // Participant import (routes/participants.js)
   '存在无效的数据行，无法导入': 'Some rows are invalid and cannot be imported',
+
+  // 12 messages introduced by the 2026-08-22 security hardening +
+  // 2026-08-23 N+1 optimization commits. Same class of gap ISSUE-011
+  // caught for the earlier work — the table has to grow when the server
+  // grows.
+  '无权访问此竞赛': 'You do not have permission to access this competition',
+  '无权访问此轮次': 'You do not have permission to access this round',
+  '无权访问此队伍': 'You do not have permission to access this team',
+  '无权在此组织下创建用户': 'You cannot create a user in this organization',
+  '无权操作此用户': 'You cannot modify this user',
+  '无权删除此题目': 'You cannot delete this puzzle',
+  '轮次不属于此竞赛': 'This round does not belong to this competition',
+  '队伍不存在': 'Team not found',
+  '选手不存在或不属于此竞赛': 'Player not found, or does not belong to this competition',
+  '操作失败，请重试': 'The operation failed, please try again',
+  '操作失败，请稍后重试': 'The operation failed, please try again later',
+  '提交失败，请重试': 'Submission failed, please try again',
 };
 
 /**
