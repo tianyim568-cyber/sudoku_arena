@@ -12,15 +12,24 @@
 // set, whether or not puzzles arrived).
 //
 // The rows that protect against permutation:
-//   - TRANSITION wins over PREPARATION and over a live round with data.
+//   - TRANSITION wins over PREPARATION and over a live round with data and
+//     over terminal states (stageFinished/competitionFinished).
 //     Move PREPARATION above TRANSITION → "transition + preparation" fails.
-//   - PREPARATION wins over a live round with data.
+//     Move STAGE_FINISHED above TRANSITION → "transition + stageFinished" fails.
+//   - PREPARATION wins over a live round with data and over terminal states.
 //     Move ROUND1_VIEW above PREPARATION → "preparation + R1 with puzzles" fails.
-//   - ROUND_LOADING wins over WAITING when currentRound is set.
+//     Move STAGE_FINISHED above PREPARATION → "preparation + stageFinished" fails.
+//   - ROUND_LOADING wins over WAITING when currentRound is set, AND over
+//     terminal states.
 //     Remove ROUND_LOADING or put it below WAITING → "R1 active, no puzzles" fails.
-//   - WAITING wins when nothing is set.
-//     Move ROUND_LOADING above WAITING without guarding on currentRound
-//     → "everything null" fails.
+//     Put STAGE_FINISHED above ROUND_LOADING → "R1 + stageFinished" fails.
+//   - COMPETITION_FINISHED wins over STAGE_FINISHED (server emits both for
+//     the last stage; competition-end supersedes stage-end).
+//     Swap their order → "competitionFinished + stageFinished" fails.
+//   - WAITING wins when nothing is set, including when the two new fields
+//     sit at their defaults (null/false).
+//     Move STAGE_FINISHED above WAITING without guarding on stageFinished
+//     → "stageFinished null + competitionFinished false" fails.
 //
 // The three ROUND_VIEW rows (R1/R2/R3) are mutually exclusive via roundType,
 // so permuting them doesn't change the nominal cases — but the rows still
@@ -42,6 +51,10 @@ const R3 = { roundId: 'r-3', roundType: 'ROUND3_COLLABORATE' };
 const PUZZLES = [{ puzzleId: 'p-1' }];
 const R2_STATE = { teamScore: 0 };
 const R3_STATE = { teamScore: 0, puzzles: [] };
+// A stage-end state — { stageOrder, stageType }, the shape useGameSocket
+// builds from STAGE_FINISHED. stageOrder is 1-based; stageType is
+// INDIVIDUAL / TEAM / null. Both fields are optional in the payload.
+const STAGE_FINISHED_STATE = { stageOrder: 1, stageType: 'INDIVIDUAL' };
 
 // Helper: build a state snapshot from partial inputs.
 function state(overrides = {}) {
@@ -52,6 +65,8 @@ function state(overrides = {}) {
     puzzles: [],
     round2State: null,
     round3State: null,
+    stageFinished: null,
+    competitionFinished: false,
     ...overrides,
   };
 }
@@ -137,7 +152,7 @@ const TABLE = [
     state: state({ currentRound: R1 }),
     expected: 'ROUND_LOADING' },
 
-  // ── WAITING (priority 5, default) ──────────────────────────────────────
+  // ── WAITING (priority 7, default) ──────────────────────────────────────
   // Nothing active — the honest "waiting for judge" case.
   { name: 'everything null → WAITING',
     state: state(),
@@ -150,6 +165,68 @@ const TABLE = [
   // round2State present but no currentRound — same defensive stance.
   { name: 'round2State but no currentRound → WAITING',
     state: state({ round2State: R2_STATE }),
+    expected: 'WAITING' },
+
+  // ── STAGE_FINISHED (priority 6) ────────────────────────────────────────
+  // Stage just ended, judge hasn't started the next stage yet. No countdown
+  // — the judge decides. Must NOT fall through to WAITING: a stage that just
+  // ended is not the same as a competition that hasn't begun.
+  { name: 'stageFinished only → STAGE_FINISHED',
+    state: state({ stageFinished: STAGE_FINISHED_STATE }),
+    expected: 'STAGE_FINISHED' },
+  // stageFinished with stageType TEAM — the label changes, the screen doesn't.
+  { name: 'stageFinished TEAM → STAGE_FINISHED',
+    state: state({ stageFinished: { stageOrder: 2, stageType: 'TEAM' } }),
+    expected: 'STAGE_FINISHED' },
+  // stageFinished with null stageOrder/stageType (minimal payload) — still
+  // STAGE_FINISHED. Proves the branch doesn't depend on payload fields.
+  { name: 'stageFinished minimal payload → STAGE_FINISHED',
+    state: state({ stageFinished: { stageOrder: null, stageType: null } }),
+    expected: 'STAGE_FINISHED' },
+
+  // ── COMPETITION_FINISHED (priority 5) ───────────────────────────────────
+  // Competition just ended. Terminal screen, no rankings shown.
+  { name: 'competitionFinished only → COMPETITION_FINISHED',
+    state: state({ competitionFinished: true }),
+    expected: 'COMPETITION_FINISHED' },
+  // Competition wins over stageFinished: the server commonly emits
+  // STAGE_FINISHED for the last stage followed by COMPETITION_FINISHED.
+  // useGameSocket clears stageFinished on COMPETITION_FINISHED, but this is
+  // the defensive guard in case the clearing ever misses.
+  { name: 'competitionFinished + stageFinished → COMPETITION_FINISHED',
+    state: state({ competitionFinished: true, stageFinished: STAGE_FINISHED_STATE }),
+    expected: 'COMPETITION_FINISHED' },
+
+  // ── Defensive: live events beat terminal states ────────────────────────
+  // A live event (transition/preparation/round) must win over a terminal
+  // state (stageFinished/competitionFinished) in case the clearing in
+  // useGameSocket hasn't run yet. If someone moves STAGE_FINISHED or
+  // COMPETITION_FINISHED above the live-event branches, these rows break.
+  { name: 'transition + stageFinished → TRANSITION (live beats terminal)',
+    state: state({ transition: TRANSITION, stageFinished: STAGE_FINISHED_STATE }),
+    expected: 'TRANSITION' },
+  { name: 'transition + competitionFinished → TRANSITION (live beats terminal)',
+    state: state({ transition: TRANSITION, competitionFinished: true }),
+    expected: 'TRANSITION' },
+  { name: 'preparation + stageFinished → PREPARATION (live beats terminal)',
+    state: state({ preparation: PREPARATION, stageFinished: STAGE_FINISHED_STATE }),
+    expected: 'PREPARATION' },
+  // An active round with its data arrived beats a terminal state too.
+  { name: 'R1 live with puzzles + stageFinished → ROUND1_VIEW (live beats terminal)',
+    state: state({ currentRound: R1, puzzles: PUZZLES, stageFinished: STAGE_FINISHED_STATE }),
+    expected: 'ROUND1_VIEW' },
+  // An active round with NO data beats a terminal state (ROUND_LOADING, not
+  // STAGE_FINISHED). Proves ROUND_LOADING ranks above the terminal branches.
+  { name: 'R1 live, no puzzles, + stageFinished → ROUND_LOADING (live beats terminal)',
+    state: state({ currentRound: R1, puzzles: [], stageFinished: STAGE_FINISHED_STATE }),
+    expected: 'ROUND_LOADING' },
+
+  // ── No-regression: new fields at defaults still fall to WAITING ─────────
+  // The two new fields default to null/false. With nothing else set, WAITING
+  // must still win — proves the new branches don't accidentally fire when
+  // the terminal states aren't actually active.
+  { name: 'stageFinished null + competitionFinished false → WAITING (no regression)',
+    state: state({ stageFinished: null, competitionFinished: false }),
     expected: 'WAITING' },
 ];
 

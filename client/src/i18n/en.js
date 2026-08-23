@@ -461,6 +461,23 @@ export default {
     startingIn: 'Starting in',
   },
 
+  // End-of-stage and end-of-competition screens. The server emits
+  // STAGE_FINISHED when the last round of a stage ends (the judge decides
+  // when to start the next stage — no countdown), and COMPETITION_FINISHED
+  // when the whole competition is over. No score, no ranking, no podium:
+  // mid-competition rankings are for the judge and the big screen, not for
+  // a player about to play another round (product decision, 2026-08-15).
+  stageFinished: {
+    stageKicker: 'Stage complete',
+    stageTitle: 'Stage {n} finished',
+    stageTitleNoNumber: 'Stage finished',
+    stageSubtitleIndividual: 'Individual stage',
+    stageSubtitleTeam: 'Team stage',
+    stageWait: 'Waiting for the judge to start the next stage…',
+    competitionTitle: 'Competition finished',
+    competitionThanks: 'Thanks for taking part!',
+  },
+
   accessLink: {
     title: 'Player access link',
     noneYet: 'No access link has been generated yet. Generate one to get a URL you can share with players.',

@@ -68,6 +68,16 @@ export function useGameSocket(competitionId) {
   const lastRoundRef = useRef(null);
   const warningTimerRef = useRef(null);
   const callbacksRef = useRef({});
+  // Stage-end and competition-end states. The server emits STAGE_FINISHED
+  // when the last round of a stage ends (judge has not started the next
+  // stage yet) and COMPETITION_FINISHED when the whole competition is over.
+  // `stageFinished` holds { stageOrder, stageType } or null; `competitionFinished`
+  // is a plain boolean. Both are cleared defensively whenever a new stage or
+  // round starts (STAGE_STARTED, ROUND_PREPARATION_STARTED, ROUND_STARTED) so
+  // a terminal state can never cover a live event — the priority rule in
+  // chooseScreen treats them as fallbacks, not overrides.
+  const [stageFinished, setStageFinished] = useState(null);
+  const [competitionFinished, setCompetitionFinished] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -155,6 +165,12 @@ export function useGameSocket(competitionId) {
           // ROUND_STARTED of the next round — but clear anyway in case event
           // ordering ever changes.
           setTransition(null);
+          // A new round means any stage-end state is stale — the player is now
+          // in a live round, not waiting for the judge. This is the primary
+          // clearing path when ROUND_STARTED is skipped (it isn't always
+          // emitted before a round).
+          setStageFinished(null);
+          setCompetitionFinished(false);
           break;
         case 'ROUND_TRANSITION_STARTED':
           // A round just ended and another follows. The server sends a
@@ -206,10 +222,57 @@ export function useGameSocket(competitionId) {
             cells: {}, suggestions: {}, suggestionVotes: {}, playerFocuses: {},
             teamScore: 0, solvedCount: 0, totalPuzzles: 10
           });
+          // Defensive: a stage-end state that survives to here would sit on
+          // top of the round view in chooseScreen (STAGE_FINISHED ranks above
+          // WAITING but below ROUND_VIEW). Clear anyway so it can never
+          // cover a live round — the clearing in chooseScreen is the
+          // priority rule, this is the safety net.
+          setStageFinished(null);
+          setCompetitionFinished(false);
           break;
         case 'ROUND_FINISHED':
           setTimerMeta(prev => ({ ...prev, timerStatus: 'FINISHED' }));
           setPreparation(null);
+          break;
+        case 'STAGE_FINISHED':
+          // The server emits this when the last round of a stage ends. The
+          // judge decides when to start the next stage — there is no
+          // countdown. `stageOrder` is 1-based; `stageType` is
+          // INDIVIDUAL / TEAM / null. Both are optional in the payload.
+          setStageFinished({
+            stageOrder: event.payload?.stageOrder ?? null,
+            stageType: event.payload?.stageType ?? null,
+          });
+          // A stage ending clears anything round-scoped — no round is live
+          // any more, no round is being prepared, no round-to-round
+          // transition is in flight. (currentRound is owned by
+          // PlayerGamePage, not by this hook — PlayerGamePage's own event
+          // handler clears it on STAGE_FINISHED. This hook clears only the
+          // states it owns: preparation and transition.)
+          setPreparation(null);
+          setTransition(null);
+          break;
+        case 'COMPETITION_FINISHED':
+          // Terminal event — the whole competition is over. Supersedes any
+          // stage-end state (STAGE_FINISHED → COMPETITION_FINISHED flow is
+          // common when the last stage ends). Clear the stage-end state so
+          // chooseScreen routes to the competition-end variant, not the
+          // stage-end variant. (currentRound is cleared by PlayerGamePage's
+          // own event handler, not here — see note above.)
+          setCompetitionFinished(true);
+          setStageFinished(null);
+          setPreparation(null);
+          setTransition(null);
+          break;
+        case 'STAGE_STARTED':
+          // The server emits this when the judge starts a new stage. Clear
+          // any stage-end state from the previous stage — the player is now
+          // in a live stage, not waiting for the next one. (This case is
+          // registered defensively; STAGE_STARTED alone doesn't tell us a
+          // round is live, but it does tell us a previous stage-end is
+          // stale.)
+          setStageFinished(null);
+          setCompetitionFinished(false);
           break;
         case 'COMPETITION_PAUSED':
           setTimerMeta(prev => ({
@@ -593,6 +656,7 @@ export function useGameSocket(competitionId) {
     events, connected, puzzles, timerMeta, scoreUpdates,
     round1Progress, round2State, round3State, rotationWarning, activeTeammates,
     preparation, transition,
+    stageFinished, competitionFinished,
     onLetterReveal, updateCell,
     proposeCell, acceptProposal, rejectProposal, withdrawProposal, focusUpdate,
     setRound2FromRest, setRound3FromRest, setTimerMetaFromRest

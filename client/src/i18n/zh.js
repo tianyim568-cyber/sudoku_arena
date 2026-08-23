@@ -455,6 +455,22 @@ export default {
     startingIn: '即将开始',
   },
 
+  // 阶段结束与比赛结束界面。服务端在某一阶段最后一轮结束时发出
+  // STAGE_FINISHED（裁判决定何时开始下一阶段——没有倒计时），并在整
+  // 场比赛结束时发出 COMPETITION_FINISHED。不显示分数、排名、领奖台：
+  // 比赛中的排名是给裁判和大屏看的，不是给即将进入下一轮的选手看的
+  // （产品决策，2026-08-15）。
+  stageFinished: {
+    stageKicker: '阶段完成',
+    stageTitle: '第 {n} 阶段已结束',
+    stageTitleNoNumber: '阶段已结束',
+    stageSubtitleIndividual: '个人赛阶段',
+    stageSubtitleTeam: '团队赛阶段',
+    stageWait: '等待裁判开始下一阶段…',
+    competitionTitle: '比赛已结束',
+    competitionThanks: '感谢您的参与！',
+  },
+
   accessLink: {
     title: '选手访问链接',
     noneYet: '尚未生成访问链接。点击生成以获取可分享给选手的链接。',

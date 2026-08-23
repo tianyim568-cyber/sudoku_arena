@@ -23,6 +23,7 @@ import Round3View from './Round3View';
 import WaitingScreen from './WaitingScreen';
 import PreparationScreen from './PreparationScreen';
 import TransitionScreen from './TransitionScreen';
+import StageFinishedScreen from './StageFinishedScreen';
 import { chooseScreen } from './chooseScreen';
 
 export default function PlayerGamePage() {
@@ -55,6 +56,8 @@ export default function PlayerGamePage() {
     activeTeammates,
     preparation,
     transition,
+    stageFinished,
+    competitionFinished,
     onLetterReveal,
     updateCell,
     proposeCell,
@@ -204,6 +207,19 @@ export default function PlayerGamePage() {
         break;
       case 'ROUND_FINISHED':
         showMessage(t('game.roundFinished'), 'info');
+        setCurrentRound(null);
+        break;
+      // STAGE_FINISHED and COMPETITION_FINISHED are the two terminal events
+      // useGameSocket listens to (it sets stageFinished / competitionFinished).
+      // PlayerGamePage owns `currentRound` (local useState, not in the hook),
+      // so it must clear it here too — otherwise chooseScreen would route to
+      // ROUND_LOADING (active round, no data) instead of the terminal screen,
+      // because ROUND_FINISHED may not have arrived last (server ordering:
+      // ROUND_FINISHED → STAGE_FINISHED → COMPETITION_FINISHED).
+      case 'STAGE_FINISHED':
+        setCurrentRound(null);
+        break;
+      case 'COMPETITION_FINISHED':
         setCurrentRound(null);
         break;
       case 'ANSWER_RESULT':
@@ -423,6 +439,7 @@ export default function PlayerGamePage() {
             const screen = chooseScreen({
               transition, preparation, currentRound,
               puzzles, round2State, round3State,
+              stageFinished, competitionFinished,
             });
             switch (screen) {
               case 'TRANSITION':
@@ -475,6 +492,16 @@ export default function PlayerGamePage() {
                   <div className="text-center py-20 text-gray-400 text-sm sm:text-base">
                     {t('roundLoading.message')}
                   </div>
+                );
+              case 'COMPETITION_FINISHED':
+                return <StageFinishedScreen variant="competition" />;
+              case 'STAGE_FINISHED':
+                return (
+                  <StageFinishedScreen
+                    variant="stage"
+                    stageOrder={stageFinished?.stageOrder ?? null}
+                    stageType={stageFinished?.stageType ?? null}
+                  />
                 );
               case 'WAITING':
               default:
