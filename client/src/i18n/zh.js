@@ -546,6 +546,8 @@ export default {
     modeLiveRankingHint: '显示实时排行榜。',
     modeRoundRanking: '单轮排名',
     modeRoundRankingHint: '显示当前轮次的排名。',
+    modeStageRanking: '阶段排名',
+    modeStageRankingHint: '显示当前阶段的综合排名。',
     modeFinalRanking: '最终排名',
     modeFinalRankingHint: '显示最终领奖台。',
     modePlayerBroadcast: '某位选手',

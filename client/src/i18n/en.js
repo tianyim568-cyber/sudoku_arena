@@ -566,6 +566,8 @@ export default {
     modeLiveRankingHint: 'Show the live leaderboard.',
     modeRoundRanking: 'Round ranking',
     modeRoundRankingHint: 'Show the ranking of the current round.',
+    modeStageRanking: 'Stage ranking',
+    modeStageRankingHint: 'Show the aggregated ranking of the current stage.',
     modeFinalRanking: 'Final ranking',
     modeFinalRankingHint: 'Show the final podium.',
     modePlayerBroadcast: 'A projected player',
