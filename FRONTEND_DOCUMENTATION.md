@@ -8,6 +8,130 @@ This document provides a comprehensive guide to the Sudoku Arena frontend codeba
 
 **Prerequisites:** Basic React knowledge (hooks, components, state), understanding of ES6+ JavaScript, familiarity with REST APIs.
 
+**Document Version:** 2.0
+**Last Updated:** 2026-08-23
+
+> **IMPORTANT - August 2026 architecture overhaul.** The body of this document was written 2026-07-24 and describes a frontend structure that has since been heavily refactored. The section below summarizes the major changes. When the body below contradicts the August 2026 update, **trust the August 2026 update**. A full rewrite is tracked as a follow-up; until then, the update section is the source of truth.
+
+## August 2026 Updates (since v1.0 / 2026-07-24)
+
+### 1. Pages - tournament -> competition migration + dashboard architecture
+
+The old `TournamentListPage.jsx` and `TournamentDetailPage.jsx` no longer exist. They migrated to a dashboard architecture with sidebar layout:
+
+- `pages/LoginPage.jsx` (unchanged)
+- `pages/RegisterPage.jsx` (**new**) - org registration
+- `pages/CompetitionJoinPage.jsx` (**new**) - public landing page for players/judges joining via access link
+- `pages/DashboardLayout.jsx` (**new**) - sidebar container, orchestrates all dashboard pages
+- `pages/DashboardPage.jsx` (**new**) - org overview
+- `pages/DashboardCompetitionsPage.jsx` (**new**) - replaces TournamentListPage
+- `pages/DashboardResultsPage.jsx` (**new**) - historical results, round-by-round
+- `pages/DashboardPuzzleBankPage.jsx` (**new**) - replaces PuzzleBankPage
+- `pages/AdminDashboardPage.jsx` (**new**) - super-admin platform stats
+- `pages/PlayerGamePage.jsx` (extended - now routes to WaitingScreen / PreparationScreen / TransitionScreen)
+- `pages/JudgeControlPage.jsx` (extended - now embeds JudgeMonitoringPanel, DisplayModeControls, DisplayTokenSection)
+- `pages/DisplayPage.jsx` (**new**) - public big-screen route `/display/:token`
+- `pages/ErrorPage.jsx` (**new**) - 404 / 403 / 500 error pages
+- `pages/ComingSoonPage.jsx` (**new**) - placeholder for unbuilt dashboard sections
+
+### 2. Round state screens (player-side)
+
+Player-facing experience was decomposed into discrete screens with explicit priority rules:
+
+- `components/WaitingScreen.jsx` (**new**) - pre-round waiting state
+- `components/PreparationScreen.jsx` (**new**) - pre-round prep (countdown, rules)
+- `components/TransitionScreen.jsx` (**new**) - between-rounds transition
+- `utils/chooseScreen.js` (**new**) - pure function that picks which screen to show based on game state. Tested by `chooseScreen.test.js`. Priority rules documented in the file.
+
+### 3. Components - display, monitoring, broadcast
+
+- `components/DashboardLayout.jsx` (**new**) - sidebar + content slot
+- `components/ErrorBoundary.jsx` (**new**) - global + local error boundaries (see `LocalErrorBoundary`)
+- `components/LanguageSwitcher.jsx` (**new**) - i18n toggle (FR/EN/ZH)
+- `components/PublishPanel.jsx` (**new**) - competition publish workflow with validation checklist
+- `components/DisplayModeControls.jsx` (**new**) - judge-side buttons to switch big-screen mode
+- `components/DisplayTokenSection.jsx` (**new**) - generate/revoke display token
+- `components/AccessLinkSection.jsx` (**new**) - generate/display competition access link
+- `components/ParticipantImport.jsx` (**new**) - Excel upload + preview + confirm flow
+- `components/RankingView.jsx` (**new**) - full ranking grid (default display mode)
+- `components/RoundRankingView.jsx` (**new**) - single-round ranking (big screen)
+- `components/DisplayFinalRankingView.jsx` (**new**) - final podium (big screen, FINAL_RANKING mode)
+- `components/BroadcastView.jsx` (**new**) - player spotlight (PLAYER_BROADCAST mode)
+- `components/JudgeMonitoringPanel.jsx` (**new**) - participant list + presence + click-to-detail
+- `components/JudgeLivePlayerView.jsx` (**new**) - per-player live view (extracted from JudgeMonitoringPanel)
+
+### 4. Routes - dashboard group + admin + display + error pages
+
+App.jsx routes were reorganized:
+
+- `/` - dynamic reroute (SUPER_ADMIN -> /admin, ADMIN_ROLES -> /dashboard, other -> CompetitionListPage)
+- `/login`, `/register` - auth
+- `/competition/:accessCode` - public competition join (CompetitionJoinPage)
+- `/dashboard/*` - dashboard route group (DashboardLayout + nested)
+  - `/dashboard` -> DashboardPage
+  - `/dashboard/competitions` -> DashboardCompetitionsPage
+  - `/dashboard/puzzle-bank` -> DashboardPuzzleBankPage
+  - `/dashboard/results` -> DashboardResultsPage
+  - `/dashboard/participants|judges|teams` -> ComingSoonPage
+- `/admin` -> AdminDashboardPage (SUPER_ADMIN only)
+- `/display/:token` -> DisplayPage (public, no auth)
+- `/judge/:competitionId` -> JudgeControlPage (JUDGE role)
+- `/player/:competitionId` -> PlayerGamePage (PLAYER role)
+- `/403`, `/404`, `/500` -> ErrorPage
+- `/puzzle-bank` -> redirect to `/dashboard/puzzle-bank` (retrocompatibility)
+
+### 5. i18n - multilanguage support
+
+The v1.0 doc had no i18n section. It is now in place:
+
+- `i18n/LanguageContext.jsx` (**new**) - provider + `useLanguage()` hook + `t()` function
+- `i18n/translations.js` (**new**) - FR/EN/ZH dictionaries
+- `components/LanguageSwitcher.jsx` - UI toggle in the header
+- All display labels go through `t('key')`, with namespace prefixes (`common.`, `judgeMonitoring.`, `display.`, etc.)
+
+### 6. Error handling - boundaries + error pages
+
+The v1.0 doc had no error boundary section. It is now in place:
+
+- `components/ErrorBoundary.jsx` - global boundary (catches render crashes, shows fallback)
+- `LocalErrorBoundary` - local boundary (used in DisplayPage around view rendering, transport effects keep running)
+- `pages/ErrorPage.jsx` - 404 (not found), 403 (forbidden), 500 (server error)
+- Routes: `/403`, `/404`, `/500`
+
+### 7. Display modes - 6 modes (was implicit)
+
+DisplayPage now branches on `displayMode` to render the correct view:
+
+- `DEFAULT` -> RankingView (full grid)
+- `LIVE_RANKING` -> RankingView (same, but live updates)
+- `PLAYER_BROADCAST` -> BroadcastView (spotlight one player)
+- `ROUND_RANKING` -> RoundRankingView (single-round ranking, large)
+- `STAGE_RANKING` -> RankingView (fallback, no dedicated view yet)
+- `FINAL_RANKING` -> DisplayFinalRankingView (final podium, large)
+
+Transport (socket + polling) is shared across all modes; only the view changes.
+
+### 8. Testing - vitest + @testing-library/react
+
+The v1.0 doc said tests were minimal. The client now has 250+ tests across:
+
+- `test/*.test.jsx` - per-component tests (DisplayFinalRankingView, JudgeLivePlayerView, JudgeMonitoringPanel, RoundRankingView, TransitionScreen, LoginPage, LanguageSwitcher, etc.)
+- `vitest.config.js` - vitest configuration
+- `setupTests.js` - jsdom setup
+- Run with: `npx vitest run` (single file: `npx vitest run src/test/File.test.jsx`)
+- Build check: `npx vite build`
+
+### 9. API layer - tournament -> competition rename
+
+`api/index.js` was migrated:
+
+- Old: `api.getTournaments()`, `api.getTournament(id)`
+- New: `api.getCompetitions()`, `api.getCompetition(id)`
+- New endpoints: `api.getMonitoringPlayers()`, `api.getMonitoringPlayer(id)`, `api.broadcastPlayer(id)`, `api.stopBroadcast()`, `api.getDisplayToken()`, `api.revokeDisplayToken()`
+- All endpoints still use native `fetch` with custom wrapper
+
+See `louise/JOURNAL_MODIFICATIONS.md` for the full change history, and `louise/KNOWN_ISSUES.md` for open issues.
+
 ---
 
 ## Project Setup
@@ -1583,7 +1707,7 @@ This frontend codebase demonstrates solid React patterns (hooks, context, compon
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2026-07-24  
+**Document Version:** 1.0 (body) - see August 2026 Updates at top for current state  
+**Last Updated:** 2026-07-24 (body) / 2026-08-23 (updates section)  
 **Audience:** Junior Frontend Developers  
 **Language:** English

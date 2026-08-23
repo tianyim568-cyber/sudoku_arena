@@ -512,6 +512,29 @@ export default {
   // （engine/DisplayModes.js），但目前只有三种有客户端视图：DEFAULT（正常
   // 大屏）、LIVE_RANKING（实时排行榜）和 ROUND_RANKING（单轮排名，放大）。
   // 只暴露这三种 —— 没有视图的模式会静默回退到默认视图，等于一个会撒谎的按钮。
+  //
+  // 结果页 —— 管理员后台的历史排名。数据来自与大屏相同的快照
+  // （DisplayManager.getRankingSnapshot），两处永远不会不一致。
+  results: {
+    title: '成绩',
+    subtitle: '查看每一轮的排名以及最终排名。',
+    selectCompetition: '赛事',
+    roundTab: '第 {n} 轮',
+    finalTab: '最终',
+    colRank: '名次',
+    colName: '姓名',
+    colSchool: '学校',
+    colCategory: '组别',
+    colScore: '分数',
+    noRankings: '暂无排名 —— 一轮结束后排名会出现。',
+    noCompetitions: '暂无赛事。',
+    notAllowed: '您没有权限查看成绩。',
+    loadFailed: '无法加载成绩。',
+    loadListFailed: '无法加载赛事列表。',
+    unknownPlayer: '未知选手',
+    stageLabel: '阶段 {n}',
+  },
+
   displayMode: {
     title: '大屏模式',
     subtitle: '选择场地大屏当前显示的内容。',
@@ -522,6 +545,8 @@ export default {
     modeLiveRankingHint: '显示实时排行榜。',
     modeRoundRanking: '单轮排名',
     modeRoundRankingHint: '显示当前轮次的排名。',
+    modeFinalRanking: '最终排名',
+    modeFinalRankingHint: '显示最终领奖台。',
     modePlayerBroadcast: '某位选手',
     // 当正在投影某位选手时，裁判点击模式按钮会看到的提示。切换模式会停
     // 止投影 —— 明确告知，避免选手从大屏消失时裁判感到意外。
@@ -562,6 +587,31 @@ export default {
     agoSeconds: '{n} 秒前',
     agoMinutes: '{n} 分钟前',
     agoHours: '{n} 小时前',
+  },
+
+  // 超级管理员控制台 —— 平台级只读概览（R11）。挂载于 /admin，带 SUPER_ADMIN
+  // RoleRoute。页面显示计数（组织、赛事、选手、裁判）、按状态分布的赛事网格、
+  // 组织列表和最近赛事列表。只读：无创建/禁用/删除 —— 这些是跨租户的平台变更
+  // 操作，需要 Sylvain 审阅后再上线。
+  admin: {
+    appTitle: '数独竞技场 — 超级管理员',
+    subtitle: '平台概览',
+    loading: '加载中...',
+    loadFailed: '无法加载平台概览。',
+    organizations: '组织',
+    competitionsTotal: '赛事',
+    players: '选手',
+    judges: '裁判',
+    competitionsByStatus: '按状态统计赛事',
+    noOrganizations: '暂无组织。',
+    noCompetitions: '暂无赛事。',
+    recentCompetitions: '最近赛事',
+    colOrgName: '组织',
+    colUsers: '用户',
+    colCompetitions: '赛事',
+    colCreated: '创建时间',
+    colCompName: '赛事',
+    colStatus: '状态',
   },
 
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的

@@ -1,15 +1,16 @@
 /**
  * DisplayModeControls — admin block to choose what the big screen shows.
  *
- * The server knows six display modes (see engine/DisplayModes.js). Three have
+ * The server knows six display modes (see engine/DisplayModes.js). Four have
  * a client view today: DEFAULT (the normal ranking grid), LIVE_RANKING (the
- * live leaderboard), and ROUND_RANKING (the ranking of one round, large —
- * see RoundRankingView). PLAYER_BROADCAST is driven by the "project" button
- * in JudgeMonitoringPanel — we do not duplicate it here. The remaining two
- * (STAGE_RANKING, FINAL_RANKING) have no view on the display page yet: a
- * button that switched to one would silently fall back to the default view,
+ * live leaderboard), ROUND_RANKING (the ranking of one round, large — see
+ * RoundRankingView), and FINAL_RANKING (the final podium, large — see
+ * DisplayFinalRankingView). PLAYER_BROADCAST is driven by the "project"
+ * button in JudgeMonitoringPanel — we do not duplicate it here. The
+ * remaining mode (STAGE_RANKING) has no view on the display page yet: a
+ * button that switched to it would silently fall back to the default view,
  * and the judge would believe they changed something while the room saw
- * nothing move. We do not offer a button that lies. Three modes, then.
+ * nothing move. We do not offer a button that lies. Four modes, then.
  *
  * Where the current mode comes from: the parent passes `currentMode`, read
  * from `competition.display_mode` (the GET /competitions/:id route returns
@@ -46,15 +47,15 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 import { connectSocket, onEvent } from '../api/socket';
 
-// The modes we expose as buttons. The server defines six; three have a
-// client view today (DEFAULT, LIVE_RANKING, ROUND_RANKING). PLAYER_BROADCAST
-// is set by the projection button in JudgeMonitoringPanel — we recognize
-// the state but do not offer a button. STAGE_RANKING and FINAL_RANKING have
-// no view on the display page yet — see the component doc for why we hide
-// them.
+// The modes we expose as buttons. The server defines six; four have a
+// client view today (DEFAULT, LIVE_RANKING, ROUND_RANKING, FINAL_RANKING).
+// PLAYER_BROADCAST is set by the projection button in JudgeMonitoringPanel —
+// we recognize the state but do not offer a button. STAGE_RANKING has no
+// view on the display page yet — see the component doc for why we hide it.
 const MODE_DEFAULT = 'DEFAULT';
 const MODE_LIVE_RANKING = 'LIVE_RANKING';
 const MODE_ROUND_RANKING = 'ROUND_RANKING';
+const MODE_FINAL_RANKING = 'FINAL_RANKING';
 // The server sets this when a player is projected via JudgeMonitoringPanel.
 // We do not offer a button for it, but we must recognize the state so we can
 // call stopBroadcast before switching away.
@@ -120,6 +121,7 @@ export default function DisplayModeControls({ competitionId, currentMode, onMode
     { value: MODE_DEFAULT, label: t('displayMode.modeDefault'), hint: t('displayMode.modeDefaultHint') },
     { value: MODE_LIVE_RANKING, label: t('displayMode.modeLiveRanking'), hint: t('displayMode.modeLiveRankingHint') },
     { value: MODE_ROUND_RANKING, label: t('displayMode.modeRoundRanking'), hint: t('displayMode.modeRoundRankingHint') },
+    { value: MODE_FINAL_RANKING, label: t('displayMode.modeFinalRanking'), hint: t('displayMode.modeFinalRankingHint') },
   ];
 
   return (
@@ -142,9 +144,11 @@ export default function DisplayModeControls({ competitionId, currentMode, onMode
             ? t('displayMode.modeLiveRanking')
             : currentMode === MODE_ROUND_RANKING
               ? t('displayMode.modeRoundRanking')
-              : currentMode === MODE_PLAYER_BROADCAST
-                ? t('displayMode.modePlayerBroadcast')
-                : t('displayMode.modeDefault')}
+              : currentMode === MODE_FINAL_RANKING
+                ? t('displayMode.modeFinalRanking')
+                : currentMode === MODE_PLAYER_BROADCAST
+                  ? t('displayMode.modePlayerBroadcast')
+                  : t('displayMode.modeDefault')}
         </span>
       </div>
 

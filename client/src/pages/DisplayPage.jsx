@@ -32,6 +32,7 @@ import {
 import RankingView from '../components/RankingView';
 import BroadcastView from '../components/BroadcastView';
 import RoundRankingView from '../components/RoundRankingView';
+import DisplayFinalRankingView from '../components/DisplayFinalRankingView';
 import { LocalErrorBoundary } from '../components/ErrorBoundary';
 
 const API_BASE = '/api';
@@ -181,15 +182,15 @@ export default function DisplayPage() {
 
   const showBroadcast = displayMode === 'PLAYER_BROADCAST' && broadcastPlayer;
 
-  // View selection. The server knows six display modes; three have client
+  // View selection. The server knows six display modes; four have client
   // views today:
   //   - PLAYER_BROADCAST → BroadcastView (spotlights one player)
   //   - ROUND_RANKING    → RoundRankingView (ranking of one round, large)
+  //   - FINAL_RANKING    → DisplayFinalRankingView (final podium, large)
   //   - everything else  → RankingView (the full ranking grid)
-  // The remaining modes (STAGE_RANKING, FINAL_RANKING) have no view yet —
-  // they fall through to RankingView rather than showing a blank screen.
-  // Adding a view means adding a branch here; the transport above does not
-  // change.
+  // The remaining modes (STAGE_RANKING) has no view yet — it falls through
+  // to RankingView rather than showing a blank screen. Adding a view means
+  // adding a branch here; the transport above does not change.
   const renderView = () => {
     if (showBroadcast) {
       return <BroadcastView player={broadcastPlayer} lastUpdated={lastUpdated} />;
@@ -197,6 +198,16 @@ export default function DisplayPage() {
     if (displayMode === 'ROUND_RANKING') {
       return (
         <RoundRankingView
+          data={data}
+          lastUpdated={lastUpdated}
+          pollIntervalSeconds={POLL_INTERVAL_MS / 1000}
+          socketConnected={socketConnected}
+        />
+      );
+    }
+    if (displayMode === 'FINAL_RANKING') {
+      return (
+        <DisplayFinalRankingView
           data={data}
           lastUpdated={lastUpdated}
           pollIntervalSeconds={POLL_INTERVAL_MS / 1000}

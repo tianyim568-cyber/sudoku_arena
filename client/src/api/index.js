@@ -90,6 +90,9 @@ export const api = {
   // stale callers fail loudly instead of silently hitting a 404.
   listCompetitions: () => request('GET', '/competitions'),
   getCompetition: (id) => request('GET', `/competitions/${id}`),
+  // Reuses the big-screen ranking snapshot behind admin auth — admin and
+  // big screen always see the same numbers.
+  getResults: (id) => request('GET', `/competitions/${id}/results`),
   createCompetition: (data) => request('POST', '/competitions', data),
   updateCompetition: (id, data) => request('PUT', `/competitions/${id}`, data),
   deleteCompetition: (id) => request('DELETE', `/competitions/${id}`),
@@ -220,6 +223,10 @@ export const api = {
   getCompetitionByCode: (accessCode) => request('GET', `/competitions/by-code/${accessCode}/info`),
   competitionLogin: (identifier, username, password) =>
     request('POST', `/competitions/by-code/${identifier}/login`, { username, password }),
+
+  // Super Admin — platform-wide overview (orgs, competitions, users).
+  // Read-only; the server enforces SUPER_ADMIN role.
+  getAdminOverview: () => request('GET', '/admin/overview'),
 
   // Display token management (ORG_ADMIN)
   generateDisplayToken: (competitionId) => request('POST', `/competitions/${competitionId}/display-token`),

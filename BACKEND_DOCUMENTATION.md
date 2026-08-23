@@ -1,5 +1,100 @@
 # Sudoku Arena — Backend Documentation
 
+**Document Version:** 2.
+**Last Updated:** 2026-08-23
+
+> **IMPORTANT — August 2026 architecture overhaul.** The body of this document was written 2026-07-24 and describes a monolithic architecture that has since been heavily refactored. The section below summarizes the major changes. When the body below contradicts the August 2026 update, **trust the August 2026 update**. A full rewrite is tracked as a follow-up; until then, the update section is the source of truth.
+
+## August 2026 Updates (since v1.0 / 2026-07-24)
+
+### 1. Routes — `tournaments.js` → `competitions.js` + 8 specialized routers
+
+The old monolithic `routes/tournaments.js` no longer exists. The CRUD moved to `routes/competitions.js` (mounted at `/api/competitions`), and 8 specialized routers were carved out:
+
+- `routes/competitions.js` — CRUD + publish + access-link generation (`buildEntryUrl`)
+- `routes/competitionSetup.js` — stages, rounds, puzzle assignment
+- `routes/access-links.js` — competition entry links (POST, GET, DELETE, GET /by-code/:accessCode/info)
+- `routes/display.js` — display token + ranking snapshot + broadcast
+- `routes/monitoring.js` — judge monitoring endpoints
+- `routes/game.js` — live game orchestration (start, pause, resume, end)
+- `routes/participants.js` — Excel import + confirm flow
+- `routes/puzzleBank.js` — puzzle generation + import
+- `routes/admin.js` — super-admin platform stats
+- `routes/auth.js` — login + JWT issuance (extended)
+
+### 2. Database — Prisma replaced raw `pg`
+
+- `server/src/db/prisma.js` — Prisma client singleton
+- `server/src/db/connection.js` — still present but refactored
+- Schema managed by Prisma migrations (not manual `utils/db.js` seeds)
+- 14 repositories in `server/src/db/` (was 9): added `CategoryRepository`, `OrganizationRepository`, `ParticipantRepository`, `RankingRepository`
+- All repositories now use Prisma models, not raw SQL pools
+
+### 3. Engine — stratified Game → Stage → Round
+
+The old flat `GameOrchestrator + Round1/2/3Engine` was reorganized into a layered model:
+
+- `engine/GameOrchestrator.js` — top-level competition lifecycle (start, pause, end)
+- `engine/StageManager.js` — multi-stage orchestration (INDIVIDUAL + TEAM)
+- `engine/RoundManager.js` — per-round lifecycle (start, tick, end, auto-progress)
+- `engine/DisplayManager.js` (**new**) — display tokens, ranking snapshots, mode switching, player broadcast
+- `engine/EmissionBus.js` — central event emitter (targeted: display / judge / player rooms)
+- `engine/MonitoringService.js` (**new**) — per-player monitoring detail fetch
+- `engine/RoomService.js` — room state
+
+### 4. Middleware — 6 middlewares (was 1)
+
+- `middleware/auth.js` — extended to support 2 JWT types: org-scoped (username/password login) + competition-scoped (access-code login via `competitionLogin`)
+- `middleware/rateLimiters.js` (**new**) — `authLimiter` (login brute-force) + `expensiveLimiter` (puzzle generation, file upload)
+- `middleware/fileType.js` (**new**) — magic-bytes MIME validation (not just extension)
+- `middleware/validate.js` (**new**) — Zod schema validation
+- `middleware/tenantGuard.js` (**new**) — cross-tenant access prevention (org_id check)
+- `middleware/competitionAuth.js` (**new**) — competition entry token verification
+
+### 5. Logging — Pino logger implemented
+
+The v1.0 doc said "recommended: winston or pino" as a future improvement. It is now in place:
+
+- `server/src/utils/logger.js` — Pino-based logger
+- JSON format in production, pretty-print in dev
+- Secret sanitization (defense-in-depth — JWT, passwords, tokens scrubbed)
+- Level configurable via `LOG_LEVEL` env var
+
+### 6. Tests — 20+ test files (was "no automated tests")
+
+The v1.0 doc said "No automated tests in the backend codebase." This is no longer true. `server/src/__tests__/` contains 20+ test files:
+
+- `GameOrchestrator-*.test.js` — lifecycle, team-stage (note: ISSUE-033 preexisting failures)
+- `routes-*.test.js` — access-links, competition-lifecycle, publish, competitions, competitionSetup, game, auth
+- `middleware-*.test.js` — validate, rateLimiters, fileType
+- `monitoring.test.js`, `display.test.js`, `routes-tournaments.test.js` (legacy name, tests competitions)
+- Jest + Supertest for API integration tests
+- Prisma is mocked in unit tests; real DB used in `louise/test-*.js` E2E scripts
+
+### 7. Display modes — 6 modes (was 3)
+
+`DisplayModes.js` now defines: `DEFAULT`, `LIVE_RANKING`, `PLAYER_BROADCAST`, `ROUND_RANKING`, `STAGE_RANKING`, `FINAL_RANKING`. The server emits `RANKING_UPDATE`, `DISPLAY_MODE_CHANGED`, `DISPLAY_PLAYER_BROADCAST`, `DISPLAY_TOKEN_REVOKED` to the display room via `EmissionBus`.
+
+### 8. Competition entry — public access-link flow
+
+New public flow for players/judges joining a competition:
+- Admin generates an access link (`POST /api/competitions/:id/access-link`)
+- Link carries an `accessCode` (not a JWT)
+- Landing page `GET /api/competitions/by-code/:accessCode/info` is public (no auth)
+- Login: `POST /api/competitions/by-code/:identifier/login` issues a competition-scoped JWT
+
+### 9. Security hardening
+
+- Tenant guard on all competition routes (org_id check)
+- Rate limiting on auth + expensive endpoints
+- File type validation via magic bytes
+- Zod request validation on all mutation routes
+- No stack traces in error responses in production
+
+See `louise/JOURNAL_MODIFICATIONS.md` for the full change history, and `louise/KNOWN_ISSUES.md` for open issues.
+
+---
+
 ## Overview
 
 This document provides a comprehensive guide to the Sudoku Arena backend codebase, designed for junior backend developers. The server is a Node.js/Express application with real-time WebSocket communication, PostgreSQL persistence, and optional Redis caching.
@@ -1931,7 +2026,7 @@ This backend codebase demonstrates solid Node.js/Express patterns with clear sep
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2026-07-24  
-**Audience:** Junior Backend Developers  
+**Document Version:** 1.0 (body) - see August 2026 Updates at top for current state
+**Last Updated:** 2026-07-24 (body) / 2026-08-23 (updates section)
+**Audience:** Junior Backend Developers
 **Language:** English

@@ -531,6 +531,30 @@ export default {
   // leaderboard), and ROUND_RANKING (one round's ranking, large). We expose
   // only those three — a button for a mode with no view would silently fall
   // back to the default, which is a button that lies.
+  //
+  // Results page — historical rankings for the admin dashboard. The data
+  // comes from the same snapshot as the big screen (DisplayManager.
+  // getRankingSnapshot), so the two never drift apart.
+  results: {
+    title: 'Results',
+    subtitle: 'Review rankings for every round and the final standings.',
+    selectCompetition: 'Competition',
+    roundTab: 'Round {n}',
+    finalTab: 'Final',
+    colRank: 'Rank',
+    colName: 'Name',
+    colSchool: 'School',
+    colCategory: 'Category',
+    colScore: 'Score',
+    noRankings: 'No rankings yet — rankings appear once a round ends.',
+    noCompetitions: 'No competitions yet.',
+    notAllowed: 'You do not have permission to view results.',
+    loadFailed: 'Could not load the results.',
+    loadListFailed: 'Could not load the competitions list.',
+    unknownPlayer: 'Unknown player',
+    stageLabel: 'Stage {n}',
+  },
+
   displayMode: {
     title: 'Big-screen mode',
     subtitle: 'Choose what the screen in the room shows.',
@@ -541,6 +565,8 @@ export default {
     modeLiveRankingHint: 'Show the live leaderboard.',
     modeRoundRanking: 'Round ranking',
     modeRoundRankingHint: 'Show the ranking of the current round.',
+    modeFinalRanking: 'Final ranking',
+    modeFinalRankingHint: 'Show the final podium.',
     modePlayerBroadcast: 'A projected player',
     // Shown when a player is being projected and the judge clicks a mode
     // button. The projection stops — made explicit so the judge is not
@@ -584,6 +610,33 @@ export default {
     agoSeconds: '{n}s ago',
     agoMinutes: '{n}m ago',
     agoHours: '{n}h ago',
+  },
+
+  // Super Admin dashboard — platform-wide read-only overview (R11). Mounted
+  // at /admin with a SUPER_ADMIN RoleRoute. The page shows counts (orgs,
+  // competitions, players, judges), a competitions-by-status grid, the org
+  // list, and the recent competitions list. Read-only: no create/disable/delete
+  // — those are platform-mutation operations with cross-tenant impact and need
+  // Sylvain's review before they ship.
+  admin: {
+    appTitle: 'Sudoku Arena — Super Admin',
+    subtitle: 'Platform-wide overview',
+    loading: 'Loading overview...',
+    loadFailed: 'Could not load the platform overview.',
+    organizations: 'Organizations',
+    competitionsTotal: 'Competitions',
+    players: 'Players',
+    judges: 'Judges',
+    competitionsByStatus: 'Competitions by status',
+    noOrganizations: 'No organizations yet.',
+    noCompetitions: 'No competitions yet.',
+    recentCompetitions: 'Recent competitions',
+    colOrgName: 'Organization',
+    colUsers: 'Users',
+    colCompetitions: 'Competitions',
+    colCreated: 'Created',
+    colCompName: 'Competition',
+    colStatus: 'Status',
   },
 
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The

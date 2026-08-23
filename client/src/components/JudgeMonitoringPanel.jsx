@@ -56,6 +56,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 import { connectSocket, onEvent } from '../api/socket';
+import JudgeLivePlayerView from './JudgeLivePlayerView';
 
 // Render cap for the participant list. Beyond this, the list is sliced
 // to keep the DOM tractable for 200+ participants. The judge can still
@@ -337,7 +338,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
 
       {/* Detail panel. */}
       {selectedId && (
-        <ParticipantDetail
+        <JudgeLivePlayerView
           competitionId={competitionId}
           playerId={selectedId}
           detail={detail}
@@ -371,164 +372,4 @@ function formatAgo(lastHeartbeatAt, t) {
   if (min < 60) return t('judgeMonitoring.agoMinutes', { n: min });
   const hr = Math.floor(min / 60);
   return t('judgeMonitoring.agoHours', { n: hr });
-}
-
-/**
- * ParticipantDetail — the per-player view.
- *
- * Fetches GET /monitoring/player/:id and shows:
- *   - session status (if any)
- *   - each puzzle with progress (correct/total cells, %)
- *   - the current grid for the in-progress puzzle
- *
- * The server returns the grid as `currentGrid` — whatever shape the
- * player is working on. We render it as a 9x9 table if it looks like a
- * 2D array, otherwise we show the raw value. The grid is read-only
- * here; the judge is watching, not playing.
- */
-function ParticipantDetail({
-  competitionId,
-  playerId,
-  detail,
-  isAdmin,
-  projectingId,
-  onProject,
-  onStopProject,
-  onClose,
-  onRefresh,
-}) {
-  const { t } = useLanguage();
-
-  return (
-    <div className="mt-4 border-t pt-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-sm sm:text-base">{t('judgeMonitoring.detailTitle')}</h3>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onRefresh}
-            className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
-          >
-            {t('judgeMonitoring.refresh')}
-          </button>
-          <button
-            onClick={onClose}
-            className="px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-50"
-          >
-            {t('common.cancel')}
-          </button>
-        </div>
-      </div>
-
-      {detail?.loading && (
-        <p className="text-gray-500 text-xs sm:text-sm">{t('common.loading')}</p>
-      )}
-
-      {detail?.error && (
-        <p className="text-red-600 text-xs sm:text-sm">{detail.error}</p>
-      )}
-
-      {detail?.data && (
-        <div className="space-y-3">
-          {/* Player name + session status */}
-          <div className="text-sm">
-            <div className="font-medium">{detail.data.playerName}</div>
-            {detail.data.sessionStatus && (
-              <div className="text-xs text-gray-500">
-                {t('judgeMonitoring.sessionStatus', { status: detail.data.sessionStatus })}
-              </div>
-            )}
-            {!detail.data.roundId && (
-              <div className="text-xs text-gray-500">{t('judgeMonitoring.noActiveRound')}</div>
-            )}
-            {detail.data.roundId && !detail.data.sessionStatus && (
-              <div className="text-xs text-gray-500">{t('judgeMonitoring.noSession')}</div>
-            )}
-            {detail.data.roundId && detail.data.sessionStatus && (!detail.data.puzzles || detail.data.puzzles.length === 0) && (
-              <div className="text-xs text-gray-500">{t('judgeMonitoring.noPuzzles')}</div>
-            )}
-          </div>
-
-          {/* Projection controls — admin only. */}
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onProject(playerId, detail.data.playerName)}
-                disabled={projectingId !== null}
-                className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500 disabled:opacity-50"
-              >
-                {projectingId === playerId ? t('common.loading') : t('judgeMonitoring.projectButton')}
-              </button>
-              <button
-                onClick={onStopProject}
-                disabled={projectingId !== null}
-                className="px-3 py-1.5 border border-red-300 text-red-600 rounded text-xs sm:text-sm hover:bg-red-50 disabled:opacity-50"
-              >
-                {projectingId === 'stop' ? t('common.loading') : t('judgeMonitoring.stopProjectButton')}
-              </button>
-            </div>
-          )}
-
-          {/* Puzzle progress list */}
-          {detail.data.puzzles && detail.data.puzzles.length > 0 && (
-            <div className="space-y-3">
-              {detail.data.puzzles.map((puz, i) => (
-                <div key={puz.puzzleId} className="border rounded p-2">
-                  <div className="text-xs sm:text-sm text-gray-600 mb-1">
-                    {t('judgeMonitoring.puzzleProgress', {
-                      n: i + 1,
-                      correct: puz.correctCells,
-                      total: puz.totalEmptyCells,
-                      pct: puz.progressPercentage,
-                    })}
-                  </div>
-                  {puz.currentGrid && (
-                    <GridPreview grid={puz.currentGrid} />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * GridPreview — a read-only 9x9 rendering of a player's current grid.
- *
- * The server stores `currentGrid` as a 2D array (rows of cells). We
- * render it as a table with tight borders so the judge can see the
- * shape of the player's progress at a glance. If the shape is not a
- * 2D array (unexpected), we fall back to a <pre> dump rather than
- * crashing — the panel's job is to show state, not to enforce it.
- */
-function GridPreview({ grid }) {
-  if (!Array.isArray(grid) || !Array.isArray(grid[0])) {
-    return (
-      <pre className="text-xs bg-gray-50 p-2 rounded overflow-x-auto">
-        {JSON.stringify(grid, null, 2)}
-      </pre>
-    );
-  }
-  return (
-    <div className="overflow-x-auto">
-      <table className="border-collapse text-xs sm:text-sm mx-auto">
-        <tbody>
-          {grid.map((row, r) => (
-            <tr key={r}>
-              {row.map((cell, c) => (
-                <td
-                  key={c}
-                  className="border border-gray-300 w-6 h-6 sm:w-7 sm:h-7 text-center"
-                >
-                  {cell == null || cell === '' ? '' : String(cell)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
 }

@@ -9,6 +9,7 @@ const { createAuthRouter } = require('./routes/auth');
 const { createUserRouter } = require('./routes/users');
 const { createCompetitionRouter } = require('./routes/competitions');
 const { createDisplayRouter } = require('./routes/display');
+const { createAdminRouter } = require('./routes/admin');
 // TODO: These routes are disabled until rewritten for the new UUID-based schema (migration 018+).
 // The deprecated repositories they depend on query tables that were dropped.
 // Re-enable after creating new route files backed by updated repositories.
@@ -92,16 +93,10 @@ async function main() {
     }
   });
 
-  // Mount routes — all receive repos instead of raw dbHelpers
-  app.use('/api/auth', createAuthRouter(repos));
-  app.use('/api/users', createUserRouter(repos));
-  app.use('/api/competitions', createCompetitionRouter(repos));
-
-  // Competition setup routes (rounds, puzzles, teams, judges). The CRUD
-  // competition routes live in routes/competitions.js (mounted above).
-  app.use('/api', createCompetitionSetupRouter(repos));
-
-  // Create EmissionBus, DisplayManager, and GameOrchestrator
+  // Create EmissionBus, DisplayManager, and GameOrchestrator before mounting
+  // the competition routes — createCompetitionRouter needs displayManager for
+  // the GET /:id/results endpoint (admin results page reuses the big-screen
+  // snapshot instead of a second code path that would drift apart).
   const bus = new EmissionBus();
   const displayManager = new DisplayManager(repos, bus);
   const orchestrator = new GameOrchestrator(repos, state, bus, displayManager);
@@ -110,8 +105,22 @@ async function main() {
   const presenceService = new PresenceService(state, bus);
   presenceService.start();
 
+  // Mount routes — all receive repos instead of raw dbHelpers
+  app.use('/api/auth', createAuthRouter(repos));
+  app.use('/api/users', createUserRouter(repos));
+  app.use('/api/competitions', createCompetitionRouter(repos, displayManager));
+
+  // Competition setup routes (rounds, puzzles, teams, judges). The CRUD
+  // competition routes live in routes/competitions.js (mounted above).
+  app.use('/api', createCompetitionSetupRouter(repos));
+
   // Mount display routes
   app.use('/api', createDisplayRouter(displayManager));
+
+  // Super Admin routes — platform-wide read-only overview. Mounted after
+  // the display routes; the router itself enforces SUPER_ADMIN on every
+  // route, so nothing here is reachable by org admins or players.
+  app.use('/api/admin', createAdminRouter());
 
   app.use('/api', createGameRouter(repos, orchestrator));
   app.use('/api', createPuzzleBankRouter(repos));
