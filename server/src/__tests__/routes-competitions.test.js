@@ -474,7 +474,11 @@ describe('the legacy CRUD paths are gone', () => {
     const app = express();
     app.use(express.json());
     app.use('/api/competitions', createCompetitionRouter(repos));
-    app.use('/api', createCompetitionSetupRouter(repos));
+    const mockPrisma = {
+      competition_stages: { findFirst: async () => ({ id: 'stage-1', competition_id: '1' }) },
+      competitions: { findFirst: async () => ({ id: 'comp-1', organization_id: 'org-admin' }) },
+    };
+    app.use('/api', createCompetitionSetupRouter(repos, mockPrisma));
     // SPA-style 404 fallback mirroring index.js, so unmatched /api paths
     // return the standard envelope instead of hanging.
     app.use((req, res) => res.status(404).json({ code: 404, message: 'Interface not found', data: null }));

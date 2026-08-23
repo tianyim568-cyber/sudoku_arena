@@ -67,11 +67,11 @@ function createMonitoringRouter(repos, state) {
           });
         }
 
-        // Get all participants with team info
-        const participants = await repos.participants.findByCompetition(competitionId);
-
-        // Get online status from state repository
-        const activePlayers = await state.getActivePlayers(competitionId);
+        // Get all participants with team info and online status in parallel
+        const [participants, activePlayers] = await Promise.all([
+          repos.participants.findByCompetition(competitionId),
+          state.getActivePlayers(competitionId),
+        ]);
 
         // Merge participant data with online status
         const enrichedParticipants = participants.map(p => {
@@ -166,10 +166,14 @@ function createMonitoringRouter(repos, state) {
           });
         }
 
-        // Get player info
-        const player = await prisma.players.findUnique({
-          where: { id: playerId },
-        });
+        // Get player info and current running round in parallel
+        const [player, currentRound] = await Promise.all([
+          prisma.players.findUnique({
+            where: { id: playerId },
+          }),
+          repos.rounds.findByCompetitionAndStatus(competitionId, 'RUNNING'),
+        ]);
+
         if (!player || player.competition_id !== competitionId) {
           return res.status(404).json({
             code: 404,
@@ -177,9 +181,6 @@ function createMonitoringRouter(repos, state) {
             data: null
           });
         }
-
-        // Find current running round
-        const currentRound = await repos.rounds.findByCompetitionAndStatus(competitionId, 'RUNNING');
 
         // If no active round, return player info with empty puzzles
         if (!currentRound) {

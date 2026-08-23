@@ -3,6 +3,8 @@ const { authMiddleware, roleMiddleware, ADMIN_ROLES } = require('../middleware/a
 const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateBody } = require('../middleware/validate');
 const { submitAnswerSchema } = require('../validations/game');
+const { GameError } = require('../engine/errors');
+const logger = require('../utils/logger');
 
 // Phase 10 of the second migration chantier: re-enabled with /competitions paths,
 // UUID-safe params (no parseInt), and tenantGuard('competitions') on every route
@@ -12,6 +14,32 @@ const { submitAnswerSchema } = require('../validations/game');
 
 function createGameRouter(repos, orchestrator) {
   const router = express.Router();
+
+  /**
+   * Sanitize errors from orchestrator methods.
+   * GameError instances carry safe Chinese messages for the client.
+   * All other errors are logged with their stack trace but returned as
+   * generic "操作失败" so internals don't leak.
+   */
+  function sanitizeError(e) {
+    if (e instanceof GameError) {
+      return { code: _gameErrorCode(e), message: e.message };
+    }
+    logger.error('[game] Unmapped error', { error: e.message, stack: e.stack });
+    return { code: 50000, message: '操作失败，请稍后重试' };
+  }
+
+  function _gameErrorCode(e) {
+    const name = e.name || '';
+    if (name === 'CompetitionError') return 4040;
+    if (name === 'StageError') return 40040;
+    if (name === 'RoundError') return 40040;
+    if (name === 'PlayerError') return 40301;
+    if (name === 'SubmissionError') return 40050;
+    if (name === 'PuzzleError') return 40040;
+    if (name === 'StateError') return 40040;
+    return 40040;
+  }
 
   // Helper: process emissions from orchestrator methods
   function handleOrchestratorResult(result) {
@@ -27,7 +55,8 @@ function createGameRouter(repos, orchestrator) {
       const stages = await orchestrator.listStages(req.params.id);
       res.json({ code: 200, message: 'success', data: stages });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -37,7 +66,8 @@ function createGameRouter(repos, orchestrator) {
       const stages = await orchestrator.configureStages(req.params.id, req.body.stages);
       res.json({ code: 200, message: 'success', data: stages });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -47,7 +77,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.startCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -57,7 +88,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.startStage(req.params.competitionId, req.params.stageId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -67,7 +99,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.startRound(req.params.id, req.params.roundId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -77,7 +110,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.pauseCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -87,7 +121,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.resumeCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -97,7 +132,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.endRound(req.params.id, req.params.roundId));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -107,7 +143,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.startNextStage(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -117,7 +154,8 @@ function createGameRouter(repos, orchestrator) {
       const result = handleOrchestratorResult(await orchestrator.endCompetition(req.params.id));
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40040, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -129,7 +167,8 @@ function createGameRouter(repos, orchestrator) {
       orchestrator.processEmissions(emissions);
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40050, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 
@@ -147,7 +186,8 @@ function createGameRouter(repos, orchestrator) {
       orchestrator.processEmissions(emissions);
       res.json({ code: 200, message: 'success', data: result });
     } catch (e) {
-      res.json({ code: 40050, message: e.message, data: null });
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
     }
   });
 

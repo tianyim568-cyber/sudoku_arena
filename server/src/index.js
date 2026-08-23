@@ -31,6 +31,59 @@ async function main() {
   const repos = getRepos();
   const state = createStateRepository();
 
+  // ─── Startup recovery: reconcile orphaned state from previous crashes ───
+  // After a crash, in-memory state (timers, heartbeats, round engines) is gone.
+  // But DB records may still show rounds as IN_PROGRESS or competitions as RUNNING
+  // with no active connections. We detect and log these on startup so admins know.
+  try {
+    const prisma = require('./db/prisma').getPrisma();
+
+    // 1. Find rounds stuck in IN_PROGRESS (should have been ended or are orphaned)
+    const orphanedRounds = await prisma.rounds.findMany({
+      where: { status: 'IN_PROGRESS' },
+      select: { id: true, name: true, type: true, started_at: true, competition_stages: { select: { competition_id: true } } },
+    });
+    if (orphanedRounds.length > 0) {
+      logger.warn('Startup recovery: found orphaned IN_PROGRESS rounds (likely from previous crash)', {
+        count: orphanedRounds.length,
+        rounds: orphanedRounds.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          competitionId: r.competition_stages?.competition_id,
+          startedAt: r.started_at,
+        })),
+      });
+      // Auto-end orphaned rounds so competitions can continue
+      await prisma.rounds.updateMany({
+        where: { status: 'IN_PROGRESS' },
+        data: { status: 'FINISHED', ended_at: new Date() },
+      });
+      logger.info(`Startup recovery: marked ${orphanedRounds.length} orphaned rounds as FINISHED`);
+    }
+
+    // 2. Find competitions stuck in RUNNING with no IN_PROGRESS rounds
+    const runningCompetitions = await prisma.competitions.findMany({
+      where: {
+        status: 'RUNNING',
+        competition_stages: {
+          none: {
+            rounds: { some: { status: 'IN_PROGRESS' } }
+          }
+        }
+      },
+      select: { id: true, name: true },
+    });
+    if (runningCompetitions.length > 0) {
+      logger.warn('Startup recovery: found RUNNING competitions with no active rounds', {
+        count: runningCompetitions.length,
+        competitions: runningCompetitions.map(c => ({ id: c.id, name: c.name })),
+      });
+    }
+  } catch (recoveryErr) {
+    logger.error('Startup recovery failed (non-fatal)', { error: recoveryErr.message });
+  }
+
   const app = express();
   const server = http.createServer(app);
 

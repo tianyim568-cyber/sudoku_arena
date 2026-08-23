@@ -44,6 +44,11 @@ module.exports = {
   // WebSocket rate limiting (incoming messages per connection)
   WS_RATE_LIMIT: parseInt(process.env.WS_RATE_LIMIT || '10', 10), // max events per second
 
+  // WebSocket connection limiting (max simultaneous connections per user)
+  // Prevents a single user from opening unlimited socket connections.
+  // Default 3 allows: main app + display screen + backup browser tab.
+  WS_MAX_CONNECTIONS_PER_USER: parseInt(process.env.WS_MAX_CONNECTIONS || '3', 10),
+
   // CORS
   CORS_ORIGINS: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(','),
 

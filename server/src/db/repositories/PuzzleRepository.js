@@ -270,6 +270,48 @@ class PuzzleRepository {
   }
 
   /**
+   * Delete all puzzles belonging to a given organization's rounds.
+   * Traverses: rounds → competition_stages → competitions → organization_id.
+   * Removes both junction links (round_puzzles) and the puzzle library rows.
+   */
+  async clearByOrganization(organizationId) {
+    // Find all rounds belonging to this organization
+    const rounds = await this.prisma.rounds.findMany({
+      where: {
+        competition_stages: {
+          competitions: { organization_id: organizationId },
+        },
+      },
+      select: { id: true },
+    });
+    const roundIds = rounds.map((r) => r.id);
+
+    if (roundIds.length === 0) return;
+
+    // Find puzzle IDs linked to those rounds
+    const links = await this.prisma.round_puzzles.findMany({
+      where: { round_id: { in: roundIds } },
+      select: { puzzle_id: true },
+    });
+    const puzzleIds = [...new Set(links.map((l) => l.puzzle_id))];
+
+    // Delete junction links first (FK constraint)
+    await this.prisma.round_puzzles.deleteMany({
+      where: { round_id: { in: roundIds } },
+    });
+
+    // Delete puzzle library rows (only if not referenced by other rounds)
+    if (puzzleIds.length > 0) {
+      await this.prisma.puzzles.deleteMany({
+        where: {
+          id: { in: puzzleIds },
+          round_puzzles: { none: {} }, // only orphaned puzzles
+        },
+      });
+    }
+  }
+
+  /**
    * Shape a puzzle + its round_puzzles link into the legacy row format
    * expected by route handlers.
    * @private

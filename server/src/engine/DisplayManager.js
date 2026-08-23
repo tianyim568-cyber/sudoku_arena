@@ -273,30 +273,30 @@ class DisplayManager {
       throw new Error('Competition not found');
     }
 
-    // Build final rankings (from final_rankings table if available)
-    const finalRankings = await prisma.final_rankings.findMany({
-      where: {
-        competition_stage_id: {
-          in: competition.competition_stages.map(s => s.id),
+    // Build final rankings and categories in parallel (independent queries)
+    const [finalRankings, categories] = await Promise.all([
+      prisma.final_rankings.findMany({
+        where: {
+          competition_stage_id: {
+            in: competition.competition_stages.map(s => s.id),
+          },
+          ...(categoryId ? { category_id: categoryId } : {}),
         },
-        ...(categoryId ? { category_id: categoryId } : {}),
-      },
-      orderBy: [{ competition_stage_id: 'asc' }, { rank: 'asc' }],
-      select: {
-        competition_stage_id: true,
-        category_id: true,
-        entity_type: true,
-        entity_id: true,
-        rank: true,
-        score: true,
-      },
-    });
-
-    // Get categories for filtering UI
-    const categories = await prisma.categories.findMany({
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true, min_age: true, max_age: true },
-    });
+        orderBy: [{ competition_stage_id: 'asc' }, { rank: 'asc' }],
+        select: {
+          competition_stage_id: true,
+          category_id: true,
+          entity_type: true,
+          entity_id: true,
+          rank: true,
+          score: true,
+        },
+      }),
+      prisma.categories.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, min_age: true, max_age: true },
+      }),
+    ]);
 
     // If broadcasting a player, fetch their details for polling recovery
     let broadcastPlayer = null;
