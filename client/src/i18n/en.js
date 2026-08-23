@@ -6,6 +6,7 @@ export default {
     back: 'Back',
     loading: 'Loading...',
     cancel: 'Cancel',
+    dismiss: 'Dismiss',
     unknownError: 'Unknown error',
     // Competition lifecycle, as the server actually writes it:
     // DRAFT (on creation) → PUBLISHED (not reachable yet — "publish" is not
@@ -637,6 +638,39 @@ export default {
     colCreated: 'Created',
     colCompName: 'Competition',
     colStatus: 'Status',
+  },
+
+  // Judges dashboard — org admin creates and manages judge accounts. Goes
+  // through POST /users with role: 'JUDGE' rather than the /competitions/
+  // :id/judges route (which assigns), sidestepping the ISSUE-027 verb+path
+  // collision until the routes are formally split.
+  judges: {
+    title: 'Judges',
+    subtitle: 'Create judge accounts and manage them for your organization.',
+    createButton: 'Create judge',
+    createSubmit: 'Create account',
+    createFailed: 'Could not create the judge.',
+    createdBanner: 'Judge created — share the credentials before dismissing this banner.',
+    credentialsHint: 'The password is hashed on the server and cannot be retrieved again.',
+    copyCredentials: 'Copy',
+    usernameLabel: 'Username',
+    passwordLabel: 'Password',
+    passwordHint: 'At least 6 characters. Regenerate for a fresh random password.',
+    regenerate: 'Regenerate',
+    listTitle: 'Existing judges',
+    empty: 'No judges yet — create the first one above.',
+    colUsername: 'Username',
+    colStatus: 'Status',
+    colCreated: 'Created',
+    colActions: 'Actions',
+    status: {
+      ACTIVE: 'Active',
+      INACTIVE: 'Inactive',
+    },
+    activate: 'Activate',
+    deactivate: 'Deactivate',
+    statusFailed: 'Could not update status.',
+    loadFailed: 'Could not load the judges list.',
   },
 
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The

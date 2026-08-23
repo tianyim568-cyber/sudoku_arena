@@ -7,6 +7,7 @@ export default {
     back: '返回',
     loading: '加载中...',
     cancel: '取消',
+    dismiss: '关闭',
     unknownError: '未知错误',
     status: {
       DRAFT: '草稿',
@@ -612,6 +613,38 @@ export default {
     colCreated: '创建时间',
     colCompName: '赛事',
     colStatus: '状态',
+  },
+
+  // 裁判管理页 —— 机构管理员在此创建和管理本机构的裁判账号。走 POST /users
+  // 并传 role: 'JUDGE'，绕开 /competitions/:id/judges（分配）与创建同占一个
+  // 动词+路径的 ISSUE-027 冲突，等路由正式拆分后再迁移。
+  judges: {
+    title: '裁判',
+    subtitle: '为本机构创建和管理裁判账号。',
+    createButton: '创建裁判',
+    createSubmit: '创建账号',
+    createFailed: '无法创建裁判账号。',
+    createdBanner: '裁判已创建 —— 请在关闭提示前将凭证告知本人。',
+    credentialsHint: '密码已在服务器端哈希，无法再次显示。',
+    copyCredentials: '复制',
+    usernameLabel: '用户名',
+    passwordLabel: '密码',
+    passwordHint: '至少 6 个字符。点击「重新生成」获取新的随机密码。',
+    regenerate: '重新生成',
+    listTitle: '现有裁判',
+    empty: '暂无裁判 —— 请在上方创建第一位。',
+    colUsername: '用户名',
+    colStatus: '状态',
+    colCreated: '创建时间',
+    colActions: '操作',
+    status: {
+      ACTIVE: '启用',
+      INACTIVE: '停用',
+    },
+    activate: '启用',
+    deactivate: '停用',
+    statusFailed: '无法更新状态。',
+    loadFailed: '无法加载裁判列表。',
   },
 
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的

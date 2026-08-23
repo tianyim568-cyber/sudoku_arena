@@ -15,6 +15,7 @@ import DashboardCompetitionsPage from './pages/DashboardCompetitionsPage';
 import DashboardPuzzleBankPage from './pages/DashboardPuzzleBankPage';
 import DashboardPage from './pages/DashboardPage';
 import DashboardResultsPage from './pages/DashboardResultsPage';
+import DashboardJudgesPage from './pages/DashboardJudgesPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import ErrorPage from './pages/ErrorPage';
@@ -98,7 +99,7 @@ function AppRoutes() {
             ComingSoonPage component with a different title key, so the page
             heading always matches the sidebar label. */}
         <Route path="participants" element={<ComingSoonPage titleKey="participants" />} />
-        <Route path="judges" element={<ComingSoonPage titleKey="judges" />} />
+        <Route path="judges" element={<DashboardJudgesPage />} />
         <Route path="teams" element={<ComingSoonPage titleKey="teams" />} />
         <Route path="results" element={<DashboardResultsPage />} />
         {/* Safety net: an unknown /dashboard/* path would otherwise match no

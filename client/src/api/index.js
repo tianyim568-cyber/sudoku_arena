@@ -168,6 +168,13 @@ export const api = {
 
   // Users
   listUsers: () => request('GET', '/users'),
+  // createUser is the same endpoint the plan lists as "judge creation with
+  // generated credentials". The server auto-scopes to the caller's org for
+  // ORG_ADMIN, so the client does NOT send organizationId. Role can be
+  // JUDGE / PLAYER / ORG_ADMIN — the judge page passes 'JUDGE'.
+  createUser: ({ username, password, role }) =>
+    request('POST', '/users', { username, password, role }),
+  updateUserStatus: (id, status) => request('PUT', `/users/${id}/status`, { status }),
 
   // Participants (import)
   uploadParticipants: (competitionId, file) => uploadFile(`/competitions/${competitionId}/participants/upload`, file),
