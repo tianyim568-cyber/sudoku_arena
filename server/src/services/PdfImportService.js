@@ -4,22 +4,33 @@
  * Expected format (one question per page):
  *   QUESTION 001
  *   Copy this page format exactly for every question in an import PDF.
- *   ID <uuid>
+ *   ID <string>           (informational only — the server regenerates a
+ *                          UUID at import; see BUG-PDF-02 for rationale)
  *   TYPE INDIVIDUAL|TEAM
  *   DIFFICULTY EASY|MEDIUM|HARD
  *   SCORE <integer>
- *   CATEGORY_ID <uuid>
+ *   CATEGORY_ID <uuid>    (validated against the caller's organization)
  *   INITIAL_GRID
  *   <9 lines of 9 digits, 0 = empty cell>
  *   SOLUTION_GRID
  *   <9 lines of 9 digits>
  *
- * Uses pdf-parse for text extraction. No OCR required — the PDFs are
- * machine-generated with embedded text.
+ * ── Dependency note (2026-08-24) ────────────────────────────────────
+ * `pdf-parse@2.x` changed the API from a bare function (`pdfParse(buf)`)
+ * to a class (`new PDFParse({data: buf}).getText()`). The service uses
+ * the v2 API. If the dependency is ever downgraded to 1.x the first
+ * upload would throw "pdfParse is not a function".
  */
 
-const pdfParse = require('pdf-parse');
+const crypto = require('crypto');
+const { PDFParse } = require('pdf-parse');
 const logger = require('../utils/logger');
+
+// Bounds on what we accept out of the parser. A PDF that trips one of
+// these limits is refused *before* it lands in the stash, so we never
+// hold a pathological buffer in memory.
+const MAX_QUESTIONS_PER_PDF = 500;   // Sane upper bound for a real batch.
+const MAX_SCORE = 10000;             // A puzzle worth more than this is a typo.
 
 class PdfImportService {
   /**
@@ -29,15 +40,21 @@ class PdfImportService {
    * @returns {{ questions: Array, errors: Array<string> }}
    */
   async parsePdf(pdfBuffer) {
-    let pdfData;
+    let fullText;
     try {
-      pdfData = await pdfParse(pdfBuffer);
+      // pdf-parse@2.x: the constructor takes a config object with `data`;
+      // getText() returns `{ text, pages, ... }`. See the dependency note
+      // in the file header.
+      const parser = new PDFParse({ data: pdfBuffer });
+      const result = await parser.getText();
+      // Newer builds return `{ text }`; older 2.x builds returned a bare
+      // string. Handle both defensively rather than pin one shape.
+      fullText = typeof result === 'string' ? result : (result && result.text) || '';
     } catch (err) {
       logger.error('PDF parse failed', { error: err.message });
       return { questions: [], errors: ['无法解析 PDF 文件，请确认文件格式正确'] };
     }
 
-    const fullText = pdfData.text || '';
     if (!fullText.trim()) {
       return { questions: [], errors: ['PDF 文件中未提取到文本内容'] };
     }
@@ -60,6 +77,10 @@ class PdfImportService {
       try {
         const question = this._parseQuestionPage(pageText, i + 1);
         questions.push(question);
+        if (questions.length >= MAX_QUESTIONS_PER_PDF) {
+          errors.push(`已达上限 ${MAX_QUESTIONS_PER_PDF} 道题目，后续页面被忽略`);
+          break;
+        }
       } catch (err) {
         errors.push(`第 ${i + 1} 页解析失败: ${err.message}`);
       }
@@ -83,8 +104,6 @@ class PdfImportService {
     const lines = pageText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     const meta = {};
-    let initialGrid = null;
-    let solutionGrid = null;
     let currentGrid = null; // 'initial' | 'solution' | null
     const gridLines = { initial: [], solution: [] };
 
@@ -125,8 +144,8 @@ class PdfImportService {
       }
     }
 
-    // Validate required fields
-    if (!meta.ID) throw new Error('缺少 ID 字段');
+    // Validate required fields. The ID from the PDF is kept for logging
+    // only — the actual puzzle id is regenerated server-side (BUG-PDF-02).
     if (!meta.TYPE) throw new Error('缺少 TYPE 字段');
     if (!meta.DIFFICULTY) throw new Error('缺少 DIFFICULTY 字段');
     if (!meta.SCORE) throw new Error('缺少 SCORE 字段');
@@ -148,6 +167,21 @@ class PdfImportService {
     if (isNaN(score) || score < 0) {
       throw new Error(`SCORE 无效: "${meta.SCORE}"，需要非负整数`);
     }
+    if (score > MAX_SCORE) {
+      throw new Error(`SCORE 过大: "${meta.SCORE}"，最大为 ${MAX_SCORE}`);
+    }
+
+    // Validate CATEGORY_ID format (if present). The tenant check happens
+    // in the route handler — we do not have access to the DB here.
+    let categoryId = meta.CATEGORY_ID || null;
+    if (categoryId) {
+      // Accept only UUID v4-ish strings. Anything else means the PDF is
+      // malformed OR the admin tried to sneak in a path traversal /
+      // injection. Reject rather than pass through.
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+        throw new Error(`CATEGORY_ID 格式无效: "${categoryId}"，需要 UUID`);
+      }
+    }
 
     // Validate grids
     if (gridLines.initial.length !== 9) {
@@ -158,10 +192,10 @@ class PdfImportService {
     }
 
     // Convert grid strings to 2D number arrays
-    initialGrid = gridLines.initial.map(row =>
+    const initialGrid = gridLines.initial.map(row =>
       row.split('').map(ch => parseInt(ch, 10))
     );
-    solutionGrid = gridLines.solution.map(row =>
+    const solutionGrid = gridLines.solution.map(row =>
       row.split('').map(ch => parseInt(ch, 10))
     );
 
@@ -180,11 +214,13 @@ class PdfImportService {
     }
 
     return {
-      id: meta.ID,
+      // sourceId keeps the ID from the PDF for logging/audit purposes,
+      // but is NEVER used as the puzzle-bank key — see BUG-PDF-02.
+      sourceId: meta.ID || null,
       type: meta.TYPE,
       difficulty: meta.DIFFICULTY,
       score,
-      categoryId: meta.CATEGORY_ID || null,
+      categoryId,
       initialGrid,
       solutionGrid,
     };
@@ -193,16 +229,25 @@ class PdfImportService {
   /**
    * Map a parsed PDF question to the puzzle-bank.json format used by
    * PuzzleBankService. The round type is not in the PDF — it must be
-   * chosen by the admin at import time (or left as a generic pool).
+   * chosen by the admin at import time.
+   *
+   * Security notes:
+   *  - The puzzle id is regenerated server-side via crypto.randomUUID()
+   *    to prevent the caller from injecting an arbitrary string as a
+   *    bank key (BUG-PDF-02).
+   *  - `organizationId` MUST be supplied by the caller — never taken
+   *    from the PDF or from a request body — so the puzzle is scoped
+   *    to the caller's tenant only.
    *
    * @param {object} question — parsed question from parsePdf()
    * @param {string} roundType — target round type (e.g. 'ROUND1_NINE_ONE')
-   * @param {string} organizationId — owning org
+   * @param {string} organizationId — owning org (from req.user, never from body)
    * @returns {object} puzzle-bank-compatible entry
    */
   toPuzzleBankEntry(question, roundType, organizationId) {
     return {
-      id: question.id,
+      // Server-generated: nothing from the PDF can influence this key.
+      id: `PDF-${crypto.randomUUID()}`,
       organizationId,
       roundType: roundType || 'IMPORTED',
       puzzleType: question.type === 'TEAM' ? 'STANDARD' : 'JOC',
@@ -214,6 +259,8 @@ class PdfImportService {
       solution: question.solutionGrid,
       categoryId: question.categoryId,
       source: 'PDF_IMPORT',
+      // For audit only — lets an admin cross-reference back to the PDF.
+      sourceId: question.sourceId,
     };
   }
 }

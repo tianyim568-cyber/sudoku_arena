@@ -175,7 +175,7 @@ export default function DashboardPuzzleBankPage() {
     if (res.code === 200) {
       setPdfParsed(res.data);
     } else {
-      setPdfError(res.message || 'PDF 解析失败');
+      setPdfError(res.message || t('puzzleBank.pdfParseFailed'));
     }
     setPdfUploading(false);
   };
@@ -186,14 +186,20 @@ export default function DashboardPuzzleBankPage() {
     setPdfError(null);
     const res = await api.confirmPdfPuzzles(pdfConfirmRoundType || null);
     if (res.code === 200) {
-      alert(`成功导入 ${res.data.imported} 道题目${res.data.skipped > 0 ? `，跳过 ${res.data.skipped} 道重复题目` : ''}`);
+      const msg = res.data.skipped > 0
+        ? t('puzzleBank.pdfImportedWithSkipped', { n: res.data.imported, skipped: res.data.skipped })
+        : t('puzzleBank.pdfImportedSummary', { n: res.data.imported });
+      const extra = res.data.strippedCategoryIds > 0
+        ? '\n' + t('puzzleBank.pdfImportedStripped', { n: res.data.strippedCategoryIds })
+        : '';
+      alert(msg + extra);
       // Reset PDF state after successful import
       setPdfFile(null);
       setPdfParsed(null);
       setPdfConfirmRoundType('');
       load(); // Refresh puzzle list
     } else {
-      setPdfError(res.message || '导入失败');
+      setPdfError(res.message || t('puzzleBank.pdfImportFailed'));
     }
     setPdfConfirming(false);
   };
@@ -339,9 +345,9 @@ export default function DashboardPuzzleBankPage() {
 
       {/* PDF Import */}
       <section className="bg-white rounded-xl shadow p-4 sm:p-6">
-        <h2 className="text-base sm:text-lg font-semibold mb-2">PDF 导入</h2>
+        <h2 className="text-base sm:text-lg font-semibold mb-2">{t('puzzleBank.pdfTitle')}</h2>
         <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
-          上传 PDF 文件，自动提取数独题目并导入题库
+          {t('puzzleBank.pdfDesc')}
         </p>
 
         {!pdfParsed && (
@@ -350,6 +356,7 @@ export default function DashboardPuzzleBankPage() {
               type="file"
               accept=".pdf,application/pdf"
               onChange={e => setPdfFile(e.target.files[0] || null)}
+              aria-label={t('puzzleBank.pdfSelectFile')}
               className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
             />
             {pdfFile && (
@@ -359,14 +366,14 @@ export default function DashboardPuzzleBankPage() {
                   disabled={pdfUploading}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm"
                 >
-                  {pdfUploading ? '解析中...' : '解析 PDF'}
+                  {pdfUploading ? t('puzzleBank.pdfParsing') : t('puzzleBank.pdfParseBtn')}
                 </button>
                 <button
                   onClick={() => { setPdfFile(null); setPdfError(null); }}
                   disabled={pdfUploading}
                   className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 text-sm"
                 >
-                  取消
+                  {t('puzzleBank.pdfCancel')}
                 </button>
               </div>
             )}
@@ -382,14 +389,14 @@ export default function DashboardPuzzleBankPage() {
           <div className="space-y-4">
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
               <p className="text-sm font-medium text-green-900">
-                成功解析 {pdfParsed.parsed} 道题目
+                {t('puzzleBank.pdfParsedSummary', { n: pdfParsed.parsed })}
               </p>
               <p className="text-xs text-green-700 mt-1">
-                文件：{pdfParsed.fileName}
+                {t('puzzleBank.pdfFileName', { name: pdfParsed.fileName })}
               </p>
               {pdfParsed.errors && pdfParsed.errors.length > 0 && (
                 <div className="mt-2 text-xs text-yellow-700">
-                  <p className="font-medium">警告：</p>
+                  <p className="font-medium">{t('puzzleBank.pdfWarnings')}</p>
                   <ul className="list-disc list-inside ml-2">
                     {pdfParsed.errors.map((err, i) => (
                       <li key={i}>{err}</li>
@@ -403,12 +410,12 @@ export default function DashboardPuzzleBankPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">ID</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">类型</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">难度</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">分数</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">空格数</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">预览</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColId')}</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColType')}</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColDifficulty')}</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColScore')}</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColEmptyCells')}</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColPreview')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -433,16 +440,18 @@ export default function DashboardPuzzleBankPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 border-t">
-              <label className="text-sm text-gray-700 font-medium">目标轮次（可选）：</label>
+              <label htmlFor="pdfConfirmRoundType" className="text-sm text-gray-700 font-medium">{t('puzzleBank.pdfTargetRound')}</label>
               <select
+                id="pdfConfirmRoundType"
                 value={pdfConfirmRoundType}
                 onChange={e => setPdfConfirmRoundType(e.target.value)}
                 className="px-3 py-2 border rounded-lg text-sm flex-1 w-full sm:w-auto"
               >
-                <option value="">不指定（通用题库）</option>
+                <option value="">{t('puzzleBank.pdfTargetRoundGeneric')}</option>
                 <option value="ROUND1_NINE_ONE">{t('common.roundName.ROUND1_NINE_ONE')}</option>
                 <option value="ROUND2_RELAY">{t('common.roundName.ROUND2_RELAY')}</option>
                 <option value="ROUND3_COLLABORATE">{t('common.roundName.ROUND3_COLLABORATE')}</option>
+                <option value="INDIVIDUAL_STANDARD">{t('common.roundName.INDIVIDUAL_STANDARD')}</option>
               </select>
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
@@ -450,14 +459,14 @@ export default function DashboardPuzzleBankPage() {
                   disabled={pdfConfirming}
                   className="flex-1 sm:flex-initial px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm"
                 >
-                  {pdfConfirming ? '导入中...' : '确认导入'}
+                  {pdfConfirming ? t('puzzleBank.pdfConfirming') : t('puzzleBank.pdfConfirmBtn')}
                 </button>
                 <button
                   onClick={handlePdfReset}
                   disabled={pdfConfirming}
                   className="flex-1 sm:flex-initial px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 text-sm"
                 >
-                  取消
+                  {t('puzzleBank.pdfCancel')}
                 </button>
               </div>
             </div>
