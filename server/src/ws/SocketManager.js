@@ -29,6 +29,7 @@
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 const config = require('../config');
+const logger = require('../utils/logger');
 const { getPrisma } = require('../db/prisma');
 const {
   joinRoomSchema,
@@ -96,13 +97,13 @@ class SocketManager {
    */
   _handleDisplayConnection(socket) {
     const { competitionId } = socket.user;
-    console.log(`[display] connected for competition ${competitionId}`);
+    logger.info('[display] connected', { competitionId });
 
     // Auto-join display room
     socket.join(`display_${competitionId}`);
 
     socket.on('disconnect', () => {
-      console.log(`[display] disconnected for competition ${competitionId}`);
+      logger.info('[display] disconnected', { competitionId });
     });
   }
 
@@ -193,7 +194,7 @@ class SocketManager {
       }
     } catch (err) {
       // Log but don't crash — monitoring updates are non-critical
-      console.error(`[SocketManager] Failed to emit PARTICIPANT_LIST_STATE_UPDATE for ${competitionId}:`, err.message);
+      logger.error('[SocketManager] Failed to emit PARTICIPANT_LIST_STATE_UPDATE', { competitionId, error: err.message });
     }
   }
 
@@ -238,7 +239,7 @@ class SocketManager {
       }
     } catch (err) {
       // Log but don't crash — grid updates are non-critical
-      console.error(`[SocketManager] Failed to emit PLAYER_GRID_UPDATE for ${playerId}:`, err.message);
+      logger.error('[SocketManager] Failed to emit PLAYER_GRID_UPDATE', { playerId, error: err.message });
     }
   }
 
@@ -339,7 +340,7 @@ class SocketManager {
       }
       return competition;
     } catch (e) {
-      console.error('[SocketManager] _verifyTenant error:', e.message);
+      logger.error('[SocketManager] _verifyTenant error', { error: e.message });
       socket.emit('event', {
         type: 'INTERNAL_ERROR',
         timestamp: new Date().toISOString(),
@@ -457,7 +458,7 @@ class SocketManager {
         return;
       }
 
-      console.log(`User connected: ${socket.user.username} (${socket.user.role})`);
+      logger.info('User connected', { username: socket.user.username, role: socket.user.role });
 
       // Join user-specific room for targeted messages
       socket.join(`user_${socket.user.userId}`);
@@ -481,7 +482,7 @@ class SocketManager {
 
         try {
           socket.join(`competition_${competitionId}`);
-          console.log(`${socket.user.username} joined competition ${competitionId}`);
+          logger.info('User joined competition', { username: socket.user.username, competitionId });
 
           // If player, also join team room
           let teamId = null;
@@ -524,7 +525,7 @@ class SocketManager {
             await this._handleLateJoin(socket, competitionId);
           }
         } catch (e) {
-          console.error('join_room error:', e.message);
+          logger.error('join_room error', { error: e.message });
         }
       });
 
@@ -563,9 +564,9 @@ class SocketManager {
           // Emit full participant list update to judges
           await this._emitParticipantListUpdate(competitionId);
 
-          console.log(`${socket.user.username} left competition ${competitionId}`);
+          logger.info('User left competition', { username: socket.user.username, competitionId });
         } catch (e) {
-          console.error('leave_room error:', e.message);
+          logger.error('leave_room error', { error: e.message });
         }
       });
 
@@ -932,7 +933,7 @@ class SocketManager {
       // ─── Disconnect ──────────────────────────────────────────
 
       socket.on('disconnect', (reason) => {
-        console.log(`[${socket.user.role}] disconnected: ${socket.user.username} (reason: ${reason})`);
+        logger.info('User disconnected', { role: socket.user.role, username: socket.user.username, reason });
         if (heartbeatInterval) {
           clearInterval(heartbeatInterval);
           heartbeatInterval = null;
@@ -944,7 +945,7 @@ class SocketManager {
 
         // Log judge disconnects for monitoring (judges don't affect game flow)
         if (socket.user.role === 'JUDGE') {
-          console.log(`[monitoring] Judge offline: ${socket.user.username}`);
+          logger.info('[monitoring] Judge offline', { username: socket.user.username });
         }
 
         // Clean up R3 player focus on disconnect so stale focus doesn't persist
@@ -1131,7 +1132,7 @@ class SocketManager {
         }
       }
     } catch (e) {
-      console.error('Late-join sync error:', e.message);
+      logger.error('Late-join sync error', { error: e.message });
     }
   }
 }

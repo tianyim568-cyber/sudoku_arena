@@ -553,3 +553,96 @@ describe('CompetitionRepository.findAll scoping', () => {
     });
   });
 });
+
+// GET /:id/results — the admin dashboard "Results" page endpoint. This is the
+// only route in competitions.js that takes a displayManager (2nd arg of
+// createCompetitionRouter). The category filter is the new feature: the route
+// reads ?categoryId=<UUID> and passes it through to
+// DisplayManager.getRankingSnapshot(id, categoryId). The filtering itself
+// happens in DisplayManager — we only assert the param is forwarded.
+describe('GET /api/competitions/:id/results — category filter passthrough', () => {
+  function buildAppWithDisplay(displayManager) {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/competitions', createCompetitionRouter(buildRepos(), displayManager));
+    return app;
+  }
+
+  test('without ?categoryId -> getRankingSnapshot called with (id, null)', async () => {
+    const getRankingSnapshot = jest.fn().mockResolvedValue({
+      competition: { id: 'comp-1', name: 'Cup' },
+      stages: [], finalRankings: [], categories: [],
+    });
+    const app = buildAppWithDisplay({ getRankingSnapshot });
+    const res = await request(app)
+      .get('/api/competitions/comp-1/results')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(200);
+    expect(getRankingSnapshot).toHaveBeenCalledTimes(1);
+    // Called with the route param id and null for category — the "all
+    // categories" path.
+    expect(getRankingSnapshot).toHaveBeenCalledWith('comp-1', null);
+  });
+
+  test('with ?categoryId=cat-uuid -> getRankingSnapshot called with (id, "cat-uuid")', async () => {
+    const getRankingSnapshot = jest.fn().mockResolvedValue({
+      competition: { id: 'comp-1', name: 'Cup' },
+      stages: [], finalRankings: [], categories: [{ id: 'cat-uuid', name: 'U12' }],
+    });
+    const app = buildAppWithDisplay({ getRankingSnapshot });
+    const res = await request(app)
+      .get('/api/competitions/comp-1/results?categoryId=cat-uuid')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(200);
+    expect(getRankingSnapshot).toHaveBeenCalledTimes(1);
+    // The categoryId query param is forwarded as the 2nd argument.
+    expect(getRankingSnapshot).toHaveBeenCalledWith('comp-1', 'cat-uuid');
+  });
+
+  test('with ?categoryId= (empty string) -> treated as null (all categories)', async () => {
+    // The client sends an empty string when the admin picks "All categories"
+    // from the dropdown. The route must treat that as "no filter" rather
+    // than forwarding an empty string to Prisma (which would 500).
+    const getRankingSnapshot = jest.fn().mockResolvedValue({
+      competition: { id: 'comp-1', name: 'Cup' },
+      stages: [], finalRankings: [], categories: [],
+    });
+    const app = buildAppWithDisplay({ getRankingSnapshot });
+    const res = await request(app)
+      .get('/api/competitions/comp-1/results?categoryId=')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(getRankingSnapshot).toHaveBeenCalledWith('comp-1', null);
+  });
+
+  test('PLAYER is forbidden (403)', async () => {
+    const getRankingSnapshot = jest.fn();
+    const app = buildAppWithDisplay({ getRankingSnapshot });
+    const res = await request(app)
+      .get('/api/competitions/comp-1/results')
+      .set('Authorization', `Bearer ${PLAYER_TOKEN}`);
+    expect(res.status).toBe(403);
+    expect(getRankingSnapshot).not.toHaveBeenCalled();
+  });
+
+  test('missing Authorization -> 401', async () => {
+    const getRankingSnapshot = jest.fn();
+    const app = buildAppWithDisplay({ getRankingSnapshot });
+    const res = await request(app).get('/api/competitions/comp-1/results');
+    expect(res.status).toBe(401);
+    expect(getRankingSnapshot).not.toHaveBeenCalled();
+  });
+
+  test('returns 50000 when displayManager is not wired', async () => {
+    // No displayManager passed to createCompetitionRouter — the route must
+    // surface the "snapshot unavailable" envelope rather than crash.
+    const app = buildAppWithDisplay(undefined);
+    const res = await request(app)
+      .get('/api/competitions/comp-1/results')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(50000);
+  });
+});

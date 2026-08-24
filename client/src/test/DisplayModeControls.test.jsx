@@ -253,21 +253,19 @@ describe('DisplayModeControls — non-admin sees the explanation, not the button
   });
 });
 
-describe('DisplayModeControls — only two modes are exposed', () => {
+describe('DisplayModeControls — only five modes are exposed', () => {
   it('does not offer a button for PLAYER_BROADCAST (that is the surveillance panel\'s job)', () => {
     renderControls({ currentMode: 'DEFAULT' });
-    // Two mode buttons, not three. PLAYER_BROADCAST has no button here.
+    // Five mode buttons, not six. PLAYER_BROADCAST has no button here — it is
+    // driven by the projection button in JudgeMonitoringPanel.
     const modeButtons = screen.getAllByRole('button').filter((b) =>
-      /default view|live ranking|默认视图|实时排行榜/i.test(b.textContent));
-    expect(modeButtons).toHaveLength(2);
+      /default view|live ranking|round ranking|stage ranking|final ranking|默认视图|实时排行榜|单轮排名|阶段排名|最终排名/i.test(b.textContent));
+    expect(modeButtons).toHaveLength(5);
   });
 
-  it('does not offer buttons for ROUND_RANKING / STAGE_RANKING / FINAL_RANKING (no view yet)', () => {
+  it('offers a button for STAGE_RANKING (the view exists now)', () => {
     renderControls({ currentMode: 'DEFAULT' });
-    // These modes have no client view — a button would silently fall back
-    // to the default. We do not offer a button that lies.
-    expect(screen.queryByRole('button', { name: /round ranking|轮次排行/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /stage ranking|阶段排行/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /final ranking|最终排行/i })).toBeNull();
+    // STAGE_RANKING has a dedicated view — the button is no longer a lie.
+    expect(screen.getByRole('button', { name: /stage ranking|阶段排名/i })).toBeInTheDocument();
   });
 });

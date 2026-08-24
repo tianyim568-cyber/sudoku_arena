@@ -499,6 +499,15 @@ describe('E2E Competition Simulation', () => {
       role: 'ORG_ADMIN',
       organization_id: orgId,
     });
+
+    // Generate judge token for the projection step. Projection is JUDGE-only
+    // (product decision 2026-08-24 — see routes/display.js docstring).
+    judgeToken = generateToken({
+      id: 'judge-e2e-uuid',
+      username: 'judge-e2e',
+      role: 'JUDGE',
+      organization_id: orgId,
+    });
   });
 
   // ========================================================================
@@ -1087,12 +1096,16 @@ describe('E2E Competition Simulation', () => {
   });
 
   // ========================================================================
-  // STEP 24: Admin broadcasts player screen
+  // STEP 24: Judge broadcasts player screen
+  //
+  // Projection is a JUDGE-only floor operation (product decision
+  // 2026-08-24). ORG_ADMIN would be rejected with 403 — see
+  // routes/display.js docstring and display-broadcast.test.js.
   // ========================================================================
-  test('Step 24: Broadcast player screen', async () => {
+  test('Step 24: Judge broadcasts player screen', async () => {
     const res = await request(app)
       .put(`/api/competitions/${competitionId}/display/broadcast/${playerId1}`)
-      .set('Authorization', `Bearer ${adminToken}`);
+      .set('Authorization', `Bearer ${judgeToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.code).toBe(200);

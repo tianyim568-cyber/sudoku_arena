@@ -43,7 +43,7 @@ const MISSING_LABEL_KEYS = {
   ROUND_EMPTY: 'publishPanel.missingRoundPuzzles',
 };
 
-export default function PublishPanel({ competitionId, status, canStart }) {
+export default function PublishPanel({ competitionId, status, canStart, refreshKey }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -74,8 +74,15 @@ export default function PublishPanel({ competitionId, status, canStart }) {
     // Loads on mount AND when the status prop changes — the parent reloads
     // the competition after a publish/cancel, and the panel must refresh
     // its snapshot to match the new status without a manual page reload.
+    //
+    // BUG-02 fix: also refetch when refreshKey changes. The parent
+    // increments refreshKey after every successful mutation of sibling
+    // panels (stages, rounds, participants, judges). Without this, adding
+    // a stage after publication would leave the checklist stale until a
+    // manual page reload — the admin thinks the "Has stages" check is
+    // still green when it should be red.
     load();
-  }, [status, load]);
+  }, [status, load, refreshKey]);
 
   const showMsg = (text, type = 'info') => {
     setMessage({ text, type });

@@ -7,6 +7,7 @@
  */
 
 const express = require('express');
+const logger = require('../utils/logger');
 const { authMiddleware } = require('../middleware/auth');
 const { tenantGuard } = require('../middleware/tenantGuard');
 
@@ -109,7 +110,7 @@ function createMonitoringRouter(repos, state) {
           }
         });
       } catch (error) {
-        console.error('[monitoring] Error fetching participants:', error);
+        logger.error('[monitoring] Error fetching participants', { error: error.message });
         return res.status(500).json({
           code: 500,
           message: 'Internal server error',
@@ -248,7 +249,7 @@ function createMonitoringRouter(repos, state) {
           }
         });
       } catch (error) {
-        console.error('[monitoring] Error fetching player state:', error);
+        logger.error('[monitoring] Error fetching player state', { error: error.message });
         return res.status(500).json({
           code: 500,
           message: 'Internal server error',

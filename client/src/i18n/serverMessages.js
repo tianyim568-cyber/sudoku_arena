@@ -126,14 +126,17 @@ const EN = {
   // Rate limiting (middleware/rateLimiters.js)
   '操作过于频繁，请稍后再试': 'Too many requests, please try again later',
 
-  // File upload (middleware/fileType.js)
+  // File upload (middleware/fileType.js + index.js global handler)
   '请上传文件': 'Please upload a file',
   '文件内容与类型不符，请上传有效的文件': 'The file content does not match its type, please upload a valid file',
+  '文件过大（最大 10 MB）': 'File too large (max 10 MB)',
+  '仅支持 .xlsx、.xls 和 .csv 格式': 'Only .xlsx, .xls and .csv formats are supported',
 
   // Competition setup — stages/rounds (routes/competitionSetup.js)
   '阶段不存在': 'Stage not found',
   '阶段不属于该赛事': 'This stage does not belong to this competition',
   '轮次类型与阶段类型不匹配': 'The round type does not match the stage type',
+  '比赛已发布，无法修改阶段配置': 'Competition is already published — stage configuration is locked',
 
   // Users (routes/users.js)
   '状态值无效': 'Invalid status value',
@@ -147,6 +150,23 @@ const EN = {
 
   // Participant import (routes/participants.js)
   '存在无效的数据行，无法导入': 'Some rows are invalid and cannot be imported',
+
+  // 12 messages introduced by the 2026-08-22 security hardening +
+  // 2026-08-23 N+1 optimization commits. Same class of gap ISSUE-011
+  // caught for the earlier work — the table has to grow when the server
+  // grows.
+  '无权访问此竞赛': 'You do not have permission to access this competition',
+  '无权访问此轮次': 'You do not have permission to access this round',
+  '无权访问此队伍': 'You do not have permission to access this team',
+  '无权在此组织下创建用户': 'You cannot create a user in this organization',
+  '无权操作此用户': 'You cannot modify this user',
+  '无权删除此题目': 'You cannot delete this puzzle',
+  '轮次不属于此竞赛': 'This round does not belong to this competition',
+  '队伍不存在': 'Team not found',
+  '选手不存在或不属于此竞赛': 'Player not found, or does not belong to this competition',
+  '操作失败，请重试': 'The operation failed, please try again',
+  '操作失败，请稍后重试': 'The operation failed, please try again later',
+  '提交失败，请重试': 'Submission failed, please try again',
 };
 
 /**

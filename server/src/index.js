@@ -219,6 +219,28 @@ async function main() {
       error: err.message,
     });
     if (res.headersSent) return next(err);
+
+    // Multer errors: bad extension (a plain Error from fileFilter) and
+    // "file too large" (MulterError code LIMIT_FILE_SIZE) reach here too.
+    // Return an actionable message with a specific code — clients keyed
+    // off the code (e.g. the upload UI) can surface a real reason instead
+    // of "服务器内部错误". Multer sets `err.name === 'MulterError'` on
+    // size/count/field errors; the fileFilter throw is a plain Error whose
+    // message we forward verbatim (already localized).
+    if (err && err.name === 'MulterError') {
+      const isTooLarge = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        code: isTooLarge ? 40010 : 40011,
+        message: isTooLarge ? '文件过大（最大 10 MB）' : `文件上传失败：${err.message}`,
+        data: null,
+      });
+    }
+    // fileFilter rejection surfaces as a plain Error with our own message.
+    // Detect by presence of an req.file expectation on an upload route.
+    if (err && typeof err.message === 'string' && err.message.startsWith('仅支持')) {
+      return res.status(400).json({ code: 40011, message: err.message, data: null });
+    }
+
     res.status(500).json({ code: 50000, message: '服务器内部错误', data: null });
   });
 

@@ -84,6 +84,24 @@ describe('puzzleBank router — Phase 8 (reactivated)', () => {
     expect(res.body.data.generated).toBe(1);
   });
 
+  // BUG-04 fix: INDIVIDUAL_STANDARD (solo sudoku round) must be accepted by
+  // the generate route. Before the fix, only the three team roundTypes were
+  // in the Zod enum, so a solo round could not be populated from the UI —
+  // the admin was stuck at "no puzzles" with no way out. This test pins the
+  // new enum value at the router boundary.
+  test('POST /api/puzzle-bank/generate accepts INDIVIDUAL_STANDARD with count', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .post('/api/puzzle-bank/generate')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ roundType: 'INDIVIDUAL_STANDARD', count: 8 });
+    expect(res.status).toBe(200);
+    // The service received the request with the count forwarded verbatim.
+    expect(mockService.generatePuzzles).toHaveBeenCalledWith(
+      expect.objectContaining({ roundType: 'INDIVIDUAL_STANDARD', count: 8 })
+    );
+  });
+
   test('POST /api/puzzle-bank/generate rejects PLAYER (403)', async () => {
     const app = buildApp(buildRepos());
     const res = await request(app)

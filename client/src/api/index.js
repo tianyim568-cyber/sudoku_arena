@@ -91,8 +91,14 @@ export const api = {
   listCompetitions: () => request('GET', '/competitions'),
   getCompetition: (id) => request('GET', `/competitions/${id}`),
   // Reuses the big-screen ranking snapshot behind admin auth — admin and
-  // big screen always see the same numbers.
-  getResults: (id) => request('GET', `/competitions/${id}/results`),
+  // big screen always see the same numbers. Optional categoryId query param
+  // — omit for all categories. Mirrors the display page's fetchRanking so
+  // admin and big screen use the same code path server-side and cannot
+  // drift apart.
+  getResults: (id, categoryId = null) => {
+    const params = categoryId ? `?categoryId=${categoryId}` : '';
+    return request('GET', `/competitions/${id}/results${params}`);
+  },
   createCompetition: (data) => request('POST', '/competitions', data),
   updateCompetition: (id, data) => request('PUT', `/competitions/${id}`, data),
   deleteCompetition: (id) => request('DELETE', `/competitions/${id}`),
@@ -160,7 +166,11 @@ export const api = {
   getMyGameState: (competitionId) => request('GET', `/competitions/${competitionId}/my-state`),
 
   // Puzzle Bank
-  generatePuzzles: (roundType, teamsCount) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount }),
+  // `count` is used by INDIVIDUAL_STANDARD (solo sudoku round) — the server
+  // reads whichever of teamsCount / count matches the roundType. Old callers
+  // that pass only two arguments still work because the third one arrives as
+  // undefined and JSON.stringify drops it.
+  generatePuzzles: (roundType, teamsCount, count) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount, count }),
   generatePuzzlesBulk: (teamsCount) => request('POST', '/puzzle-bank/generate-bulk', { teamsCount }),
   importPuzzlesToRound: (roundId, teamsCount) => request('POST', '/puzzle-bank/import-to-round', { roundId, teamsCount }),
   deletePuzzleFromBank: (id) => request('DELETE', `/puzzle-bank/${id}`),
@@ -172,12 +182,32 @@ export const api = {
 
   // Users
   listUsers: () => request('GET', '/users'),
+  // createUser is the same endpoint the plan lists as "judge creation with
+  // generated credentials". The server auto-scopes to the caller's org for
+  // ORG_ADMIN, so the client does NOT send organizationId. Role can be
+  // JUDGE / PLAYER / ORG_ADMIN — the judge page passes 'JUDGE'.
+  createUser: ({ username, password, role }) =>
+    request('POST', '/users', { username, password, role }),
+  updateUserStatus: (id, status) => request('PUT', `/users/${id}/status`, { status }),
 
   // Participants (import)
   uploadParticipants: (competitionId, file) => uploadFile(`/competitions/${competitionId}/participants/upload`, file),
   confirmParticipants: (competitionId, rows) => request('POST', `/competitions/${competitionId}/participants/confirm`, { rows }),
   listParticipants: (competitionId) => request('GET', `/competitions/${competitionId}/participants`),
   deleteParticipants: (competitionId) => request('DELETE', `/competitions/${competitionId}/participants`),
+
+  // Global participants list — across every competition of the caller's
+  // organization. Read-only. Filters are optional; omit for "all". The
+  // server enforces the tenant filter (organization_id) in the WHERE
+  // clause — the client cannot bypass it by omitting a param.
+  listAllParticipants: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.competitionId) params.set('competitionId', filters.competitionId);
+    if (filters.categoryId) params.set('categoryId', filters.categoryId);
+    if (filters.search) params.set('search', filters.search);
+    const qs = params.toString();
+    return request('GET', `/participants${qs ? '?' + qs : ''}`);
+  },
 
   // Export participants with credentials. This endpoint returns a binary XLSX
   // blob, not JSON, so it cannot go through request() — but we still wrap the

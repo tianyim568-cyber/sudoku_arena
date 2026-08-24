@@ -24,6 +24,11 @@ export default function DashboardResultsPage() {
   const [snapshot, setSnapshot] = useState(null);
   const [loadFailed, setLoadFailed] = useState(null);
   const [activeRoundId, setActiveRoundId] = useState(null);
+  // Category filter — null means "all categories". Reset to null whenever
+  // the competition changes: a categoryId that is valid for competition A
+  // may not exist in competition B, and the server filter would silently
+  // return 0 rows. The admin would stare at an empty table with no clue why.
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   // Load the competition list once. We only need id + name + status for the
   // picker — the full ranking snapshot is fetched on selection.
@@ -44,8 +49,10 @@ export default function DashboardResultsPage() {
     })();
   }, []);
 
-  // Fetch the ranking snapshot when the selection changes. A separate effect
-  // (not inlined above) so the list fetch stays idempotent.
+  // Fetch the ranking snapshot when the selection OR the category filter
+  // changes. A separate effect (not inlined above) so the list fetch stays
+  // idempotent. Both selectedId and selectedCategoryId are dependencies —
+  // switching category refetches with the new filter applied.
   useEffect(() => {
     if (!selectedId) {
       setSnapshot(null);
@@ -54,7 +61,7 @@ export default function DashboardResultsPage() {
     setSnapshot(null);
     setLoadFailed(null);
     (async () => {
-      const res = await api.getResults(selectedId);
+      const res = await api.getResults(selectedId, selectedCategoryId);
       if (res.code === 200) {
         setSnapshot(res.data);
         // Auto-select the first round (or the final tab if no rounds) so the
@@ -65,7 +72,7 @@ export default function DashboardResultsPage() {
         setLoadFailed(res.message || t('results.loadFailed'));
       }
     })();
-  }, [selectedId]);
+  }, [selectedId, selectedCategoryId]);
 
   // Flatten rounds across stages for the tab bar — the admin reads results
   // round by round, stages are just a grouping label in the tab title.
@@ -152,7 +159,14 @@ export default function DashboardResultsPage() {
         </label>
         <select
           value={selectedId || ''}
-          onChange={(e) => setSelectedId(e.target.value)}
+          onChange={(e) => {
+            setSelectedId(e.target.value);
+            // Reset the category filter when the competition changes — a
+            // categoryId valid for competition A may not exist in B, and
+            // the server filter would silently return 0 rows. The admin
+            // would stare at an empty table with no clue why.
+            setSelectedCategoryId(null);
+          }}
           className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
         >
           {competitions.map(c => (
@@ -162,6 +176,29 @@ export default function DashboardResultsPage() {
           ))}
         </select>
       </div>
+
+      {/* Category filter — only shown when the selected competition has
+          categories. A competition with no categories must not display an
+          empty dropdown. The list comes from snapshot.categories (already
+          returned by the server in every case, filtered or not), so no
+          separate fetch is needed. */}
+      {snapshot && snapshot.categories && snapshot.categories.length > 0 && (
+        <div className="bg-gray-800 rounded-lg p-4">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            {t('results.filterByCategory')}
+          </label>
+          <select
+            value={selectedCategoryId || ''}
+            onChange={(e) => setSelectedCategoryId(e.target.value || null)}
+            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
+          >
+            <option value="">{t('results.allCategories')}</option>
+            {snapshot.categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Round tabs + final tab */}
       {snapshot && (

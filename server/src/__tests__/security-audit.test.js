@@ -301,6 +301,36 @@ describe('Security: User management tenant isolation', () => {
     expect(res.body.code).toBe(200);
   });
 
+  // Regression test for BUG-06 (2026-08-24): the ORG_ADMIN "own org" check
+  // used to compare raw req.body.organizationId against req.user.organizationId
+  // BEFORE resolving effectiveOrgId. The DashboardJudgesPage never sends
+  // organizationId in the body (it relies on the server auto-assigning the
+  // caller's org), so every ORG_ADMIN attempt was rejected with 40301
+  // "You cannot create a user in this organization" — the create-judge UI
+  // was unusable for the very role it was built for. The fix moves the
+  // effectiveOrgId resolution before the ownership check; the assertion
+  // below fails against the buggy order.
+  test('BUG-06: ORG_ADMIN can create users when organizationId is omitted', async () => {
+    const res = await request(buildApp())
+      .post('/api/users')
+      .set('Authorization', `Bearer ${ORG_A_ADMIN}`)
+      .send({
+        username: 'newuser-omit',
+        password: 'password123',
+        role: 'JUDGE',
+        // organizationId intentionally omitted — this is the actual client
+        // behaviour from client/src/pages/DashboardJudgesPage.jsx.
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(200);
+    // The user must have been created inside the caller's org, not
+    // dropped or written with a null org.
+    expect(mockRepos.users.create).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: ORG_A_ID, role: 'JUDGE' })
+    );
+  });
+
   test('ORG_ADMIN list only sees own organization users', async () => {
     mockPrisma.users.findMany.mockResolvedValueOnce([
       { id: 'u1', username: 'user-a', role: 'PLAYER' },

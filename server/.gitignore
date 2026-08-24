@@ -6,3 +6,10 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+# .env.production carried production DB credentials + JWT_SECRET when it
+# was tracked (ISSUE-018). Ignoring it stops future re-tracking. The
+# secrets already committed to history still need rotation and history
+# scrub — that is a manual coordination step, not something the ignore
+# rule fixes on its own. Local physical copies (Louise, Sylvain, servers)
+# stay untouched by the untrack.
+.env.production

@@ -30,21 +30,46 @@ export default function CompetitionDetailPage() {
   const [roundTypes, setRoundTypes] = useState({});
   const [roundTypesError, setRoundTypesError] = useState(null);
   const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, preparationSeconds: 10, pdf: null });
+  // BUG-01 fix: the admin must pick which judge to assign, not always take
+  // the first one from users.find(...). The dropdown is populated from users
+  // filtered against competition.judges so an already-assigned judge cannot
+  // be picked twice.
+  const [selectedJudgeId, setSelectedJudgeId] = useState('');
+  // BUG-02 fix: PublishPanel only refetches on status prop change. Adding
+  // a stage after publication does NOT change the status, so the checklist
+  // went stale until a manual page reload. This counter increments on every
+  // successful mutation of sibling panels and is passed to PublishPanel as
+  // refreshKey — the panel adds it to its useEffect deps.
+  const [publishRefreshKey, setPublishRefreshKey] = useState(0);
+  const bumpPublishRefresh = () => setPublishRefreshKey(k => k + 1);
 
   const load = async () => {
     const res = await api.getCompetition(id);
     if (res.code === 200) setCompetition(res.data);
   };
 
+  // BUG-02 fix: every successful mutation of sibling panels bumps the
+  // publishRefreshKey so PublishPanel refetches its checklist. loadStages
+  // is called after add/remove stage and after create round; both change
+  // the publishability (a new empty stage flips "every stage configured"
+  // to red, a new round with puzzles flips it back).
   const loadStages = async () => {
     const res = await api.listStages(id);
-    if (res.code === 200) setStages(res.data || []);
-    else msg(t('competitionDetail.stageAddFailed', { msg: res.message || res.code }), 'error');
+    if (res.code === 200) {
+      setStages(res.data || []);
+      bumpPublishRefresh();
+    } else {
+      msg(t('competitionDetail.stageAddFailed', { msg: res.message || res.code }), 'error');
+    }
   };
 
   const loadParticipants = async () => {
     const res = await api.listParticipants(id);
-    if (res.code === 200) setParticipants(res.data || []);
+    if (res.code === 200) {
+      setParticipants(res.data || []);
+      // Participant count affects the "Has participants" check — bump.
+      bumpPublishRefresh();
+    }
   };
 
   useEffect(() => {
@@ -133,6 +158,10 @@ export default function CompetitionDetailPage() {
       setStages(res.data || []);
       setShowAddStage(false);
       msg(t('competitionDetail.stageAdded', { type: label }));
+      // BUG-02 fix: a new stage changes publishability (a new empty stage
+      // flips "every stage configured" to red). Bump so PublishPanel
+      // refetches its snapshot.
+      bumpPublishRefresh();
     } else {
       msg(t('competitionDetail.stageAddFailed', { msg: res.message || res.code }), 'error');
     }
@@ -147,18 +176,37 @@ export default function CompetitionDetailPage() {
     if (res.code === 200) {
       setStages(res.data || []);
       msg(t('competitionDetail.stageRemoved'));
+      // BUG-02 fix: removing a stage changes publishability too.
+      bumpPublishRefresh();
     } else {
       msg(t('competitionDetail.stageRemoveFailed', { msg: res.message || res.code }), 'error');
     }
   };
 
   const handleAssignJudge = async () => {
-    const judge = users.find(u => u.role === 'JUDGE');
-    if (!judge) return msg(t('competitionDetail.judgeNotFound'), 'error');
-    const res = await api.assignJudge(id, judge.id);
-    if (res.code === 200) { msg(t('competitionDetail.judgeAssigned')); load(); }
-    else msg(res.message || t('competitionDetail.assignJudgeFailed'), 'error');
+    // BUG-01 fix: use the admin's selection instead of always grabbing the
+    // first JUDGE in the list. If none is picked (empty prompt), tell the
+    // admin instead of silently assigning someone.
+    if (!selectedJudgeId) return msg(t('competitionDetail.judgeNotSelected'), 'error');
+    const res = await api.assignJudge(id, selectedJudgeId);
+    if (res.code === 200) {
+      msg(t('competitionDetail.judgeAssigned'));
+      setSelectedJudgeId('');
+      // BUG-02 fix: judge list changed → publishability "Has judges" check
+      // must flip. load() refetches competition (which holds judges), and
+      // bumpPublishRefresh makes PublishPanel refetch its snapshot.
+      await load();
+      bumpPublishRefresh();
+    } else {
+      msg(res.message || t('competitionDetail.assignJudgeFailed'), 'error');
+    }
   };
+
+  // BUG-01 fix: unassigned judges = users with role JUDGE who are not already
+  // in competition.judges. The server sends judges with either id or userId
+  // (depends on the join), so we check both.
+  const unassignedJudges = users.filter(u => u.role === 'JUDGE' &&
+    !(competition.judges || []).some(j => j.id === u.id || j.userId === u.id));
 
   const handleDeleteParticipants = async () => {
     if (!window.confirm(t('competitionDetail.confirmDeleteParticipants'))) return;
@@ -242,6 +290,7 @@ export default function CompetitionDetailPage() {
           <PublishPanel
             competitionId={id}
             status={competition.status}
+            refreshKey={publishRefreshKey}
           />
         )}
 
@@ -273,6 +322,7 @@ export default function CompetitionDetailPage() {
                   onClick={() => st.available && handleAddStage(st.value)}
                   disabled={!st.available}
                   title={st.available ? undefined : t('competitionDetail.stageTypePKDisabled')}
+                  aria-label={t(st.labelKey)}
                   className={`border rounded-lg p-3 text-left transition-colors ${
                     st.available
                       ? 'bg-white hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer'
@@ -339,7 +389,18 @@ export default function CompetitionDetailPage() {
                                   {' '}<span className="font-medium">{r.name}</span>
                                 </span>
                                 <span className="text-xs text-gray-400">
-                                  {t('competitionDetail.roundMeta', { type: r.type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}
+                                  {/* BUG-03 fix: translate the raw roundType enum
+                                      (e.g. INDIVIDUAL_STANDARD) into a readable
+                                      label via common.roundName.* before passing
+                                      it to the roundMeta template. Fallback to
+                                      the raw enum if the key is unknown (should
+                                      not happen, but stays honest if a new type
+                                      is added to the server before i18n). */}
+                                  {t('competitionDetail.roundMeta', {
+                                    type: t(`common.roundName.${r.type}`) || r.type,
+                                    dur: r.duration_seconds,
+                                    count: r.puzzles?.length || 0,
+                                  })}
                                 </span>
                               </li>
                             ))}
@@ -401,8 +462,9 @@ export default function CompetitionDetailPage() {
                                   shown disabled rather than hidden, so the step is
                                   visible without pretending to work. */}
                               <div>
-                                <label className="block text-xs text-gray-500 mb-1">{t('competitionDetail.roundPdf')}</label>
-                                <input type="file" accept="application/pdf" disabled
+                                <label htmlFor="roundPdf" className="block text-xs text-gray-500 mb-1">{t('competitionDetail.roundPdf')}</label>
+                                <input type="file" id="roundPdf" accept="application/pdf" disabled
+                                  aria-label={t('competitionDetail.roundPdf')}
                                   className="w-full text-xs text-gray-400 cursor-not-allowed" />
                                 <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPdfHint')}</p>
                               </div>
@@ -517,10 +579,31 @@ export default function CompetitionDetailPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
             <h2 className="text-base sm:text-lg font-semibold">{t('competitionDetail.judgesTitle')}</h2>
             {isAdmin && isEditable && (
-              <button onClick={handleAssignJudge}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-500">
-                {t('competitionDetail.assignJudge')}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                {/* BUG-01 fix: a dropdown of unassigned org judges replaces
+                    the single button that always grabbed users[0]. Hidden
+                    when there is nobody to assign — no empty dropdown. */}
+                {unassignedJudges.length > 0 && (
+                  <select
+                    value={selectedJudgeId}
+                    onChange={(e) => setSelectedJudgeId(e.target.value)}
+                    aria-label={t('competitionDetail.assignJudge')}
+                    className="px-2 py-1.5 border rounded text-xs sm:text-sm"
+                  >
+                    <option value="">{t('competitionDetail.selectJudge')}</option>
+                    {unassignedJudges.map(u => (
+                      <option key={u.id} value={u.id}>{u.display_name || u.username}</option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  onClick={handleAssignJudge}
+                  disabled={!selectedJudgeId}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs sm:text-sm hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {t('competitionDetail.assignJudge')}
+                </button>
+              </div>
             )}
           </div>
           {competition.judges?.length > 0 ? (

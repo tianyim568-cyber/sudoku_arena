@@ -27,6 +27,7 @@
  * documented, not hidden. To be resolved if/when engine tests are added.
  */
 
+const logger = require('../utils/logger');
 const TimerService = require('./TimerService');
 const ScoringService = require('./ScoringService');
 const Round1Engine = require('./team/Round1Engine');
@@ -388,8 +389,18 @@ class GameOrchestrator {
     emissions.push(...setupResult.emissions);
 
     // Start gameplay timer (after engine setup)
-    const { turnEndsAt } = await this.rounds.startGameplayTimer(competitionId, (compId, rId) => {
-      this.endRound(compId, rId);
+    // The onTimerExpire callback fires when the round's gameplay time elapses
+    // with no HTTP request involved — so unlike the judge's "end round" button
+    // (whose route handler calls handleOrchestratorResult → processEmissions),
+    // the timer callback must itself dispatch the emissions returned by
+    // endRound. Otherwise the DB is updated (round FINISHED, bonuses applied,
+    // next round started) but no client ever sees the ROUND_FINISHED,
+    // INDIVIDUAL_ROUND_COMPLETE, ROUND_RANKING or STAGE_RANKING events —
+    // players stay on the game screen and the big screen stays in LIVE_RANKING
+    // forever. See ISSUE-14 in louise/KNOWN_ISSUES.md for the history.
+    const { turnEndsAt } = await this.rounds.startGameplayTimer(competitionId, async (compId, rId) => {
+      const result = await this.endRound(compId, rId);
+      this.processEmissions(result.emissions);
     });
 
     // Start R2 rotation intervals
@@ -482,9 +493,14 @@ class GameOrchestrator {
         const resumeResult = await this.rounds.resumeRound();
         emissions.push(...resumeResult.emissions);
 
-        // Restart timer tick interval
-        this.rounds.startTimerTick(competitionId, (compId, rId) => {
-          this.endRound(compId, rId);
+        // Restart timer tick interval.
+        // Same dispatch pattern as the startRound gameplay timer callback above:
+        // no HTTP request → the callback must itself flush emissions to the bus,
+        // otherwise a round that naturally expires after a resume stays silent
+        // to clients even though the DB has been updated.
+        this.rounds.startTimerTick(competitionId, async (compId, rId) => {
+          const result = await this.endRound(compId, rId);
+          this.processEmissions(result.emissions);
         });
 
         // Restart R2 rotation intervals
@@ -825,7 +841,7 @@ class GameOrchestrator {
               const nextStartResult = await this.startRound(competitionId, nextRound.id);
               this.bus.emitAll(nextStartResult.emissions);
             } catch (e) {
-              console.error('[GameOrchestrator] Failed to auto-start next round:', e.message);
+              logger.error('[GameOrchestrator] Failed to auto-start next round', { error: e.message });
             }
           }, DEFAULT_TRANSITION_SECONDS * 1000);
         } else {
@@ -846,7 +862,7 @@ class GameOrchestrator {
             try {
               await this.displayManager.emitStageRanking(competitionId);
             } catch (e) {
-              console.error('[GameOrchestrator] Failed to emit stage ranking:', e.message);
+              logger.error('[GameOrchestrator] Failed to emit stage ranking', { error: e.message });
             }
           }, 100);
         }
@@ -862,7 +878,7 @@ class GameOrchestrator {
         try {
           await this.displayManager.emitRoundRanking(competitionId);
         } catch (e) {
-          console.error('[GameOrchestrator] Failed to emit round ranking:', e.message);
+          logger.error('[GameOrchestrator] Failed to emit round ranking', { error: e.message });
         }
       }, 100);
     }
@@ -900,8 +916,13 @@ class GameOrchestrator {
       where: { id: competitionId },
     });
     if (!comp) throw new CompetitionError('比赛不存在');
-    if (comp.status === 'RUNNING' || comp.status === 'FINISHED') {
-      throw new CompetitionError('比赛进行中或已结束，无法修改阶段配置');
+    // F26: stage config is only mutable in DRAFT. Once PUBLISHED the access
+    // link is out to players and judges — reshaping stages behind the link
+    // would break their expectations. The old rule allowed DRAFT || PUBLISHED
+    // ("only reject RUNNING/FINISHED"); the JSDoc above already said "DRAFT
+    // only", so the code caught up with the doc (2026-08-24).
+    if (comp.status !== 'DRAFT') {
+      throw new CompetitionError('比赛已发布，无法修改阶段配置');
     }
 
     // Validate input
@@ -1014,7 +1035,7 @@ class GameOrchestrator {
         try {
           await this.displayManager.emitStageRanking(competitionId);
         } catch (e) {
-          console.error('[GameOrchestrator] Failed to emit stage ranking:', e.message);
+          logger.error('[GameOrchestrator] Failed to emit stage ranking', { error: e.message });
         }
       }, 100);
     }
@@ -1109,7 +1130,7 @@ class GameOrchestrator {
         try {
           await this.displayManager.emitFinalRanking(competitionId);
         } catch (e) {
-          console.error('[GameOrchestrator] Failed to emit final ranking:', e.message);
+          logger.error('[GameOrchestrator] Failed to emit final ranking', { error: e.message });
         }
       }, 100);
     }

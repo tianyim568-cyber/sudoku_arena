@@ -57,9 +57,27 @@
  *                      the player the competition hadn't started — in the
  *                      middle of an active round.
  *
- *   5. WAITING      — no active round, no preparation, no transition. The
- *                      player is waiting for the judge to start the next
- *                      round or stage. Honest because currentRound is null.
+ *   5. COMPETITION_FINISHED — the whole competition is over. The server
+ *                      emitted COMPETITION_FINISHED. Terminal screen, no
+ *                      rankings shown (product decision). RANKS ABOVE
+ *                      STAGE_FINISHED: a competition-end supersedes any
+ *                      stage-end state that hadn't been cleared.
+ *
+ *   6. STAGE_FINISHED   — a stage just ended (STAGE_FINISHED), the judge
+ *                      hasn't started the next stage yet. No countdown: the
+ *                      judge decides when to start the next stage. RANKS
+ *                      ABOVE WAITING: a stage that just ended is NOT the
+ *                      same as a competition that hasn't begun — the player
+ *                      must not see the "waiting for a round" message here.
+ *                      RANKS BELOW the live-event branches (1-4): if a new
+ *                      round/prep/transition arrives, it wins over the
+ *                      terminal state — defensive, in case the clearing in
+ *                      useGameSocket hasn't run yet.
+ *
+ *   7. WAITING      — no active round, no preparation, no transition, no
+ *                      stage-end. The player is waiting for the judge to
+ *                      start the next round or stage. Honest because
+ *                      currentRound is null.
  *
  * MUTUAL EXCLUSION:
  *   - transition and preparation are never both non-null in normal flow
@@ -67,6 +85,9 @@
  *     wins if both are ever set — defensive.
  *   - isRound1/isRound2/isRound3 derive from currentRound.roundType, so at
  *     most one is true. The three ROUND_VIEW sub-cases don't compete.
+ *   - competitionFinished and stageFinished are both cleared whenever a
+ *     round/prep/stage starts; if both ever survived to this point,
+ *     competitionFinished wins (it's checked first).
  *
  * @param {Object} state
  * @param {Object|null} state.transition
@@ -75,9 +96,11 @@
  * @param {Array}      state.puzzles
  * @param {Object|null} state.round2State
  * @param {Object|null} state.round3State
- * @returns {'TRANSITION'|'PREPARATION'|'ROUND1_VIEW'|'ROUND2_VIEW'|'ROUND3_VIEW'|'ROUND_LOADING'|'WAITING'}
+ * @param {Object|null} state.stageFinished
+ * @param {boolean}     state.competitionFinished
+ * @returns {'TRANSITION'|'PREPARATION'|'ROUND1_VIEW'|'ROUND2_VIEW'|'ROUND3_VIEW'|'ROUND_LOADING'|'STAGE_FINISHED'|'COMPETITION_FINISHED'|'WAITING'}
  */
-export function chooseScreen({ transition, preparation, currentRound, puzzles, round2State, round3State }) {
+export function chooseScreen({ transition, preparation, currentRound, puzzles, round2State, round3State, stageFinished, competitionFinished }) {
   // 1. Transition — countdown must show over everything.
   if (transition) return 'TRANSITION';
 
@@ -98,6 +121,19 @@ export function chooseScreen({ transition, preparation, currentRound, puzzles, r
     return 'ROUND_LOADING';
   }
 
-  // 5. Waiting — no active round, no prep, no transition.
+  // 5. Competition finished — end-of-competition screen.
+  //    Checked before STAGE_FINISHED: a competition-end supersedes a
+  //    stage-end. The server usually emits STAGE_FINISHED for the last
+  //    stage followed by COMPETITION_FINISHED, and useGameSocket clears
+  //    stageFinished on COMPETITION_FINISHED; this is the defensive guard
+  //    in case the clearing ever misses.
+  if (competitionFinished) return 'COMPETITION_FINISHED';
+
+  // 6. Stage finished — end-of-stage screen. The judge decides when the
+  //    next stage starts, so there is no countdown. Only reached when no
+  //    live round/prep/transition is active — a live event always wins.
+  if (stageFinished) return 'STAGE_FINISHED';
+
+  // 7. Waiting — no active round, no prep, no transition, no stage-end.
   return 'WAITING';
 }
