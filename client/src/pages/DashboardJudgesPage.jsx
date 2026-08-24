@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
@@ -64,7 +64,7 @@ export default function DashboardJudgesPage() {
   const [createError, setCreateError] = useState(null);
   const [justCreated, setJustCreated] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const res = await api.listUsers();
     if (res.code === 200) {
@@ -74,9 +74,9 @@ export default function DashboardJudgesPage() {
       setLoadError(res.message || t('judges.loadFailed'));
     }
     setLoading(false);
-  };
+  }, [t]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   // Counts per managed role, computed once per users change so the tab
   // labels can show a live badge.

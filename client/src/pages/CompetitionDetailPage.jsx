@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -20,10 +20,10 @@ export default function CompetitionDetailPage() {
   const [showParticipantImport, setShowParticipantImport] = useState(false);
   const [participants, setParticipants] = useState([]);
 
-  const msg = (text, type = 'info') => {
+  const msg = useCallback((text, type = 'info') => {
     setStatusMsg({ text, type });
     setTimeout(() => setStatusMsg(null), 5000);
-  };
+  }, []);
 
   const [stages, setStages] = useState([]);
   const [showAddStage, setShowAddStage] = useState(false);
@@ -42,19 +42,19 @@ export default function CompetitionDetailPage() {
   // successful mutation of sibling panels and is passed to PublishPanel as
   // refreshKey — the panel adds it to its useEffect deps.
   const [publishRefreshKey, setPublishRefreshKey] = useState(0);
-  const bumpPublishRefresh = () => setPublishRefreshKey(k => k + 1);
+  const bumpPublishRefresh = useCallback(() => setPublishRefreshKey(k => k + 1), []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await api.getCompetition(id);
     if (res.code === 200) setCompetition(res.data);
-  };
+  }, [id]);
 
   // BUG-02 fix: every successful mutation of sibling panels bumps the
   // publishRefreshKey so PublishPanel refetches its checklist. loadStages
   // is called after add/remove stage and after create round; both change
   // the publishability (a new empty stage flips "every stage configured"
   // to red, a new round with puzzles flips it back).
-  const loadStages = async () => {
+  const loadStages = useCallback(async () => {
     const res = await api.listStages(id);
     if (res.code === 200) {
       setStages(res.data || []);
@@ -62,16 +62,16 @@ export default function CompetitionDetailPage() {
     } else {
       msg(t('competitionDetail.stageAddFailed', { msg: res.message || res.code }), 'error');
     }
-  };
+  }, [id, t, msg, bumpPublishRefresh]);
 
-  const loadParticipants = async () => {
+  const loadParticipants = useCallback(async () => {
     const res = await api.listParticipants(id);
     if (res.code === 200) {
       setParticipants(res.data || []);
       // Participant count affects the "Has participants" check — bump.
       bumpPublishRefresh();
     }
-  };
+  }, [id, bumpPublishRefresh]);
 
   useEffect(() => {
     load();
@@ -94,7 +94,7 @@ export default function CompetitionDetailPage() {
         }
       });
     }
-  }, [id]);
+  }, [id, isAdmin, load, loadStages, loadParticipants]);
 
   // Opening a stage resets the form, so the type dropdown starts on a value
   // that this stage actually accepts.

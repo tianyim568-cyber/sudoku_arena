@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -21,21 +21,21 @@ export default function DashboardCompetitionsPage() {
   const [description, setDescription] = useState('');
   const [statusMsg, setStatusMsg] = useState(null);
 
-  const msg = (text, type = 'info') => {
+  const msg = useCallback((text, type = 'info') => {
     setStatusMsg({ text, type });
     setTimeout(() => setStatusMsg(null), 4000);
-  };
+  }, []);
 
   // Every failed call must surface a reason. A silent `if (code === 200)` makes
   // a dead endpoint look like a dead button.
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await api.listCompetitions();
     if (res.code === 200) {
       setCompetitions(res.data);
     } else {
       msg(t('competitionList.loadFailed', { msg: res.message || res.code }), 'error');
     }
-  };
+  }, [t, msg]);
 
   const handleDelete = async (e, competitionId, competitionName) => {
     e.preventDefault();
@@ -50,7 +50,7 @@ export default function DashboardCompetitionsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const handleCreate = async (e) => {
     e.preventDefault();

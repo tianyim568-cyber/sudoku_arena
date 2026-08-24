@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -34,31 +34,31 @@ export default function JudgeControlPage() {
   const [roomStatus, setRoomStatus] = useState(null);
   const [message, setMessage] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await api.getCompetition(competitionId);
     if (res.code === 200) setCompetition(res.data);
-  };
+  }, [competitionId]);
 
   // Stages come from their own endpoint — GET /competitions/:id returns a flat
   // round list, not the stage tree.
-  const loadStages = async () => {
+  const loadStages = useCallback(async () => {
     const res = await api.listStages(competitionId);
     if (res.code === 200 && Array.isArray(res.data)) setStages(res.data);
-  };
+  }, [competitionId]);
 
-  const loadRoomStatus = async () => {
+  const loadRoomStatus = useCallback(async () => {
     const res = await api.getRoomStatus(competitionId);
     if (res.code === 200) setRoomStatus(res.data);
-  };
+  }, [competitionId]);
 
-  useEffect(() => { load(); loadStages(); }, [competitionId]);
+  useEffect(() => { load(); loadStages(); }, [load, loadStages]);
   useEffect(() => {
     if (competition?.status === 'RUNNING' || competition?.status === 'PAUSED') {
       loadRoomStatus();
       const iv = setInterval(loadRoomStatus, 5000);
       return () => clearInterval(iv);
     }
-  }, [competition?.status]);
+  }, [competition?.status, loadRoomStatus]);
 
   const handleAction = async (action, ...args) => {
     try {

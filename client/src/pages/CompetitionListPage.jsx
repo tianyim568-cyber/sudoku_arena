@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -21,13 +21,13 @@ export default function CompetitionListPage() {
   const [statusMsg, setStatusMsg] = useState(null);
   const navigate = useNavigate();
 
-  const msg = (text, type = 'info') => {
+  const msg = useCallback((text, type = 'info') => {
     setStatusMsg({ text, type });
     setTimeout(() => setStatusMsg(null), 4000);
-  };
+  }, []);
 
   // See DashboardCompetitionsPage: a failed call must always state a reason.
-  const load = async () => {
+  const load = useCallback(async () => {
     const res = await api.listCompetitions();
     if (res.code === 200) {
       setCompetitions(res.data);
@@ -36,7 +36,7 @@ export default function CompetitionListPage() {
       setLoadError(res.message || t('competitionList.loadFailed', { msg: res.message || res.code }));
       msg(t('competitionList.loadFailed', { msg: res.message || res.code }), 'error');
     }
-  };
+  }, [t, msg]);
 
   const handleDelete = async (e, competitionId, competitionName) => {
     e.preventDefault();
@@ -51,7 +51,7 @@ export default function CompetitionListPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const handleCreate = async (e) => {
     e.preventDefault();

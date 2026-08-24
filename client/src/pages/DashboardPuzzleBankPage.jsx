@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
@@ -31,7 +31,7 @@ export default function DashboardPuzzleBankPage() {
   // tied to a specific round now (no generic pool). See
   // CompetitionDetailPage's RoundPdfImport section.
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const params = new URLSearchParams();
     if (filter.roundType) params.set('roundType', filter.roundType);
     if (filter.difficulty) params.set('difficulty', filter.difficulty);
@@ -40,18 +40,18 @@ export default function DashboardPuzzleBankPage() {
       setPuzzles(res.data.puzzles);
       setTotal(res.data.total);
     }
-  };
+  }, [filter]);
 
-  const loadRounds = async () => {
+  const loadRounds = useCallback(async () => {
     const tRes = await api.listCompetitions();
     if (tRes.code === 200 && tRes.data.length > 0) {
       const latest = tRes.data[tRes.data.length - 1];
       const rRes = await api.listRounds(latest.id);
       if (rRes.code === 200) setRounds(rRes.data);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); loadRounds(); }, [filter]);
+  useEffect(() => { load(); loadRounds(); }, [load, loadRounds]);
 
   const handleDelete = async (id) => {
     if (!confirm(t('puzzleBank.confirmDeletePuzzle', { id }))) return;
