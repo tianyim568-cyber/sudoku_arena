@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
@@ -30,6 +30,15 @@ export default function DashboardResultsPage() {
   // return 0 rows. The admin would stare at an empty table with no clue why.
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
+  // `t` is a language-scoped function that changes identity on every language
+  // switch. Putting it in an effect's dep array would re-fetch the data
+  // whenever the user toggles ZH ↔ EN, which is wasteful (the data itself
+  // does not change with language). We keep it in a ref so the fallback error
+  // messages still resolve in the CURRENT language when they fire, without
+  // re-triggering the fetch.
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
+
   // Load the competition list once. We only need id + name + status for the
   // picker — the full ranking snapshot is fetched on selection.
   useEffect(() => {
@@ -44,7 +53,7 @@ export default function DashboardResultsPage() {
           setSelectedId(res.data[0].id);
         }
       } else {
-        setLoadFailed(res.message || t('results.loadListFailed'));
+        setLoadFailed(res.message || tRef.current('results.loadListFailed'));
       }
     })();
   }, []);
@@ -69,7 +78,7 @@ export default function DashboardResultsPage() {
         const firstRound = res.data?.stages?.flatMap(s => s.rounds || [])?.[0];
         setActiveRoundId(firstRound?.id || '__final__');
       } else {
-        setLoadFailed(res.message || t('results.loadFailed'));
+        setLoadFailed(res.message || tRef.current('results.loadFailed'));
       }
     })();
   }, [selectedId, selectedCategoryId]);
