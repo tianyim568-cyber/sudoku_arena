@@ -21,6 +21,7 @@
  */
 
 const { getConnection } = require('../db/connection');
+const logger = require('../utils/logger');
 
 /**
  * Create tenantGuard middleware.
@@ -126,7 +127,7 @@ function tenantGuard(resource, options) {
 
       next();
     } catch (error) {
-      console.error('[tenantGuard] Error:', error.message);
+      logger.error('[tenantGuard] Error', { error: error.message });
       res.status(500).json({ code: 50001, message: '租户验证失败', data: null });
     }
   };

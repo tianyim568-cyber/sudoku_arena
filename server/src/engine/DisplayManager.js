@@ -12,6 +12,7 @@
 
 const crypto = require('crypto');
 const { getPrisma } = require('../db/prisma');
+const logger = require('../utils/logger');
 
 class DisplayManager {
   /**
@@ -421,7 +422,7 @@ class DisplayManager {
         },
       });
     } catch (e) {
-      console.error('[DisplayManager] emitRankingUpdate error:', e.message);
+      logger.error('[DisplayManager] emitRankingUpdate error', { error: e.message });
     }
   }
 
@@ -438,7 +439,7 @@ class DisplayManager {
       await this.setDisplayMode(competitionId, 'ROUND_RANKING');
       await this.emitRankingUpdate(competitionId, categoryId);
     } catch (e) {
-      console.error('[DisplayManager] emitRoundRanking error:', e.message);
+      logger.error('[DisplayManager] emitRoundRanking error', { error: e.message });
     }
   }
 
@@ -453,7 +454,7 @@ class DisplayManager {
       await this.setDisplayMode(competitionId, 'STAGE_RANKING');
       await this.emitRankingUpdate(competitionId, categoryId);
     } catch (e) {
-      console.error('[DisplayManager] emitStageRanking error:', e.message);
+      logger.error('[DisplayManager] emitStageRanking error', { error: e.message });
     }
   }
 
@@ -468,7 +469,7 @@ class DisplayManager {
       await this.setDisplayMode(competitionId, 'FINAL_RANKING');
       await this.emitRankingUpdate(competitionId, categoryId);
     } catch (e) {
-      console.error('[DisplayManager] emitFinalRanking error:', e.message);
+      logger.error('[DisplayManager] emitFinalRanking error', { error: e.message });
     }
   }
 
@@ -482,7 +483,7 @@ class DisplayManager {
       await this.setDisplayMode(competitionId, 'LIVE_RANKING');
       await this.emitRankingUpdate(competitionId, categoryId);
     } catch (e) {
-      console.error('[DisplayManager] emitLiveRanking error:', e.message);
+      logger.error('[DisplayManager] emitLiveRanking error', { error: e.message });
     }
   }
 

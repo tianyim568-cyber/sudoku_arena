@@ -27,6 +27,7 @@
 const { RoundError } = require('./errors');
 const { getPrisma } = require('../db/prisma');
 const { isValidRoundType } = require('./RoundTypes');
+const logger = require('../utils/logger');
 
 // ─── Round Lifecycle States ─────────────────────────────────────
 
@@ -671,7 +672,7 @@ class RoundManager {
         try {
           await onExpire(competitionId, this._context.roundId);
         } catch (e) {
-          console.error('[RoundManager] Timer expiry callback failed:', e.message);
+          logger.error('[RoundManager] Timer expiry callback failed', { error: e.message });
         }
       }
     );
