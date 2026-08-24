@@ -96,7 +96,12 @@ class StageManager {
       stageType: stage.type,
       stageOrder: stage.order_number,
       stageStatus: stage.status,
-      rounds: stage.rounds.map(r => ({
+      // ISSUE-033 fix (2026-08-24): the Prisma include should always
+      // return `rounds` as an array (empty when there are none), but
+      // older test mocks return a stage without the field at all. Guard
+      // with `?? []` so the loader survives — matches the "empty stage"
+      // case in production without pretending a missing key is data.
+      rounds: (stage.rounds ?? []).map(r => ({
         id: r.id,
         name: r.name,
         type: r.type,

@@ -236,6 +236,39 @@ function createGameRouter(repos, orchestrator) {
     const activeRound = await repos.competitions.findActiveRound(req.params.id);
 
     if (!activeRound) {
+      // Nothing IN_PROGRESS. But we might be in the preparation window
+      // between two rounds (DB status PENDING, orchestrator running a
+      // `prep_<roundId>` timer). Surface that so a player who refreshes
+      // during prep gets the preparation screen back instead of falling
+      // to the waiting screen. See CompetitionRepository.findPreparingRound
+      // for the rationale.
+      const preparingRound = await repos.competitions.findPreparingRound(req.params.id);
+      if (preparingRound) {
+        const prepTimer = await orchestrator.state.getRoundTimer(`prep_${preparingRound.id}`);
+        if (prepTimer && prepTimer.turnEndsAt) {
+          return res.json({
+            code: 200, message: 'success', data: {
+              competitionStatus: competition.status,
+              currentRound: {
+                id: preparingRound.id,
+                roundNumber: preparingRound.order_number,
+                name: preparingRound.name,
+                roundType: preparingRound.round_type,
+                durationSeconds: preparingRound.duration_seconds,
+                preparationSeconds: preparingRound.preparation_seconds,
+                // Explicit phase marker so the client can pick the
+                // preparation screen without inferring from timer shape.
+                status: 'PREPARING',
+              },
+              preparation: {
+                turnEndsAt: prepTimer.turnEndsAt,
+                durationSeconds: preparingRound.preparation_seconds,
+              },
+              puzzles: [],
+            }
+          });
+        }
+      }
       return res.json({
         code: 200, message: 'success', data: {
           competitionStatus: competition.status,

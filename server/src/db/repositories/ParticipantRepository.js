@@ -184,29 +184,45 @@ class ParticipantRepository {
    * @returns {Promise<object[]>}
    */
   async findByCompetition(competitionId) {
+    // F65 (2026-08-24): the judge monitoring panel needs to see each
+    // player's current score, age, and category — so pull them in the
+    // same query. round_rankings holds one row per (player, round),
+    // score is summed in JS after the query. That's O(N) memory per
+    // player but competitions have < 10 rounds, so it stays negligible.
     const players = await this.prisma.players.findMany({
       where: { competition_id: competitionId },
       include: {
         users: { select: { username: true } },
-        categories: { select: { name: true } },
-        // The participants table shows a team column. The old schema stored
-        // the name on the tournament_participants junction; the new one holds
-        // the link in team_members, so the name has to be joined back or the
-        // column renders empty for everyone.
+        // Full category shape (id/name/min_age/max_age) so the client
+        // can decide how to render it — a badge, a tooltip, whatever.
+        categories: { select: { id: true, name: true, min_age: true, max_age: true } },
         team_members: { include: { teams: { select: { name: true } } } },
+        // Only .score is needed for the aggregate — round_id is not
+        // exposed by this endpoint.
+        round_rankings: { select: { score: true } },
       },
       orderBy: { created_at: 'asc' },
     });
-    return players.map((p) => ({
-      ...p,
-      account: null, // account column removed
-      password: null, // password column removed (use users.password_hash)
-      school_name: p.school,
-      category: p.categories?.name ?? null,
-      username: p.users?.username ?? null,
-      display_name: p.name, // display_name column removed; name is the closest
-      team_name: p.team_members?.[0]?.teams?.name ?? null,
-    }));
+    return players.map((p) => {
+      const totalScore = (p.round_rankings || []).reduce(
+        (sum, r) => sum + (r.score || 0),
+        0
+      );
+      return {
+        ...p,
+        account: null, // account column removed
+        password: null, // password column removed (use users.password_hash)
+        school_name: p.school,
+        // category kept as a plain string for backward-compat with
+        // existing consumers; the full object is under `categoryObj`.
+        category: p.categories?.name ?? null,
+        categoryObj: p.categories ?? null,
+        username: p.users?.username ?? null,
+        display_name: p.name, // display_name column removed; name is the closest
+        team_name: p.team_members?.[0]?.teams?.name ?? null,
+        totalScore,
+      };
+    });
   }
 
   /**

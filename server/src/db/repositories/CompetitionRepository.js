@@ -227,6 +227,41 @@ class CompetitionRepository {
     }
     return null;
   }
+
+  /**
+   * Same shape as findActiveRound but for rounds in the preparation
+   * phase. `preparation` sits in-between two rounds: DB status is still
+   * PENDING but the orchestrator has started a `prep_<roundId>` timer.
+   * The caller checks the timer to distinguish "prep is running" from
+   * "round has never been touched".
+   *
+   * Introduced 2026-08-24 for the `/my-state` fix: a player who
+   * refreshes their page during the prep countdown used to fall back
+   * to the waiting screen because /my-state only knew about
+   * IN_PROGRESS. Now the route can ask for a PENDING round, check the
+   * prep timer, and reply with a `preparation` payload.
+   *
+   * @param {string} competitionId
+   * @returns {Promise<object|null>}
+   */
+  async findPreparingRound(competitionId) {
+    const stages = await this.prisma.competition_stages.findMany({
+      where: { competition_id: competitionId },
+      include: {
+        rounds: {
+          where: { status: 'PENDING' },
+          orderBy: { order_number: 'asc' },
+        },
+      },
+      orderBy: { order_number: 'asc' },
+    });
+    for (const stage of stages) {
+      if (stage.rounds.length > 0) {
+        return stage.rounds[0];
+      }
+    }
+    return null;
+  }
 }
 
 module.exports = CompetitionRepository;

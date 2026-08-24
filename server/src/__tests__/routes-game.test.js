@@ -107,6 +107,11 @@ function buildRepos() {
     competitions: {
       findById: jest.fn(async (id) => ({ id, name: 'Cup', status: 'IN_PROGRESS' })),
       findActiveRound: jest.fn(async () => null),
+      // Added 2026-08-24: /my-state now also asks for a round in the
+      // preparation phase (PENDING + a running prep timer) before
+      // returning currentRound: null. Default: none — the "no active
+      // round" test path stays valid.
+      findPreparingRound: jest.fn(async () => null),
     },
     rounds: {
       findByCompetitionAndStatus: jest.fn(async () => null),

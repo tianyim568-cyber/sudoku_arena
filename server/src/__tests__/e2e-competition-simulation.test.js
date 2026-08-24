@@ -285,6 +285,9 @@ describe('E2E Competition Simulation', () => {
           judges: [],
         })),
         findActiveRound: jest.fn(async () => null),
+        // Added 2026-08-24: /my-state now also looks for a preparing
+        // round (PENDING + running prep timer). Default: none.
+        findPreparingRound: jest.fn(async () => null),
       },
       rounds: {
         create: jest.fn(async ({ stageId, name, roundType, durationSeconds }) => {

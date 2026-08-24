@@ -39,7 +39,11 @@ function createMonitoringRouter(repos, state) {
    *       teamId: string | null,
    *       teamName: string | null,
    *       online: boolean,
-   *       lastHeartbeatAt: number | null
+   *       lastHeartbeatAt: number | null,
+   *       // F65 (2026-08-24) — enriched fields for the judge monitoring panel:
+   *       age: number | null,
+   *       category: { id, name, min_age, max_age } | null,
+   *       score: number   // sum of round_rankings.score for this player
    *     }>,
    *     summary: {
    *       total: number,
@@ -87,7 +91,11 @@ function createMonitoringRouter(repos, state) {
             teamId: p.team_members?.[0]?.team_id || null,
             teamName: p.team_name || null,
             online,
-            lastHeartbeatAt
+            lastHeartbeatAt,
+            // F65 — surfaced for the judge monitoring panel.
+            age: p.age ?? null,
+            category: p.categoryObj || null,
+            score: p.totalScore || 0,
           };
         });
 

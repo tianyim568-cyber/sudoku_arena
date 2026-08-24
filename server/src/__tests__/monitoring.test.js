@@ -196,6 +196,55 @@ describe('Monitoring Router', () => {
       });
     });
 
+    // F65 (2026-08-24): the judge monitoring payload was enriched with
+    // score, age and category so the judge panel can show them without a
+    // second fetch. This test pins the new fields end-to-end.
+    test('F65: exposes score, age and category alongside identity + presence', async () => {
+      mockRepos.teams.judgeAlreadyAssigned.mockResolvedValue(true);
+      const CAT = { id: 'cat-u12', name: 'U12', min_age: 8, max_age: 12 };
+      mockRepos.participants.findByCompetition.mockResolvedValue([
+        {
+          id: 'p1',
+          name: 'Alice',
+          school: 'School A',
+          team_members: [{ team_id: 't1' }],
+          team_name: 'Team Alpha',
+          user_id: 'user-1',
+          // Fields the repo now surfaces after the F65 fix.
+          age: 10,
+          categoryObj: CAT,
+          totalScore: 42,
+        },
+        {
+          id: 'p2',
+          name: 'Bob',
+          school: null,
+          team_members: [],
+          team_name: null,
+          user_id: 'user-2',
+          // A participant without a category or age is still valid (the
+          // Excel import allows both to be missing) — check nulls flow.
+          age: null,
+          categoryObj: null,
+          totalScore: 0,
+        },
+      ]);
+      mockState.getActivePlayers.mockResolvedValue({});
+
+      const app = buildApp(mockRepos, mockState);
+      const res = await request(app)
+        .get(`/api/competitions/${competitionId}/monitoring/participants`)
+        .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
+        .expect(200);
+
+      expect(res.body.data.participants[0]).toMatchObject({
+        id: 'p1', name: 'Alice', age: 10, score: 42, category: CAT,
+      });
+      expect(res.body.data.participants[1]).toMatchObject({
+        id: 'p2', name: 'Bob', age: null, score: 0, category: null,
+      });
+    });
+
     test('allows ORG_ADMIN to access monitoring', async () => {
       mockRepos.teams.judgeAlreadyAssigned.mockResolvedValue(true);
       mockRepos.participants.findByCompetition.mockResolvedValue([]);

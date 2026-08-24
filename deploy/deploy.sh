@@ -4,7 +4,12 @@
 
 set -e
 
-PUBLIC_IP=$(curl -s http://checkip.amazonaws.com 2>/dev/null || echo "39.96.84.142")
+PUBLIC_IP="${DEPLOY_HOST:-$(curl -s http://checkip.amazonaws.com 2>/dev/null)}"
+if [ -z "$PUBLIC_IP" ]; then
+  echo "!! Could not detect public IP and DEPLOY_HOST is not set." >&2
+  echo "!! Re-run with: DEPLOY_HOST=your.domain.example bash $0" >&2
+  exit 1
+fi
 DB_PASSWORD=$(openssl rand -base64 16 | tr -d '/+=')
 
 echo "=== Sudoku Arena Deployment Script ==="

@@ -819,7 +819,12 @@ class GameOrchestrator {
     if (hasNext) {
       const nextRound = await this.rounds.getNextRound();
       if (nextRound) {
-        // Emit transition event so clients can show "next round in X seconds"
+        // Emit transition event so clients can show "next round in X seconds".
+        // Include `turnEndsAt` (absolute ms) so clients compute the remaining
+        // countdown against the server clock, exactly like preparation and
+        // round timers. Otherwise the client had to derive the deadline from
+        // a bare duration and add its own now(), which drifts by the network
+        // round-trip. One-line consistency fix (2026-08-24, plan v2 §7).
         emissions.push({
           target: 'competition',
           targetId: competitionId,
@@ -831,6 +836,7 @@ class GameOrchestrator {
             nextRoundType: nextRound.type,
             nextRoundOrder: nextRound.order_number,
             transitionSeconds: DEFAULT_TRANSITION_SECONDS,
+            turnEndsAt: Date.now() + DEFAULT_TRANSITION_SECONDS * 1000,
           },
         });
 
