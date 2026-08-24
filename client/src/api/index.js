@@ -166,6 +166,10 @@ export const api = {
   deletePuzzleFromBank: (id) => request('DELETE', `/puzzle-bank/${id}`),
   clearPuzzleBank: () => request('DELETE', '/puzzle-bank'),
 
+  // PDF Import
+  uploadPdfPuzzles: (file) => uploadFile('/puzzle-bank/import-pdf', file),
+  confirmPdfPuzzles: (roundType) => request('POST', '/puzzle-bank/import-pdf/confirm', { roundType }),
+
   // Users
   listUsers: () => request('GET', '/users'),
 

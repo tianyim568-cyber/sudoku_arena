@@ -20,6 +20,13 @@ export default function DashboardPuzzleBankPage() {
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [clearing, setClearing] = useState(false);
+  // PDF import state — two-phase: upload → preview → confirm
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfParsed, setPdfParsed] = useState(null); // { questions, fileName, parsed, errors }
+  const [pdfConfirmRoundType, setPdfConfirmRoundType] = useState('');
+  const [pdfConfirming, setPdfConfirming] = useState(false);
+  const [pdfError, setPdfError] = useState(null);
 
   const load = async () => {
     const params = new URLSearchParams();
@@ -123,6 +130,46 @@ export default function DashboardPuzzleBankPage() {
     setImporting(false);
   };
 
+  // PDF Import — Phase 1: upload and parse
+  const handlePdfUpload = async () => {
+    if (!pdfFile) return;
+    setPdfUploading(true);
+    setPdfError(null);
+    setPdfParsed(null);
+    const res = await api.uploadPdfPuzzles(pdfFile);
+    if (res.code === 200) {
+      setPdfParsed(res.data);
+    } else {
+      setPdfError(res.message || 'PDF 解析失败');
+    }
+    setPdfUploading(false);
+  };
+
+  // PDF Import — Phase 2: confirm and write to bank
+  const handlePdfConfirm = async () => {
+    setPdfConfirming(true);
+    setPdfError(null);
+    const res = await api.confirmPdfPuzzles(pdfConfirmRoundType || null);
+    if (res.code === 200) {
+      alert(`成功导入 ${res.data.imported} 道题目${res.data.skipped > 0 ? `，跳过 ${res.data.skipped} 道重复题目` : ''}`);
+      // Reset PDF state after successful import
+      setPdfFile(null);
+      setPdfParsed(null);
+      setPdfConfirmRoundType('');
+      load(); // Refresh puzzle list
+    } else {
+      setPdfError(res.message || '导入失败');
+    }
+    setPdfConfirming(false);
+  };
+
+  const handlePdfReset = () => {
+    setPdfFile(null);
+    setPdfParsed(null);
+    setPdfConfirmRoundType('');
+    setPdfError(null);
+  };
+
   const difficultyColor = { EASY: 'bg-green-100 text-green-700', MEDIUM: 'bg-yellow-100 text-yellow-700', HARD: 'bg-red-100 text-red-700' };
   const roundTypeLabel = {
     ROUND1_NINE_ONE: t('common.roundShort.ROUND1_NINE_ONE'),
@@ -219,6 +266,140 @@ export default function DashboardPuzzleBankPage() {
             {importing ? t('puzzleBank.importing') : t('puzzleBank.importBtn')}
           </button>
         </div>
+      </section>
+
+      {/* PDF Import */}
+      <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-2">PDF 导入</h2>
+        <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
+          上传 PDF 文件，自动提取数独题目并导入题库
+        </p>
+
+        {!pdfParsed && (
+          <div className="space-y-3">
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={e => setPdfFile(e.target.files[0] || null)}
+              className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            />
+            {pdfFile && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePdfUpload}
+                  disabled={pdfUploading}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm"
+                >
+                  {pdfUploading ? '解析中...' : '解析 PDF'}
+                </button>
+                <button
+                  onClick={() => { setPdfFile(null); setPdfError(null); }}
+                  disabled={pdfUploading}
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 text-sm"
+                >
+                  取消
+                </button>
+              </div>
+            )}
+            {pdfError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {pdfError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {pdfParsed && (
+          <div className="space-y-4">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm font-medium text-green-900">
+                成功解析 {pdfParsed.parsed} 道题目
+              </p>
+              <p className="text-xs text-green-700 mt-1">
+                文件：{pdfParsed.fileName}
+              </p>
+              {pdfParsed.errors && pdfParsed.errors.length > 0 && (
+                <div className="mt-2 text-xs text-yellow-700">
+                  <p className="font-medium">警告：</p>
+                  <ul className="list-disc list-inside ml-2">
+                    {pdfParsed.errors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="max-h-96 overflow-y-auto border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">ID</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">类型</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">难度</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">分数</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">空格数</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-500">预览</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pdfParsed.questions.map((q, i) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 font-mono text-xs">{q.id}</td>
+                      <td className="px-3 py-2 text-gray-600">{q.type}</td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${difficultyColor[q.difficulty] || ''}`}>
+                          {q.difficulty}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-gray-600">{q.score}</td>
+                      <td className="px-3 py-2 text-gray-600">{q.emptyCellCount}</td>
+                      <td className="px-3 py-2">
+                        <SudokuPreview grid={q.initialGrid} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 border-t">
+              <label className="text-sm text-gray-700 font-medium">目标轮次（可选）：</label>
+              <select
+                value={pdfConfirmRoundType}
+                onChange={e => setPdfConfirmRoundType(e.target.value)}
+                className="px-3 py-2 border rounded-lg text-sm flex-1 w-full sm:w-auto"
+              >
+                <option value="">不指定（通用题库）</option>
+                <option value="ROUND1_NINE_ONE">{t('common.roundName.ROUND1_NINE_ONE')}</option>
+                <option value="ROUND2_RELAY">{t('common.roundName.ROUND2_RELAY')}</option>
+                <option value="ROUND3_COLLABORATE">{t('common.roundName.ROUND3_COLLABORATE')}</option>
+              </select>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  onClick={handlePdfConfirm}
+                  disabled={pdfConfirming}
+                  className="flex-1 sm:flex-initial px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm"
+                >
+                  {pdfConfirming ? '导入中...' : '确认导入'}
+                </button>
+                <button
+                  onClick={handlePdfReset}
+                  disabled={pdfConfirming}
+                  className="flex-1 sm:flex-initial px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 text-sm"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+
+            {pdfError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {pdfError}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Filters */}
