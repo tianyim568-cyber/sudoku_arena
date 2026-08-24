@@ -26,13 +26,10 @@ export default function DashboardPuzzleBankPage() {
   const [individualGenerating, setIndividualGenerating] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [clearing, setClearing] = useState(false);
-  // PDF import state — two-phase: upload → preview → confirm
-  const [pdfFile, setPdfFile] = useState(null);
-  const [pdfUploading, setPdfUploading] = useState(false);
-  const [pdfParsed, setPdfParsed] = useState(null); // { questions, fileName, parsed, errors }
-  const [pdfConfirmRoundType, setPdfConfirmRoundType] = useState('');
-  const [pdfConfirming, setPdfConfirming] = useState(false);
-  const [pdfError, setPdfError] = useState(null);
+  // PDF import used to live here too. As of 2026-08-24 it moved to the
+  // competition detail page, per-round — a batch of PDF puzzles must be
+  // tied to a specific round now (no generic pool). See
+  // CompetitionDetailPage's RoundPdfImport section.
 
   const load = async () => {
     const params = new URLSearchParams();
@@ -163,52 +160,6 @@ export default function DashboardPuzzleBankPage() {
       alert(t('puzzleBank.importFailedAlert', { msg: res.message }));
     }
     setImporting(false);
-  };
-
-  // PDF Import — Phase 1: upload and parse
-  const handlePdfUpload = async () => {
-    if (!pdfFile) return;
-    setPdfUploading(true);
-    setPdfError(null);
-    setPdfParsed(null);
-    const res = await api.uploadPdfPuzzles(pdfFile);
-    if (res.code === 200) {
-      setPdfParsed(res.data);
-    } else {
-      setPdfError(res.message || t('puzzleBank.pdfParseFailed'));
-    }
-    setPdfUploading(false);
-  };
-
-  // PDF Import — Phase 2: confirm and write to bank
-  const handlePdfConfirm = async () => {
-    setPdfConfirming(true);
-    setPdfError(null);
-    const res = await api.confirmPdfPuzzles(pdfConfirmRoundType || null);
-    if (res.code === 200) {
-      const msg = res.data.skipped > 0
-        ? t('puzzleBank.pdfImportedWithSkipped', { n: res.data.imported, skipped: res.data.skipped })
-        : t('puzzleBank.pdfImportedSummary', { n: res.data.imported });
-      const extra = res.data.strippedCategoryIds > 0
-        ? '\n' + t('puzzleBank.pdfImportedStripped', { n: res.data.strippedCategoryIds })
-        : '';
-      alert(msg + extra);
-      // Reset PDF state after successful import
-      setPdfFile(null);
-      setPdfParsed(null);
-      setPdfConfirmRoundType('');
-      load(); // Refresh puzzle list
-    } else {
-      setPdfError(res.message || t('puzzleBank.pdfImportFailed'));
-    }
-    setPdfConfirming(false);
-  };
-
-  const handlePdfReset = () => {
-    setPdfFile(null);
-    setPdfParsed(null);
-    setPdfConfirmRoundType('');
-    setPdfError(null);
   };
 
   const difficultyColor = { EASY: 'bg-green-100 text-green-700', MEDIUM: 'bg-yellow-100 text-yellow-700', HARD: 'bg-red-100 text-red-700' };
@@ -343,142 +294,9 @@ export default function DashboardPuzzleBankPage() {
         </div>
       </section>
 
-      {/* PDF Import */}
-      <section className="bg-white rounded-xl shadow p-4 sm:p-6">
-        <h2 className="text-base sm:text-lg font-semibold mb-2">{t('puzzleBank.pdfTitle')}</h2>
-        <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
-          {t('puzzleBank.pdfDesc')}
-        </p>
-
-        {!pdfParsed && (
-          <div className="space-y-3">
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={e => setPdfFile(e.target.files[0] || null)}
-              aria-label={t('puzzleBank.pdfSelectFile')}
-              className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-            />
-            {pdfFile && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePdfUpload}
-                  disabled={pdfUploading}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm"
-                >
-                  {pdfUploading ? t('puzzleBank.pdfParsing') : t('puzzleBank.pdfParseBtn')}
-                </button>
-                <button
-                  onClick={() => { setPdfFile(null); setPdfError(null); }}
-                  disabled={pdfUploading}
-                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 text-sm"
-                >
-                  {t('puzzleBank.pdfCancel')}
-                </button>
-              </div>
-            )}
-            {pdfError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {pdfError}
-              </div>
-            )}
-          </div>
-        )}
-
-        {pdfParsed && (
-          <div className="space-y-4">
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm font-medium text-green-900">
-                {t('puzzleBank.pdfParsedSummary', { n: pdfParsed.parsed })}
-              </p>
-              <p className="text-xs text-green-700 mt-1">
-                {t('puzzleBank.pdfFileName', { name: pdfParsed.fileName })}
-              </p>
-              {pdfParsed.errors && pdfParsed.errors.length > 0 && (
-                <div className="mt-2 text-xs text-yellow-700">
-                  <p className="font-medium">{t('puzzleBank.pdfWarnings')}</p>
-                  <ul className="list-disc list-inside ml-2">
-                    {pdfParsed.errors.map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            <div className="max-h-96 overflow-y-auto border rounded-lg">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColId')}</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColType')}</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColDifficulty')}</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColScore')}</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColEmptyCells')}</th>
-                    <th className="px-3 py-2 text-left font-medium text-gray-500">{t('puzzleBank.pdfColPreview')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {pdfParsed.questions.map((q, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-mono text-xs">{q.id}</td>
-                      <td className="px-3 py-2 text-gray-600">{q.type}</td>
-                      <td className="px-3 py-2">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${difficultyColor[q.difficulty] || ''}`}>
-                          {q.difficulty}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-gray-600">{q.score}</td>
-                      <td className="px-3 py-2 text-gray-600">{q.emptyCellCount}</td>
-                      <td className="px-3 py-2">
-                        <SudokuPreview grid={q.initialGrid} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-3 border-t">
-              <label htmlFor="pdfConfirmRoundType" className="text-sm text-gray-700 font-medium">{t('puzzleBank.pdfTargetRound')}</label>
-              <select
-                id="pdfConfirmRoundType"
-                value={pdfConfirmRoundType}
-                onChange={e => setPdfConfirmRoundType(e.target.value)}
-                className="px-3 py-2 border rounded-lg text-sm flex-1 w-full sm:w-auto"
-              >
-                <option value="">{t('puzzleBank.pdfTargetRoundGeneric')}</option>
-                <option value="ROUND1_NINE_ONE">{t('common.roundName.ROUND1_NINE_ONE')}</option>
-                <option value="ROUND2_RELAY">{t('common.roundName.ROUND2_RELAY')}</option>
-                <option value="ROUND3_COLLABORATE">{t('common.roundName.ROUND3_COLLABORATE')}</option>
-                <option value="INDIVIDUAL_STANDARD">{t('common.roundName.INDIVIDUAL_STANDARD')}</option>
-              </select>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  onClick={handlePdfConfirm}
-                  disabled={pdfConfirming}
-                  className="flex-1 sm:flex-initial px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium disabled:opacity-50 text-sm"
-                >
-                  {pdfConfirming ? t('puzzleBank.pdfConfirming') : t('puzzleBank.pdfConfirmBtn')}
-                </button>
-                <button
-                  onClick={handlePdfReset}
-                  disabled={pdfConfirming}
-                  className="flex-1 sm:flex-initial px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium disabled:opacity-50 text-sm"
-                >
-                  {t('puzzleBank.pdfCancel')}
-                </button>
-              </div>
-            </div>
-
-            {pdfError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {pdfError}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      {/* PDF import used to live here — moved to the competition detail
+          page, per-round, so every batch is tied to a specific round
+          (2026-08-24 product decision). Nothing here on purpose. */}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2 sm:gap-3">

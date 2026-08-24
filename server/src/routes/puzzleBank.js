@@ -202,23 +202,23 @@ function createPuzzleBankRouter(repos) {
     }
   );
 
-  // Phase 2: confirm — write the stashed questions into the puzzle bank.
+  // Phase 2: confirm — write the stashed questions into the puzzle bank
+  // AND immediately import them into the target round.
   //
-  // The admin sends { roundType } to tag all imported puzzles with a target
-  // round. Without it, they land as 'IMPORTED' — still visible in the bank,
-  // but not matched by round-specific import-to-round logic.
+  // Product decision 2026-08-24: every batch of PDF puzzles must be tied
+  // to a specific round (roundId, not roundType). There is no "generic
+  // pool" any more — a puzzle uploaded for round R belongs to R and
+  // nowhere else. This is what the request body carries, what the route
+  // enforces, and what makes the puzzle bank consistent with the round
+  // list from an admin's mental model.
   //
-  // BUG-PDF-06: request body is validated by pdfConfirmSchema so a rogue
-  //   `roundType` can never reach the bank untagged.
-  // BUG-PDF-07: rate-limited with expensiveLimiter — the disk write is
-  //   cheap per call, but a spammed loop of confirms could still churn
-  //   the bank file. Same protection as the upload phase.
-  // BUG-PDF-03: any categoryId inside the PDF is checked against the
-  //   caller's organization; foreign categories are dropped to null
-  //   rather than passed through (would leak an ID across tenants).
-  // BUG-PDF-01: the "already-exists" check is scoped to this org, not
-  //   the whole bank — otherwise the presence of a puzzle id in another
-  //   org would silently skip the import AND leak that the id exists.
+  // Guarantees checked here:
+  //   PDF-01 org-scoped duplicate check + org-scoped orderInRound counter.
+  //   PDF-03 categoryId cross-tenant validation (foreign ids stripped).
+  //   PDF-06 request body validated by pdfConfirmSchema (roundId is a UUID).
+  //   PDF-07 rate-limited with expensiveLimiter.
+  //   Round tenant guard: the round must belong to a competition owned
+  //     by the caller's organization. Anything else is 403.
   router.post(
     '/puzzle-bank/import-pdf/confirm',
     expensiveLimiter,
@@ -231,21 +231,63 @@ function createPuzzleBankRouter(repos) {
         return res.json({ code: 40020, message: '没有待确认的 PDF 导入，请先上传文件', data: null });
       }
 
-      const { roundType } = req.body || {};
+      const { roundId } = req.body;
       const organizationId = req.user.organizationId;
+      const prisma = getPrisma();
 
-      // BUG-PDF-03: collect every categoryId the PDF referenced and check
-      // in one query that they all belong to the caller's org. Foreign
-      // categories are stripped (set to null on the puzzle) — dropping
-      // silently is safer than throwing, since a comité may have re-used
-      // an old PDF with stale ids and we do not want to fail the batch.
+      // Fetch the round + its competition's org in one query. If the
+      // competition doesn't belong to the caller, we return 403 without
+      // leaking whether the round even exists.
+      let round;
+      try {
+        round = await prisma.rounds.findUnique({
+          where: { id: roundId },
+          select: {
+            id: true,
+            round_type: true,
+            competition_stages: {
+              select: { competitions: { select: { organization_id: true } } },
+            },
+          },
+        });
+      } catch (err) {
+        logger.error('[puzzle-bank] round lookup failed', { error: err.message });
+        return res.json({ code: 50000, message: '校验轮次失败，请稍后再试', data: null });
+      }
+      if (!round) {
+        return res.json({ code: 40400, message: '轮次不存在', data: null });
+      }
+      const roundOrgId = round.competition_stages?.competitions?.organization_id;
+      if (roundOrgId !== organizationId) {
+        return res.json({ code: 40301, message: '无权在此轮次导入题目', data: null });
+      }
+
+      // Refuse to overwrite a round that already has puzzles — matches the
+      // existing importToRound rule. Prevents an admin from wiping their
+      // work by mistake with a new PDF upload.
+      let existingCount = 0;
+      try {
+        existingCount = await repos.puzzles.countByRound(roundId);
+      } catch (err) {
+        logger.error('[puzzle-bank] countByRound failed', { error: err.message });
+        return res.json({ code: 50000, message: '校验轮次失败，请稍后再试', data: null });
+      }
+      if (existingCount > 0) {
+        return res.json({
+          code: 40030,
+          message: '该轮次已有题目，请先清除再导入',
+          data: { existing: existingCount },
+        });
+      }
+
+      // PDF-03: check every referenced categoryId against the caller's org
+      // in one query. Foreign ids get stripped rather than passing through.
       const referencedCategoryIds = [
         ...new Set(stash.questions.map(q => q.categoryId).filter(Boolean)),
       ];
       let validCategoryIds = new Set();
       if (referencedCategoryIds.length > 0) {
         try {
-          const prisma = getPrisma();
           const owned = await prisma.categories.findMany({
             where: {
               id: { in: referencedCategoryIds },
@@ -265,22 +307,21 @@ function createPuzzleBankRouter(repos) {
       let strippedCategoryCount = 0;
 
       for (const q of stash.questions) {
-        // BUG-PDF-03: strip any categoryId the caller does not own.
         const safeQuestion =
           q.categoryId && !validCategoryIds.has(q.categoryId)
             ? (strippedCategoryCount++, { ...q, categoryId: null })
             : q;
 
+        // Tag every puzzle with the round's actual type so
+        // `importToRound` can match them.
         const entry = pdfImportService.toPuzzleBankEntry(
           safeQuestion,
-          roundType || 'IMPORTED',
+          round.round_type,
           organizationId
         );
 
-        // BUG-PDF-01: only look at this org's puzzles when checking for
-        // duplicates. Since the id is regenerated (BUG-PDF-02) collisions
-        // are practically impossible now — this filter is defense in
-        // depth for future changes.
+        // PDF-01: scoped duplicate check (defense in depth — ids are
+        // regenerated via crypto.randomUUID so collisions are astronomical).
         if (
           bank.puzzles.some(
             p => p.id === entry.id && p.organizationId === organizationId
@@ -301,7 +342,34 @@ function createPuzzleBankRouter(repos) {
       bank.puzzles.push(...newPuzzles);
       puzzleBankService._save();
 
-      // Clear the stash after successful confirm — prevents double-confirm.
+      // Auto-import into the target round. Guarantees the "every batch
+      // belongs to one round" rule at write time: an admin never has a
+      // window where the PDF puzzles are in the bank but not in a round.
+      let importResult = { imported: 0 };
+      try {
+        importResult = await puzzleBankService.importToRound({
+          roundId,
+          puzzleIds: newPuzzles.map(p => p.id),
+        });
+      } catch (err) {
+        logger.error('[puzzle-bank] importToRound after PDF confirm failed', {
+          error: err.message, roundId,
+        });
+        // The bank has been written — return partial success so the admin
+        // knows to re-run the round-import manually.
+        return res.json({
+          code: 50001,
+          message: '题目已入库，但导入到轮次失败，请手动重试',
+          data: {
+            imported: newPuzzles.length,
+            importedToRound: 0,
+            totalInBank: bank.puzzles.length,
+            newPuzzleIds: newPuzzles.map(p => p.id),
+          },
+        });
+      }
+
+      // Clear the stash after a fully successful confirm.
       pdfStash.delete(req.user.userId);
 
       res.json({
@@ -309,6 +377,7 @@ function createPuzzleBankRouter(repos) {
         message: 'success',
         data: {
           imported: newPuzzles.length,
+          importedToRound: importResult.imported || newPuzzles.length,
           skipped: stash.questions.length - newPuzzles.length,
           strippedCategoryIds: strippedCategoryCount,
           totalInBank: bank.puzzles.length,

@@ -16,6 +16,15 @@
 // test controls the parser output without shipping a real PDF blob.
 // PuzzleBankService's file IO is stubbed via _load/_save spies.
 
+// Bypass rate limiters — the suite runs 18 requests from the same IP,
+// which trips express-rate-limit's default ceiling and swaps the real
+// status codes for 429s. The route's rate-limit protection is tested
+// separately (rateLimiters.test.js in the security-audit suite).
+jest.mock('../middleware/rateLimiters', () => ({
+  authLimiter: (req, res, next) => next(),
+  expensiveLimiter: (req, res, next) => next(),
+}));
+
 jest.mock('pdf-parse', () => ({
   PDFParse: jest.fn().mockImplementation(function ({ data }) {
     this.getText = jest.fn(async () => ({ text: mockPdfText }));
@@ -24,18 +33,24 @@ jest.mock('pdf-parse', () => ({
 
 let mockPdfText = '';
 
-// getPrisma mock — the /confirm route calls prisma.categories.findMany
-// to validate that CATEGORY_IDs belong to the caller's org.
+// getPrisma mock — the /confirm route calls:
+//   - prisma.rounds.findUnique (tenant guard + round.round_type lookup)
+//   - prisma.categories.findMany (foreign categoryId check)
 const mockCategoriesFindMany = jest.fn();
+const mockRoundsFindUnique = jest.fn();
 jest.mock('../db/prisma', () => ({
   getPrisma: () => ({
     categories: { findMany: mockCategoriesFindMany },
+    rounds: { findUnique: mockRoundsFindUnique },
   }),
 }));
 
 // PuzzleBankService — stub the disk IO. The bank starts empty and grows
-// as the route pushes into it.
+// as the route pushes into it. importToRound is called automatically by
+// the confirm route after the bank is written; the tests inspect that
+// call to prove the "one batch, one round" guarantee.
 const bankState = { meta: {}, puzzles: [] };
+const mockImportToRound = jest.fn(async ({ puzzleIds }) => ({ imported: puzzleIds?.length ?? 0 }));
 jest.mock('../services/PuzzleBankService', () => {
   return jest.fn().mockImplementation(function () {
     this._load = jest.fn(() => bankState);
@@ -45,11 +60,18 @@ jest.mock('../services/PuzzleBankService', () => {
     this.getPuzzlePreview = jest.fn();
     this.generatePuzzles = jest.fn();
     this.generateBulk = jest.fn();
-    this.importToRound = jest.fn();
+    this.importToRound = mockImportToRound;
     this.deletePuzzle = jest.fn();
     this.clearAll = jest.fn();
   });
 });
+
+// Repo — the route now calls repos.puzzles.countByRound to refuse
+// overwriting a round that already holds puzzles.
+const mockCountByRound = jest.fn(async () => 0);
+function buildRepos() {
+  return { puzzles: { countByRound: mockCountByRound } };
+}
 
 const express = require('express');
 const request = require('supertest');
@@ -88,8 +110,26 @@ function pdfWithPages(pages) {
 function buildApp() {
   const app = express();
   app.use(express.json());
-  app.use('/api', createPuzzleBankRouter({}));
+  app.use('/api', createPuzzleBankRouter(buildRepos()));
   return app;
+}
+
+// Convenient defaults for a "healthy" round owned by ORG_A. Individual
+// tests override to test tenant guards / not-found / already-populated.
+const ROUND_A_ID = '99999999-9999-4999-8999-999999999999';
+const ROUND_B_ID = '88888888-8888-4888-8888-888888888888';
+
+function mockRoundOwnedBy(orgId, { roundId = ROUND_A_ID, roundType = 'INDIVIDUAL_STANDARD' } = {}) {
+  mockRoundsFindUnique.mockImplementation(async ({ where }) => {
+    if (where.id !== roundId) return null;
+    return {
+      id: roundId,
+      round_type: roundType,
+      competition_stages: {
+        competitions: { organization_id: orgId },
+      },
+    };
+  });
 }
 
 // Minimal valid PDF magic bytes so validateFileType lets the request
@@ -104,6 +144,8 @@ beforeEach(() => {
   bankState.puzzles = [];
   mockPdfText = '';
   mockCategoriesFindMany.mockResolvedValue([]);
+  mockCountByRound.mockResolvedValue(0);
+  mockImportToRound.mockImplementation(async ({ puzzleIds }) => ({ imported: puzzleIds?.length ?? 0 }));
 });
 
 describe('POST /api/puzzle-bank/import-pdf (phase 1)', () => {
@@ -157,6 +199,9 @@ describe('POST /api/puzzle-bank/import-pdf (phase 1)', () => {
 });
 
 describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
+  // Every phase-2 test needs a stash (built by upload) AND a round
+  // fixture (returned by the prisma mock). The confirm route rejects
+  // both "no stash" and "roundId not found or foreign".
   async function upload(app, token, questionSpecs) {
     mockPdfText = pdfWithPages(questionSpecs.map(pageForQuestion));
     const res = await request(app)
@@ -167,141 +212,195 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
   }
 
   test('rejects if no stash exists for the user (40020)', async () => {
+    mockRoundOwnedBy(ORG_A);
     const res = await request(buildApp())
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'INDIVIDUAL_STANDARD' });
+      .send({ roundId: ROUND_A_ID });
     expect(res.body.code).toBe(40020);
   });
 
-  test('rejects an invalid roundType via Zod (BUG-PDF-06)', async () => {
+  test('rejects a body that is missing roundId (Zod, BUG-PDF-06)', async () => {
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'ROUND9000_INJECTION' });
-    // validateBody returns HTTP 200 with a { code: 40001 } envelope
-    // (that's the app-wide convention — HTTP 200 for expected errors,
-    // 4xx only for auth / transport failures).
+      .send({}); // no roundId
     expect(res.body.code).toBe(40001);
   });
 
-  test('accepts a valid roundType and writes into the bank scoped to Org A', async () => {
+  test('rejects a roundId that is not a UUID (Zod)', async () => {
+    const app = buildApp();
+    await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
+    const res = await request(app)
+      .post('/api/puzzle-bank/import-pdf/confirm')
+      .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
+      .send({ roundId: 'not-a-uuid' });
+    expect(res.body.code).toBe(40001);
+  });
+
+  test('rejects a roundId that does not exist (404)', async () => {
+    mockRoundsFindUnique.mockResolvedValue(null);
+    const app = buildApp();
+    await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
+    const res = await request(app)
+      .post('/api/puzzle-bank/import-pdf/confirm')
+      .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
+      .send({ roundId: ROUND_A_ID });
+    expect(res.body.code).toBe(40400);
+  });
+
+  test('TENANT: rejects a roundId that belongs to another org (403)', async () => {
+    // The round exists but its competition is owned by Org B.
+    mockRoundOwnedBy(ORG_B, { roundId: ROUND_B_ID });
+    const app = buildApp();
+    await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
+    const res = await request(app)
+      .post('/api/puzzle-bank/import-pdf/confirm')
+      .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
+      .send({ roundId: ROUND_B_ID });
+    expect(res.body.code).toBe(40301);
+    // Nothing was written to the bank.
+    expect(bankState.puzzles).toHaveLength(0);
+  });
+
+  test('refuses to overwrite a round that already holds puzzles (40030)', async () => {
+    mockRoundOwnedBy(ORG_A);
+    mockCountByRound.mockResolvedValue(5); // round already populated
+    const app = buildApp();
+    await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
+    const res = await request(app)
+      .post('/api/puzzle-bank/import-pdf/confirm')
+      .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
+      .send({ roundId: ROUND_A_ID });
+    expect(res.body.code).toBe(40030);
+    expect(res.body.data.existing).toBe(5);
+    // Nothing written to the bank, nothing imported to the round.
+    expect(bankState.puzzles).toHaveLength(0);
+    expect(mockImportToRound).not.toHaveBeenCalled();
+  });
+
+  test('writes into the bank AND auto-imports into the round in one action', async () => {
+    mockRoundOwnedBy(ORG_A, { roundType: 'INDIVIDUAL_STANDARD' });
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001' }, { id: '002' }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'INDIVIDUAL_STANDARD' });
+      .send({ roundId: ROUND_A_ID });
     expect(res.body.code).toBe(200);
     expect(res.body.data.imported).toBe(2);
-    // Every bank entry is stamped with Org A and a server-generated id.
+    expect(res.body.data.importedToRound).toBe(2);
+    // Every bank entry is stamped with Org A, the round's type, and a
+    // server-generated id — no PDF value ever becomes a bank key.
     for (const p of bankState.puzzles) {
       expect(p.organizationId).toBe(ORG_A);
+      expect(p.roundType).toBe('INDIVIDUAL_STANDARD');
       expect(p.id).toMatch(/^PDF-[0-9a-f-]{36}$/);
       expect(p.source).toBe('PDF_IMPORT');
     }
+    // importToRound was called with the caller's roundId and the ids
+    // that were just written — the "one batch, one round" guarantee.
+    expect(mockImportToRound).toHaveBeenCalledTimes(1);
+    const call = mockImportToRound.mock.calls[0][0];
+    expect(call.roundId).toBe(ROUND_A_ID);
+    expect(call.puzzleIds).toHaveLength(2);
   });
 
   test('CROSS-TENANT: Org B cannot confirm using Org A stash', async () => {
+    mockRoundOwnedBy(ORG_B, { roundId: ROUND_B_ID });
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
+    // Org B sends its own valid roundId — but has no stash of its own.
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_B_TOKEN}`)
-      .send({ roundType: 'INDIVIDUAL_STANDARD' });
-    // No stash for Org B → 40020, not accidental access to Org A's stash.
+      .send({ roundId: ROUND_B_ID });
     expect(res.body.code).toBe(40020);
   });
 
-  test('CROSS-TENANT: duplicate check does not leak Org A puzzles when Org B imports (BUG-PDF-01)', async () => {
-    // Contrived scenario: seed the bank with an Org A puzzle whose id
-    // starts with "PDF-" (matches what the server generates). Since the
-    // duplicate check MUST filter by organizationId too, an Org B import
-    // whose freshly-generated id happens to already exist for Org A
-    // would still land — and, more importantly, an Org B import that
-    // reuses an Org A id would NOT reveal that fact to the caller via
-    // a silent skip.
-    //
-    // We can't force an id collision (UUIDs are random) so we test the
-    // easier invariant: with an existing Org A puzzle in the bank, an
-    // Org B import of N questions still inserts N puzzles. The filter
-    // must scope by organizationId or the count would drift.
-    bankState.puzzles.push({ id: 'PDF-existing-org-a-1', organizationId: ORG_A, roundType: 'IMPORTED' });
-    bankState.puzzles.push({ id: 'PDF-existing-org-a-2', organizationId: ORG_A, roundType: 'IMPORTED' });
+  test('CROSS-TENANT: bank duplicate check is org-scoped (PDF-01)', async () => {
+    mockRoundOwnedBy(ORG_B, { roundId: ROUND_B_ID });
+    // Seed the bank with existing Org A entries; Org B's import must
+    // still count from 1 and land the full batch.
+    bankState.puzzles.push({ id: 'PDF-existing-org-a-1', organizationId: ORG_A, roundType: 'INDIVIDUAL_STANDARD' });
+    bankState.puzzles.push({ id: 'PDF-existing-org-a-2', organizationId: ORG_A, roundType: 'INDIVIDUAL_STANDARD' });
     const app = buildApp();
     await upload(app, ADMIN_B_TOKEN, [{ id: '101' }, { id: '102' }, { id: '103' }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_B_TOKEN}`)
-      .send({ roundType: 'IMPORTED' });
+      .send({ roundId: ROUND_B_ID });
     expect(res.body.code).toBe(200);
     expect(res.body.data.imported).toBe(3);
-    // Org B has exactly the 3 it imported; Org A still has its 2 seeded.
     const orgBEntries = bankState.puzzles.filter(p => p.organizationId === ORG_B);
     const orgAEntries = bankState.puzzles.filter(p => p.organizationId === ORG_A);
     expect(orgBEntries).toHaveLength(3);
     expect(orgAEntries).toHaveLength(2);
-    // orderInRound is scoped to the caller org — Org B starts at 1 even
-    // though the bank already holds Org A entries for the same roundType.
-    const orgBOrders = orgBEntries.map(p => p.orderInRound).sort();
-    expect(orgBOrders).toEqual([1, 2, 3]);
+    expect(orgBEntries.map(p => p.orderInRound).sort()).toEqual([1, 2, 3]);
   });
 
-  test('BUG-PDF-03: strips foreign categoryId (belongs to another org)', async () => {
-    // Admin A uploads a PDF referencing a categoryId — but the categories
-    // table says that id belongs to Org B (not returned by findMany).
-    mockCategoriesFindMany.mockResolvedValue([]); // nothing owned by Org A
+  test('PDF-03: strips foreign categoryId (belongs to another org)', async () => {
+    mockRoundOwnedBy(ORG_A);
+    mockCategoriesFindMany.mockResolvedValue([]); // Org A owns none of them
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001', categoryId: VALID_UUID_B }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'INDIVIDUAL_STANDARD' });
+      .send({ roundId: ROUND_A_ID });
     expect(res.body.code).toBe(200);
     expect(res.body.data.imported).toBe(1);
     expect(res.body.data.strippedCategoryIds).toBe(1);
     expect(bankState.puzzles[0].categoryId).toBeNull();
   });
 
-  test('BUG-PDF-03: keeps categoryId that belongs to the caller org', async () => {
+  test('PDF-03: keeps categoryId that belongs to the caller org', async () => {
+    mockRoundOwnedBy(ORG_A);
     mockCategoriesFindMany.mockResolvedValue([{ id: VALID_UUID_A }]);
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001', categoryId: VALID_UUID_A }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'INDIVIDUAL_STANDARD' });
+      .send({ roundId: ROUND_A_ID });
     expect(res.body.code).toBe(200);
     expect(res.body.data.strippedCategoryIds).toBe(0);
     expect(bankState.puzzles[0].categoryId).toBe(VALID_UUID_A);
   });
 
   test('clears the stash after a successful confirm (no double-confirm)', async () => {
+    mockRoundOwnedBy(ORG_A);
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
     const first = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'IMPORTED' });
+      .send({ roundId: ROUND_A_ID });
     expect(first.body.code).toBe(200);
 
     const second = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: 'IMPORTED' });
+      .send({ roundId: ROUND_A_ID });
     expect(second.body.code).toBe(40020);
   });
 
-  test('accepts a null roundType (generic pool)', async () => {
+  test('partial-success envelope when the bank write succeeds but importToRound throws', async () => {
+    mockRoundOwnedBy(ORG_A);
+    mockImportToRound.mockRejectedValueOnce(new Error('database timeout'));
     const app = buildApp();
     await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
       .set('Authorization', `Bearer ${ADMIN_A_TOKEN}`)
-      .send({ roundType: null });
-    expect(res.body.code).toBe(200);
-    expect(bankState.puzzles[0].roundType).toBe('IMPORTED');
+      .send({ roundId: ROUND_A_ID });
+    expect(res.body.code).toBe(50001);
+    expect(res.body.data.imported).toBe(1);
+    expect(res.body.data.importedToRound).toBe(0);
+    // Puzzles are in the bank — the admin can retry the round-import
+    // manually via "Import from bank".
+    expect(bankState.puzzles).toHaveLength(1);
   });
 });

@@ -23,23 +23,13 @@ const importToRoundSchema = z.object({
 });
 
 // Zod schema for POST /api/puzzle-bank/import-pdf/confirm.
-// `roundType` is optional — omitted means the puzzles land under the
-// generic 'IMPORTED' pool. If given, it must be one of the known enum
-// values so the puzzle can later be matched by the round-import logic.
-// `null` is accepted (the client sends null for "no target round").
+// `roundId` is REQUIRED — every batch of PDF puzzles must land inside a
+// specific round. There is no "generic pool" any more: this rule (2026-08-24
+// product decision) means the puzzles you upload for round R belong to R and
+// nowhere else. The route verifies the round exists AND belongs to the
+// caller's org before writing anything.
 const pdfConfirmSchema = z.object({
-  roundType: z
-    .enum([
-      'ROUND1_NINE_ONE',
-      'ROUND2_RELAY',
-      'ROUND3_COLLABORATE',
-      'INDIVIDUAL_STANDARD',
-      'INDIVIDUAL_SHAPED',
-      'INDIVIDUAL_MIXED',
-      'IMPORTED',
-    ])
-    .nullable()
-    .optional(),
+  roundId: id,
 });
 
 module.exports = { generatePuzzlesSchema, generateBulkSchema, importToRoundSchema, pdfConfirmSchema };

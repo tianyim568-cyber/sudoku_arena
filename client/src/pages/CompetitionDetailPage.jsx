@@ -7,6 +7,7 @@ import { api } from '../api';
 import ParticipantImport from '../components/ParticipantImport';
 import AccessLinkSection from '../components/AccessLinkSection';
 import PublishPanel from '../components/PublishPanel';
+import RoundPdfImport from '../components/RoundPdfImport';
 
 export default function CompetitionDetailPage() {
   const { id } = useParams();
@@ -383,25 +384,30 @@ export default function CompetitionDetailPage() {
                         {stage.rounds?.length ? (
                           <ol className="space-y-2">
                             {stage.rounds.map(r => (
-                              <li key={r.id} className="bg-gray-50 rounded p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                <span className="text-xs sm:text-sm">
-                                  <span className="text-gray-500">{t('competitionDetail.roundNumber', { n: r.order_number })}</span>
-                                  {' '}<span className="font-medium">{r.name}</span>
-                                </span>
-                                <span className="text-xs text-gray-400">
-                                  {/* BUG-03 fix: translate the raw roundType enum
-                                      (e.g. INDIVIDUAL_STANDARD) into a readable
-                                      label via common.roundName.* before passing
-                                      it to the roundMeta template. Fallback to
-                                      the raw enum if the key is unknown (should
-                                      not happen, but stays honest if a new type
-                                      is added to the server before i18n). */}
-                                  {t('competitionDetail.roundMeta', {
-                                    type: t(`common.roundName.${r.type}`) || r.type,
-                                    dur: r.duration_seconds,
-                                    count: r.puzzles?.length || 0,
-                                  })}
-                                </span>
+                              <li key={r.id} className="bg-gray-50 rounded p-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                  <span className="text-xs sm:text-sm">
+                                    <span className="text-gray-500">{t('competitionDetail.roundNumber', { n: r.order_number })}</span>
+                                    {' '}<span className="font-medium">{r.name}</span>
+                                  </span>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs text-gray-400">
+                                      {/* BUG-03: translate the raw roundType enum via common.roundName.* */}
+                                      {t('competitionDetail.roundMeta', {
+                                        type: t(`common.roundName.${r.type}`) || r.type,
+                                        dur: r.duration_seconds,
+                                        count: r.puzzles?.length || 0,
+                                      })}
+                                    </span>
+                                    {/* Per-round PDF import (2026-08-24). Only for
+                                        an admin on an editable competition, and
+                                        only when the round is still empty — the
+                                        server refuses to overwrite. */}
+                                    {isAdmin && isEditable && (r.puzzles?.length || 0) === 0 && (
+                                      <RoundPdfImport round={r} onImported={loadStages} />
+                                    )}
+                                  </div>
+                                </div>
                               </li>
                             ))}
                           </ol>
@@ -456,18 +462,11 @@ export default function CompetitionDetailPage() {
                                 <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
                               </div>
 
-                              {/* PDF import is not built: the extraction pipeline
-                                  cannot be designed without a sample file (see
-                                  DEVELOPMENT_PLAN, open question 9). The field is
-                                  shown disabled rather than hidden, so the step is
-                                  visible without pretending to work. */}
-                              <div>
-                                <label htmlFor="roundPdf" className="block text-xs text-gray-500 mb-1">{t('competitionDetail.roundPdf')}</label>
-                                <input type="file" id="roundPdf" accept="application/pdf" disabled
-                                  aria-label={t('competitionDetail.roundPdf')}
-                                  className="w-full text-xs text-gray-400 cursor-not-allowed" />
-                                <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPdfHint')}</p>
-                              </div>
+                              {/* The old disabled PDF field is gone: PDF import
+                                  is a per-round operation now, shown as an
+                                  "Import PDF" button next to each round after
+                                  it exists (see RoundPdfImport). Creating a
+                                  round no longer requires choosing a file. */}
 
                               <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm">
                                 {t('competitionDetail.addRoundSubmit')}

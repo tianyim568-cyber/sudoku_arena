@@ -176,9 +176,14 @@ export const api = {
   deletePuzzleFromBank: (id) => request('DELETE', `/puzzle-bank/${id}`),
   clearPuzzleBank: () => request('DELETE', '/puzzle-bank'),
 
-  // PDF Import
+  // PDF Import — two-phase.
+  //
+  // Product decision 2026-08-24: a batch of PDF puzzles must land in a
+  // specific round. The confirm call takes a `roundId` (UUID), and the
+  // server auto-imports the batch into that round in the same
+  // transaction. No generic pool.
   uploadPdfPuzzles: (file) => uploadFile('/puzzle-bank/import-pdf', file),
-  confirmPdfPuzzles: (roundType) => request('POST', '/puzzle-bank/import-pdf/confirm', { roundType }),
+  confirmPdfPuzzles: (roundId) => request('POST', '/puzzle-bank/import-pdf/confirm', { roundId }),
 
   // Users
   listUsers: () => request('GET', '/users'),

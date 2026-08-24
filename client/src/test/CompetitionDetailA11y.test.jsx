@@ -4,21 +4,14 @@
 // - Stage-type picker buttons had no aria-label — a screen reader had
 //   to guess from the visible <span> text, which is fragile when the
 //   span is nested inside Tailwind classes.
-// - The PDF file input had a <label> element but no `htmlFor`, and the
-//   input had no `id` — the label was not programmatically linked to
-//   the input, so a screen reader did not announce "题目文件" when the
-//   input got focus.
+// The disabled PDF-in-round-form field was removed on 2026-08-24 when
+// the per-round `RoundPdfImport` component took over (product decision:
+// every PDF batch is tied to a specific round). Its a11y counterpart
+// lives in RoundPdfImport.jsx (`aria-label={t('roundPdfImport.selectFile')}`)
+// and doesn't need to be exercised from CompetitionDetailPage tests
+// any more.
 //
-// Fix: added `aria-label={t(st.labelKey)}` to each stage-type button,
-// and `id="roundPdf"` + `htmlFor="roundPdf"` + `aria-label` on the file
-// input so the label is programmatically associated.
-//
-// These tests mount CompetitionDetailPage and assert that:
-// 1. Each stage-type button is findable by its accessible name (the
-//    translated label, e.g. "个人赛阶段").
-// 2. The PDF file input is findable by its accessible name and its
-//    <label> is programmatically associated (clicking the label focuses
-//    the input).
+// This file now covers just the stage-type buttons.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -104,33 +97,4 @@ describe('CompetitionDetailPage — a11y stage-type buttons + file input (Tâche
     expect(screen.getByRole('button', { name: /对抗赛阶段/i })).toBeInTheDocument();
   });
 
-  // The PDF file input must have a programmatically associated <label>.
-  // Before the fix, the <label> had no `htmlFor` and the input had no
-  // `id`, so clicking the label did not focus the input. The fix adds
-  // `id="roundPdf"` + `htmlFor="roundPdf"` + an aria-label as a belt-
-  // and-suspenders measure.
-  //
-  // The file input only renders when a stage is open. We add a stage,
-  // open it, then look for the input.
-  it('PDF file input has a programmatically associated label', async () => {
-    api.configureStages.mockResolvedValue({
-      code: 200,
-      data: [{ id: 's1', type: 'INDIVIDUAL', order_number: 1, rounds: [] }],
-    });
-
-    renderPage();
-    await waitFor(() => expect(api.getCompetition).toHaveBeenCalled());
-    // Add an INDIVIDUAL stage so we can open it and reach the round form.
-    fireEvent.click(screen.getByRole('button', { name: /add a stage|添加阶段/i }));
-    fireEvent.click(screen.getByRole('button', { name: /个人赛阶段/i }));
-    await waitFor(() => expect(api.configureStages).toHaveBeenCalled());
-    // Open the stage to reveal the round form (which contains the file input).
-    fireEvent.click(screen.getByRole('button', { name: /^配置$|^Configure$/i }));
-
-    // The input is findable by its accessible name (the ZH label).
-    const fileInput = await screen.findByLabelText(/题目文件/i);
-    expect(fileInput).toBeInTheDocument();
-    expect(fileInput.tagName.toLowerCase()).toBe('input');
-    expect(fileInput).toHaveAttribute('type', 'file');
-  });
 });
