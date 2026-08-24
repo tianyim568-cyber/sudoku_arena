@@ -26,7 +26,7 @@ export default function JudgeControlPage() {
   // The URL param is still named :competitionId (Phase 13 will rename the route).
   // We alias it locally to competitionId to match the api function signatures.
   const { competitionId } = useParams();
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [competition, setCompetition] = useState(null);
@@ -219,7 +219,7 @@ export default function JudgeControlPage() {
         <section className="bg-white rounded-xl shadow p-4 sm:p-6">
           <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.roundControl')}</h2>
           <div className="space-y-2 sm:space-y-3">
-            {competition.rounds?.map((r, i) => (
+            {competition.rounds?.map((r) => (
               <div key={r.id} className="border rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex-1">
                   <h3 className="font-medium text-sm sm:text-base">{t('judge.roundTitle', { n: r.order_number, name: r.name })}</h3>

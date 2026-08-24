@@ -58,7 +58,7 @@ import { useLanguage } from '../i18n/LanguageContext';
  * @param {() => void} props.onRefresh
  */
 export default function JudgeLivePlayerView({
-  competitionId,
+  competitionId: _competitionId,
   playerId,
   detail,
   canProject,

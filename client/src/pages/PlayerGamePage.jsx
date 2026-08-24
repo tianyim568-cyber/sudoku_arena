@@ -5,7 +5,7 @@
  * Uses server-authoritative timer via useTimer + TimerDisplay.
  * Handles socket events, REST fallback, and puzzle selection.
  */
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';

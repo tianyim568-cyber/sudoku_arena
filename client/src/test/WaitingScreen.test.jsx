@@ -13,7 +13,7 @@
 // actually 500'd is being misled about the state of the competition.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { LanguageProvider } from '../i18n/LanguageContext';
 import WaitingScreen from '../pages/WaitingScreen';

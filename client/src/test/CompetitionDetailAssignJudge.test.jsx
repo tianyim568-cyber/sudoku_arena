@@ -89,7 +89,7 @@ function renderPage() {
 describe('CompetitionDetailPage — Assign Judge picker (BUG-01)', () => {
   it('lists unassigned judges in the dropdown', async () => {
     renderPage();
-    const dropdown = await screen.findByLabelText(/assign judge|分配裁判/i);
+    await screen.findByLabelText(/assign judge|分配裁判/i);
     // Both judges are unassigned → both appear.
     expect(screen.getByRole('option', { name: 'Judge One' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Judge Two' })).toBeInTheDocument();

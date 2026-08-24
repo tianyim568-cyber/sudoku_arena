@@ -61,7 +61,7 @@ export default function ParticipantImport({ competitionId, onImportComplete }) {
         // Auto-dismiss error after 4 seconds
         setTimeout(() => setError(null), 4000);
       }
-    } catch (err) {
+    } catch {
       const failMsg = t('competitionDetail.importAllFailed');
       setError(failMsg);
       setPhase('preview');

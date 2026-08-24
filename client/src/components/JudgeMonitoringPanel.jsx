@@ -51,7 +51,7 @@
  * stale value is the bug that cost weeks here.
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
@@ -160,7 +160,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
   }, [selectedId, competitionId, detailVersion, t]);
 
   // ── Projection ───────────────────────────────────────────────────
-  const handleProject = useCallback(async (playerId, playerName) => {
+  const handleProject = useCallback(async (playerId, _playerName) => {
     if (!canProject) return;
     if (!window.confirm(t('judgeMonitoring.projectConfirm'))) return;
     setProjectingId(playerId);

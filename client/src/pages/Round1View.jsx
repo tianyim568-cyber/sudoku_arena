@@ -19,7 +19,6 @@ export default function Round1View({
 }) {
   const { t } = useLanguage();
   const jocPuzzles = useMemo(() => puzzles.filter(p => !p.isFinal), [puzzles]);
-  const finalPuzzle = useMemo(() => puzzles.find(p => p.isFinal), [puzzles]);
   const solvedCount = useMemo(() => puzzles.filter(p => p.isCompleted).length, [puzzles]);
   const jocSolvedCount = useMemo(() => jocPuzzles.filter(p => p.isCompleted).length, [jocPuzzles]);
   const isFinalUnlocked = round1Progress?.finalUnlocked || false;
@@ -38,13 +37,6 @@ export default function Round1View({
     return slots;
   }, [jocPuzzles, round1Progress]);
 
-  const clues = useMemo(() => {
-    if (!round1Progress?.clues?.length) return [];
-    if (typeof round1Progress.clues[0] === 'object') {
-      return round1Progress.clues.sort((a, b) => a.orderInRound - b.orderInRound).map(c => c.letter);
-    }
-    return round1Progress.clues;
-  }, [round1Progress]);
 
   const effectiveRoundType = useMemo(() => {
     if (!activePuzzle) return 'ROUND1_NINE_ONE';

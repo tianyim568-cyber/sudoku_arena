@@ -24,7 +24,7 @@ const PLAYER_COLORS = [
 export default function Round3View({
   round3State,
   activePuzzle,
-  currentRound,
+  currentRound: _currentRound,
   user,
   activeTeammates,
   onSelectPuzzle,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { connectSocket, disconnectSocket, joinRoom, leaveRoom, onEvent, round2CellUpdate as socketCellUpdate, round3ProposeCell as socketPropose, round3AcceptProposal as socketAccept, round3RejectProposal as socketReject, round3WithdrawProposal as socketWithdraw, round3FocusUpdate as socketFocus } from '../api/socket';
+import { connectSocket, joinRoom, leaveRoom, onEvent, round2CellUpdate as socketCellUpdate, round3ProposeCell as socketPropose, round3AcceptProposal as socketAccept, round3RejectProposal as socketReject, round3WithdrawProposal as socketWithdraw, round3FocusUpdate as socketFocus } from '../api/socket';
 import { useAuth } from './useAuth';
 
 export function useGameSocket(competitionId) {
@@ -412,7 +412,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND2_PUZZLE_SOLVED': {
-          const { puzzleId, difficulty, puzzlePoints, teamScore, solvedCount, allSolved, completionBonus } = event.payload;
+          const { puzzleId, difficulty: _difficulty, puzzlePoints: _puzzlePoints, teamScore, solvedCount, allSolved, completionBonus } = event.payload;
           setRound2State(prev => ({
             ...prev,
             puzzles: prev.puzzles.map(p =>
@@ -476,7 +476,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND3_MOVE_PROPOSED': {
-          const { puzzleId, row, col, value, playerId, playerName } = event.payload;
+          const { puzzleId: _puzzleId, row, col, value, playerId, playerName } = event.payload;
           const key = `${row}-${col}`;
           setRound3State(prev => ({
             ...prev,
@@ -488,7 +488,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND3_MOVE_ACCEPTED': {
-          const { puzzleId, row, col, value, playerId, playerName, acceptedBy } = event.payload;
+          const { puzzleId: _puzzleId, row, col, value, playerId, playerName, acceptedBy: _acceptedBy } = event.payload;
           const key = `${row}-${col}`;
           setRound3State(prev => {
             const newSuggestions = { ...prev.suggestions };
@@ -505,7 +505,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND3_BOARD_UPDATED': {
-          const { puzzleId, row, col, value, playerId, playerName } = event.payload;
+          const { puzzleId: _puzzleId, row, col, value, playerId, playerName } = event.payload;
           const key = `${row}-${col}`;
           setRound3State(prev => ({
             ...prev,
@@ -517,7 +517,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND3_MOVE_REJECTED': {
-          const { puzzleId, row, col } = event.payload;
+          const { puzzleId: _puzzleId, row, col } = event.payload;
           const key = `${row}-${col}`;
           setRound3State(prev => {
             const newSuggestions = { ...prev.suggestions };
@@ -529,7 +529,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND3_VOTE_CAST': {
-          const { puzzleId, row, col, voterId, voteType, approveCount, requiredCount } = event.payload;
+          const { puzzleId: _puzzleId, row, col, voterId, voteType, approveCount: _approveCount, requiredCount: _requiredCount } = event.payload;
           const key = `${row}-${col}`;
           setRound3State(prev => {
             const existingVotes = prev.suggestionVotes[key] || [];
@@ -547,7 +547,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'ROUND3_FOCUS_UPDATE': {
-          const { puzzleId, playerId, playerName, row, col } = event.payload;
+          const { puzzleId: _puzzleId, playerId, playerName, row, col } = event.payload;
           setRound3State(prev => ({
             ...prev,
             playerFocuses: {
@@ -558,7 +558,7 @@ export function useGameSocket(competitionId) {
           break;
         }
         case 'TEAM_PUZZLE_NEXT': {
-          const { puzzleId, difficulty, points } = event.payload;
+          const { puzzleId, difficulty: _difficulty, points: _points } = event.payload;
           setRound3State(prev => ({
             ...prev,
             currentPuzzleId: puzzleId ?? prev.currentPuzzleId,

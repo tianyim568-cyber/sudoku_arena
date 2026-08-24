@@ -31,18 +31,6 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
-// Maps the machine-readable missing codes returned by the server to the i18n
-// keys used by the panel. Keeping the wire protocol as codes (not strings)
-// means tests do not break when a label is reworded, and the client can switch
-// languages without re-fetching.
-const MISSING_LABEL_KEYS = {
-  NO_JUDGE: 'publishPanel.missingJudge',
-  NO_PARTICIPANT: 'publishPanel.missingParticipant',
-  NO_STAGE: 'publishPanel.missingStage',
-  STAGE_EMPTY: 'publishPanel.missingStageRounds',
-  ROUND_EMPTY: 'publishPanel.missingRoundPuzzles',
-};
-
 export default function PublishPanel({ competitionId, status, canStart, refreshKey }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
