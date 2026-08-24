@@ -80,7 +80,7 @@ class PuzzleBankService {
 
   // ─── Generate puzzles ──────────────────────────────────────────
 
-  generatePuzzles({ roundType, count = 1, teamsCount = 1, organizationId }) {
+  generatePuzzles({ roundType, count, teamsCount = 1, organizationId }) {
     const { SudokuGenerator } = require('../utils/sudokuGenerator');
     const gen = new SudokuGenerator();
     const bank = this._load();
@@ -159,6 +159,46 @@ class PuzzleBankService {
               letter: null, points: 20,
               initialGrid: gen.generateRound2HardPuzzle(sol), solution: sol,
               teamIndex: t,
+            });
+          }
+        }
+        break;
+      }
+
+      case 'INDIVIDUAL_STANDARD': {
+        // Classic 9x9 Sudoku for solo speed-solving. `count` is the total
+        // number of puzzles to generate (default 10). Difficulty is spread
+        // across EASY / MEDIUM / HARD in a 5/3/2 ratio, so an individual
+        // round is not just "easy warm-ups". Point values scale with
+        // difficulty to match how ScoringService already weighs them for
+        // the team rounds — the same easy/medium/hard tiers already exist.
+        //
+        // Rationale: F88 (PDF import handled by Sylvain) will eventually
+        // supply committee-curated puzzles for real competitions. Until
+        // then, this generator unblocks the INDIVIDUAL_STANDARD round
+        // flow so admins can create the round and test end-to-end. When
+        // F88 lands, both paths coexist — generate to test, import PDF
+        // for production.
+        const n = Math.max(1, count || 10);
+        const nEasy = Math.round(n * 0.5);
+        const nMed = Math.round(n * 0.3);
+        const nHard = Math.max(0, n - nEasy - nMed);
+        const dist = [
+          { diff: 'EASY', emptyCells: 35, pts: 10, count: nEasy },
+          { diff: 'MEDIUM', emptyCells: 45, pts: 20, count: nMed },
+          { diff: 'HARD', emptyCells: 55, pts: 35, count: nHard },
+        ];
+        for (const d of dist) {
+          for (let j = 0; j < d.count; j++) {
+            const sol = gen.generateSolution();
+            newPuzzles.push({
+              id: `IS-${bank.puzzles.length + newPuzzles.length + 1}`,
+              organizationId,
+              roundType, puzzleType: 'STANDARD', difficulty: d.diff,
+              orderInRound: nextOrder(roundType),
+              letter: null, points: d.pts,
+              initialGrid: gen.createPuzzle(sol, { emptyCells: d.emptyCells, symmetric: true }),
+              solution: sol,
             });
           }
         }

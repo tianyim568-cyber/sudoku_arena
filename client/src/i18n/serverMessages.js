@@ -126,14 +126,17 @@ const EN = {
   // Rate limiting (middleware/rateLimiters.js)
   '操作过于频繁，请稍后再试': 'Too many requests, please try again later',
 
-  // File upload (middleware/fileType.js)
+  // File upload (middleware/fileType.js + index.js global handler)
   '请上传文件': 'Please upload a file',
   '文件内容与类型不符，请上传有效的文件': 'The file content does not match its type, please upload a valid file',
+  '文件过大（最大 10 MB）': 'File too large (max 10 MB)',
+  '仅支持 .xlsx、.xls 和 .csv 格式': 'Only .xlsx, .xls and .csv formats are supported',
 
   // Competition setup — stages/rounds (routes/competitionSetup.js)
   '阶段不存在': 'Stage not found',
   '阶段不属于该赛事': 'This stage does not belong to this competition',
   '轮次类型与阶段类型不匹配': 'The round type does not match the stage type',
+  '比赛已发布，无法修改阶段配置': 'Competition is already published — stage configuration is locked',
 
   // Users (routes/users.js)
   '状态值无效': 'Invalid status value',

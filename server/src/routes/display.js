@@ -15,6 +15,7 @@
  */
 
 const express = require('express');
+const logger = require('../utils/logger');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateBody } = require('../middleware/validate');
@@ -53,7 +54,7 @@ function createDisplayRouter(displayManager) {
           data: { token, displayUrl },
         });
       } catch (e) {
-        console.error('[display] generate token error:', e.message);
+        logger.error('[display] generate token error', { error: e.message });
         res.json({ code: 50000, message: '生成显示令牌失败', data: null });
       }
     }
@@ -81,7 +82,7 @@ function createDisplayRouter(displayManager) {
         await displayManager.revokeToken(id);
         res.json({ code: 200, message: 'success', data: null });
       } catch (e) {
-        console.error('[display] revoke token error:', e.message);
+        logger.error('[display] revoke token error', { error: e.message });
         res.json({ code: 50000, message: '撤销显示令牌失败', data: null });
       }
     }
@@ -120,7 +121,7 @@ function createDisplayRouter(displayManager) {
           data: { mode },
         });
       } catch (e) {
-        console.error('[display] set display mode error:', e.message);
+        logger.error('[display] set display mode error', { error: e.message });
         res.json({ code: 50000, message: '设置显示模式失败', data: null });
       }
     }
@@ -129,8 +130,11 @@ function createDisplayRouter(displayManager) {
   /**
    * PUT /competitions/:id/display/broadcast/:playerId — Broadcast a specific player.
    *
-   * Auth: Bearer token (org-scoped) + ORG_ADMIN role
-   * Tenant: competition must belong to caller's organization
+   * Auth: Bearer token + JUDGE role (or SUPER_ADMIN for platform debugging).
+   * ORG_ADMIN is intentionally NOT allowed: projection is a floor operation
+   * for the judge running the room, not a configuration action for the
+   * organization admin (product decision, 2026-08-24 — Louise).
+   * Tenant: competition must belong to caller's organization.
    *
    * Response:
    *   200 { code: 200, data: { player } }
@@ -139,7 +143,7 @@ function createDisplayRouter(displayManager) {
   router.put(
     '/competitions/:id/display/broadcast/:playerId',
     authMiddleware,
-    roleMiddleware('ORG_ADMIN', 'SUPER_ADMIN'),
+    roleMiddleware('JUDGE', 'SUPER_ADMIN'),
     tenantGuard('competitions'),
     async (req, res) => {
       const { id, playerId } = req.params;
@@ -153,7 +157,7 @@ function createDisplayRouter(displayManager) {
           data: { player },
         });
       } catch (e) {
-        console.error('[display] broadcast player error:', e.message);
+        logger.error('[display] broadcast player error', { error: e.message });
 
         if (e.message.includes('不存在')) {
           return res.json({
@@ -175,8 +179,10 @@ function createDisplayRouter(displayManager) {
   /**
    * DELETE /competitions/:id/display/broadcast — Stop broadcasting player.
    *
-   * Auth: Bearer token (org-scoped) + ORG_ADMIN role
-   * Tenant: competition must belong to caller's organization
+   * Auth: Bearer token + JUDGE role (or SUPER_ADMIN for platform debugging).
+   * Same rationale as the PUT above: projection is a floor operation, owned
+   * by the judge. ORG_ADMIN is intentionally excluded.
+   * Tenant: competition must belong to caller's organization.
    *
    * Response:
    *   200 { code: 200, data: null }
@@ -184,7 +190,7 @@ function createDisplayRouter(displayManager) {
   router.delete(
     '/competitions/:id/display/broadcast',
     authMiddleware,
-    roleMiddleware('ORG_ADMIN', 'SUPER_ADMIN'),
+    roleMiddleware('JUDGE', 'SUPER_ADMIN'),
     tenantGuard('competitions'),
     async (req, res) => {
       const { id } = req.params;
@@ -198,7 +204,7 @@ function createDisplayRouter(displayManager) {
           data: null,
         });
       } catch (e) {
-        console.error('[display] stop broadcast error:', e.message);
+        logger.error('[display] stop broadcast error', { error: e.message });
         res.json({
           code: 50000,
           message: '停止直播失败',
@@ -250,7 +256,7 @@ function createDisplayRouter(displayManager) {
         data: snapshot,
       });
     } catch (e) {
-      console.error('[display] get ranking error:', e.message);
+      logger.error('[display] get ranking error', { error: e.message });
       res.json({ code: 50000, message: '获取排行榜失败', data: null });
     }
   });
@@ -287,7 +293,7 @@ function createDisplayRouter(displayManager) {
         data: { mode },
       });
     } catch (e) {
-      console.error('[display] get display mode error:', e.message);
+      logger.error('[display] get display mode error', { error: e.message });
       res.json({ code: 50000, message: '获取显示模式失败', data: null });
     }
   });

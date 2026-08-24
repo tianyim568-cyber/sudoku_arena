@@ -2,7 +2,10 @@
  * Display broadcast player tests — PUT /api/competitions/:id/display/broadcast/:playerId
  *
  * Test categories:
- * 1. Authorization — no token, PLAYER, JUDGE, ORG_ADMIN, SUPER_ADMIN
+ * 1. Authorization — no token, PLAYER, ORG_ADMIN (rejected), JUDGE, SUPER_ADMIN (allowed).
+ *    Product decision 2026-08-24: projection is a floor operation reserved for the
+ *    JUDGE. ORG_ADMIN is intentionally excluded even though it is normally the more
+ *    privileged role — see routes/display.js docstring for the rationale.
  * 2. Success path — player validation, database update, WebSocket emission
  * 3. Error handling — player not found, database errors
  * 4. DELETE /api/competitions/:id/display/broadcast — stop broadcast
@@ -124,30 +127,30 @@ describe('Display Broadcast Player API', () => {
         expect(res.body.data).toBeNull();
       });
 
-      test('rejects JUDGE role (403)', async () => {
+      test('rejects ORG_ADMIN role (403) — projection reserved for JUDGE', async () => {
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
+          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
           .expect(403);
 
         expect(res.body.code).toBe(40301);
       });
 
-      test('allows ORG_ADMIN role', async () => {
+      test('allows JUDGE role', async () => {
         mockPrisma.players.findFirst.mockResolvedValue(mockPlayer);
         mockPrisma.competitions.update.mockResolvedValue({});
 
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body.code).toBe(200);
       });
 
-      test('allows SUPER_ADMIN role', async () => {
+      test('allows SUPER_ADMIN role (platform debugging)', async () => {
         mockPrisma.players.findFirst.mockResolvedValue(mockPlayer);
         mockPrisma.competitions.update.mockResolvedValue({});
 
@@ -169,7 +172,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(mockPrisma.players.findFirst).toHaveBeenCalledWith({
@@ -188,7 +191,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(mockPrisma.competitions.update).toHaveBeenCalledWith({
@@ -207,7 +210,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(mockBus.emitImmediate).toHaveBeenCalledWith({
@@ -236,7 +239,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body).toEqual({
@@ -271,7 +274,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body.code).toBe(200);
@@ -287,7 +290,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body).toEqual({
@@ -303,7 +306,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body.code).toBe(40400);
@@ -316,7 +319,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .put(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body).toEqual({
@@ -354,29 +357,29 @@ describe('Display Broadcast Player API', () => {
         expect(res.body.code).toBe(40301);
       });
 
-      test('rejects JUDGE role (403)', async () => {
+      test('rejects ORG_ADMIN role (403) — projection reserved for JUDGE', async () => {
         const app = buildApp();
         const res = await request(app)
           .delete(url)
-          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
+          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
           .expect(403);
 
         expect(res.body.code).toBe(40301);
       });
 
-      test('allows ORG_ADMIN role', async () => {
+      test('allows JUDGE role', async () => {
         mockPrisma.competitions.update.mockResolvedValue({});
 
         const app = buildApp();
         const res = await request(app)
           .delete(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body.code).toBe(200);
       });
 
-      test('allows SUPER_ADMIN role', async () => {
+      test('allows SUPER_ADMIN role (platform debugging)', async () => {
         mockPrisma.competitions.update.mockResolvedValue({});
 
         const app = buildApp();
@@ -396,7 +399,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         await request(app)
           .delete(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(mockPrisma.competitions.update).toHaveBeenCalledWith({
@@ -414,7 +417,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         await request(app)
           .delete(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(mockBus.emitImmediate).toHaveBeenCalledWith({
@@ -434,7 +437,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .delete(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body).toEqual({
@@ -450,7 +453,7 @@ describe('Display Broadcast Player API', () => {
         const app = buildApp();
         const res = await request(app)
           .delete(url)
-          .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+          .set('Authorization', `Bearer ${JUDGE_TOKEN}`)
           .expect(200);
 
         expect(res.body).toEqual({

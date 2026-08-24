@@ -1,10 +1,12 @@
 # Development Plan v3 — Consolidated Status Snapshot
 
 > **First written:** 2026-08-23 morning, from branch `louise` at commit `909471c`.
-> **Last refreshed:** 2026-08-23 evening, after merging `louise` → `main`
-> at commit `69971b1`. Every row of the feature matrix has been re-verified
-> against the current code — several items marked "not started" in the
-> morning shipped during the same day and now read ✅.
+> **Last refreshed:** 2026-08-24 evening. Cleared BUG-01/02/03/04
+> (client picker/refresh/enum/individual-generator) + a11y (stage-type
+> buttons, PDF label) + F107 (console.* → Pino across Sylvain's files,
+> since he had not gotten to it) + F26 (post-publish stage lock,
+> 4-line engine change + regression test). Feature counts refreshed
+> below. Suite: **server 474/474 pass · client 366/366 pass**.
 >
 > **Purpose:** A single sheet listing every functionality from both prior plans
 > (`DEVELOPMENT_PLAN.md`, the 14-day plan, and `development_plan_v2.md`, the
@@ -79,7 +81,7 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F23 | Per-round preparation seconds | ✅ | Louise | Field in creation form, 5 min cap (2026-08-18). |
 | F24 | Publish workflow with validation | ✅ | Louise | `PublishPanel.jsx` + `POST /:id/publish` + `services/PublishabilityService.js`. |
 | F25 | A published competition can be UNPUBLISHED | ✅ | Sylvain | `POST /:id/unpublish` (destroys the link). |
-| F26 | Stage/round changes locked once PUBLISHED | ⚠️ | Sylvain | `configureStages` still allows `DRAFT` OR `PUBLISHED` — see plan v2 §14bis, not tightened. |
+| F26 | Stage/round changes locked once PUBLISHED | ✅ | Sylvain (Louise shipped) | `configureStages` now rejects any status other than DRAFT (2026-08-24). Regression test `GameOrchestrator-configureStages-lock.test.js` (5 tests) pins the new contract. |
 
 ### 2.4 Participant and Judge Management
 
@@ -210,7 +212,7 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F104 | DB backup script + doc | ✅ | Sylvain | `scripts/backup.sh`, `docs/DATABASE_BACKUP_RESTORE.md`. |
 | F105 | `.env.production` **NOT** tracked in git | ⚠️ | Louise (untrack done) / team (rotation pending) | File untracked and added to `.gitignore` (2026-08-23 `3fd6073`). **Secrets in git history still need rotation** — human coordination step, cannot be automated. |
 | F106 | Structured logger (Pino) in Louise's files | ✅ | Louise | `utils/logger.js`. |
-| F107 | Same logger applied to Sylvain's files | ❌ | Sylvain | ~33 `console.*` calls still in `SocketManager.js` (13), `DisplayManager.js` (5), `GameOrchestrator.js` (5), `routes/display.js` (7), plus 3 elsewhere. Skips log-level filtering and secret redaction. |
+| F107 | Same logger applied to Sylvain's files | ✅ | Sylvain (Louise shipped) | 32 sites migrated to `logger.*` across `SocketManager.js`, `DisplayManager.js`, `GameOrchestrator.js`, `RoundManager.js`, `TimerService.js`, `routes/display.js`, `routes/monitoring.js`, `services/PresenceService.js`, `middleware/tenantGuard.js` (2026-08-24). Logger fallback in `utils/logger.js` and the CLI `sudokuGenerator.js` are the only remaining `console.*` calls, both intentional. |
 
 ### 2.14 Error Handling and UX Polish
 
@@ -225,8 +227,8 @@ organization, with PDF import. **Security hardening** end-to-end.
 
 | # | Feature | Status | Owner | Evidence / Gaps |
 |---|---------|--------|-------|-----------------|
-| F112 | Server test suite (Jest) | ✅ | Both | 27 files, 462/462 passing. |
-| F113 | Client test suite (Vitest + React Testing Library) | ✅ | Louise | 32 files, 354/354 passing. |
+| F112 | Server test suite (Jest) | ✅ | Both | 29 files, 474/474 passing (2026-08-24). |
+| F113 | Client test suite (Vitest + React Testing Library) | ✅ | Louise | 36 files, 366/366 passing (2026-08-24). |
 | F114 | E2E competition simulation | ⚠️ | Sylvain | `e2e-competition-simulation.test.js` (1326 lines) — a Jest scripted lifecycle. **Not the live 40-step manual run** the plan asked for. The `disconnect-recovery.test.js` placebo is now a real test (see F42). |
 | F115 | Frontend documentation updated | ⚠️ | Louise | `FRONTEND_DOCUMENTATION.md` — body is old, "August 2026 Updates" section at the top is the current source of truth. |
 | F116 | Backend documentation updated | ⚠️ | Louise | `BACKEND_DOCUMENTATION.md` — same pattern. |
@@ -253,14 +255,14 @@ organization, with PDF import. **Security hardening** end-to-end.
 2. **F65 — Score/age/category in monitoring payload.** `GET /monitoring/
    participants` still returns only presence + identity. Adding these
    three fields lets the judge see the scoreboard from the console
-   without a second fetch.
-3. **F107 — Convert ~33 remaining `console.*` in Sylvain's files.**
-   `SocketManager.js` (13), `DisplayManager.js` (5), `GameOrchestrator.js`
-   (5), `routes/display.js` (7), plus 3 elsewhere. Mechanical, but
-   skips log-level filtering and secret redaction until done.
-4. **F88 — PDF import.** Sample PDF landed 2026-08-23; Sylvain took the
-   task (2026-08-23 discussion). Nothing yet in main.
-5. **ISSUE-019 — Per-IP rate limiting blocks a whole competition room
+   without a second fetch. Left to Sylvain deliberately — the shape
+   change also affects `JudgeMonitoringPanel.jsx` consumption, safer
+   to design the join + payload together.
+3. **F88 — PDF import.** Sample PDF landed 2026-08-23; Sylvain took the
+   task (2026-08-23 discussion). Nothing yet in main. INDIVIDUAL_STANDARD
+   flow is now unblocked without it (see F86 — generator button added
+   2026-08-24, "Option C").
+4. **ISSUE-019 — Per-IP rate limiting blocks a whole competition room
    behind a NAT.** Design decision needed (per-user keying vs raise
    the ceiling vs trust proxy), then a few lines of code.
 
@@ -290,26 +292,23 @@ organization, with PDF import. **Security hardening** end-to-end.
 
 | Bucket | Count | % |
 |---|---|---|
-| ✅ Done and verified | 103 | 87 % |
-| ⚠️ Partial or in-progress | 7 | 6 % |
-| ❌ Not started (real gap to close) | 3 | 2 % |
+| ✅ Done and verified | 105 | 88 % |
+| ⚠️ Partial or in-progress | 6 | 5 % |
+| ❌ Not started (real gap to close) | 2 | 2 % |
 | ❌ Not started (intentional / deferred) | 6 | 5 % |
 | **Total tracked functionalities** | **119** | 100 % |
 
-The 3 real gaps to close are all on **Sylvain's side**:
+The 2 real gaps to close are both on **Sylvain's side**:
 - **F65** — score/age/category in `GET /monitoring/participants` payload.
 - **F88** — PDF import (Sylvain took it 2026-08-23, sample PDF in repo).
-- **F107** — convert his ~33 remaining `console.*` calls to the Pino
-  logger.
 
 Plus **ISSUE-019** (per-IP rate limit blocks a full competition room
 behind one NAT) which is not in the feature matrix but sits in the
 same "before ship" bucket.
 
-Louise's own coding list is empty; the 4 partials on her side that
-remain (F21 stage config UI moved location, F26 publish-lock,
-F114 live E2E, F115/F116 doc bodies, F118 owner scope) are polish
-or shared items, not blockers.
+Louise's own coding list is empty; the remaining partials on her side
+(F21 stage config UI moved location, F114 live E2E, F115/F116 doc bodies)
+are polish or shared items, not blockers.
 
 ---
 

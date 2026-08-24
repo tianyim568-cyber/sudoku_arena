@@ -166,7 +166,11 @@ export const api = {
   getMyGameState: (competitionId) => request('GET', `/competitions/${competitionId}/my-state`),
 
   // Puzzle Bank
-  generatePuzzles: (roundType, teamsCount) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount }),
+  // `count` is used by INDIVIDUAL_STANDARD (solo sudoku round) — the server
+  // reads whichever of teamsCount / count matches the roundType. Old callers
+  // that pass only two arguments still work because the third one arrives as
+  // undefined and JSON.stringify drops it.
+  generatePuzzles: (roundType, teamsCount, count) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount, count }),
   generatePuzzlesBulk: (teamsCount) => request('POST', '/puzzle-bank/generate-bulk', { teamsCount }),
   importPuzzlesToRound: (roundId, teamsCount) => request('POST', '/puzzle-bank/import-to-round', { roundId, teamsCount }),
   deletePuzzleFromBank: (id) => request('DELETE', `/puzzle-bank/${id}`),

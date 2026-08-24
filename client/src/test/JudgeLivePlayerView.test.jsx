@@ -39,7 +39,7 @@ function renderView(props = {}) {
           competitionId="c1"
           playerId="p1"
           detail={props.detail || { data: null, loading: false, error: null }}
-          isAdmin={props.isAdmin ?? false}
+          canProject={props.canProject ?? false}
           projectingId={props.projectingId ?? null}
           onProject={props.onProject || vi.fn()}
           onStopProject={props.onStopProject || vi.fn()}
@@ -208,9 +208,9 @@ describe('JudgeLivePlayerView — puzzle progress and grid', () => {
 });
 
 describe('JudgeLivePlayerView — projection controls', () => {
-  it('does NOT render projection buttons when isAdmin is false', () => {
-    const { container } = renderView({ detail: DETAIL_WITH_GRID, isAdmin: false });
-    // The projection section is gated behind isAdmin. A plain judge
+  it('does NOT render projection buttons when canProject is false', () => {
+    const { container } = renderView({ detail: DETAIL_WITH_GRID, canProject: false });
+    // The projection section is gated behind canProject. A plain judge
     // sees no broadcast button — the server would 403 the call anyway.
     const indigoBtns = container.querySelectorAll('button.bg-indigo-600');
     expect(indigoBtns.length).toBe(0);
@@ -218,8 +218,8 @@ describe('JudgeLivePlayerView — projection controls', () => {
     expect(redBtns.length).toBe(0);
   });
 
-  it('renders projection buttons when isAdmin is true', () => {
-    const { container } = renderView({ detail: DETAIL_WITH_GRID, isAdmin: true });
+  it('renders projection buttons when canProject is true', () => {
+    const { container } = renderView({ detail: DETAIL_WITH_GRID, canProject: true });
     const indigoBtns = container.querySelectorAll('button.bg-indigo-600');
     expect(indigoBtns.length).toBe(1);
     const redBtns = container.querySelectorAll('button.border-red-300');
@@ -230,7 +230,7 @@ describe('JudgeLivePlayerView — projection controls', () => {
     const onProject = vi.fn();
     const { container } = renderView({
       detail: DETAIL_WITH_GRID,
-      isAdmin: true,
+      canProject: true,
       onProject,
     });
     const projectBtn = container.querySelector('button.bg-indigo-600');
@@ -242,7 +242,7 @@ describe('JudgeLivePlayerView — projection controls', () => {
     const onStopProject = vi.fn();
     const { container } = renderView({
       detail: DETAIL_WITH_GRID,
-      isAdmin: true,
+      canProject: true,
       onStopProject,
     });
     const stopBtn = container.querySelector('button.border-red-300');
@@ -253,7 +253,7 @@ describe('JudgeLivePlayerView — projection controls', () => {
   it('disables projection buttons when projectingId is set (in-flight)', () => {
     const { container } = renderView({
       detail: DETAIL_WITH_GRID,
-      isAdmin: true,
+      canProject: true,
       projectingId: 'p1',
     });
     const projectBtn = container.querySelector('button.bg-indigo-600');
@@ -297,7 +297,7 @@ describe('GridPreview — fallback for malformed grids', () => {
 
 describe('JudgeLivePlayerView — presentational contract', () => {
   it('does not crash with the minimum required props (detail only)', () => {
-    // The parent may omit projectingId / isAdmin. The view must still
+    // The parent may omit projectingId / canProject. The view must still
     // render — they are optional.
     render(
       <MemoryRouter>

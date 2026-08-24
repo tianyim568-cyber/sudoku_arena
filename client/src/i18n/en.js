@@ -80,7 +80,6 @@ export default {
     },
     // Phase 11: shown on /admin-coming-soon. Explains why the Super Admin
     // lands on a waiting page instead of the org dashboard.
-    superAdminComingSoon: 'The platform administrator interface is not available yet. You will be able to manage organizations and competitions across the platform from here. Please log out and use an organization admin account to manage a specific competition.',
   },
 
   login: {
@@ -199,6 +198,8 @@ export default {
     createTeamFailed: 'Failed to create team',
     addMemberFailed: 'Failed to add member',
     judgeNotFound: 'No judge user found',
+    judgeNotSelected: 'Please pick a judge first',
+    selectJudge: 'Select a judge…',
     judgeAssigned: 'Judge assigned!',
     assignJudgeFailed: 'Failed to assign judge',
     bankInsufficient: 'The bank only has {bankCount} {type} puzzles (need {required}){detail}. Please go to the Puzzle Bank page to generate more.',
@@ -294,6 +295,12 @@ export default {
     generated: 'Generated {n} {type} puzzles. The bank now has {total}.',
     generateFailed: 'Generation failed: {msg}',
     invalidTeamCount: 'Please enter a valid team count',
+    individualTitle: 'Generate solo puzzles',
+    individualDesc: 'Add classic sudoku puzzles for INDIVIDUAL_STANDARD rounds. Use this while committee-picked PDFs are not yet imported. The mix is 50% easy, 30% medium, 20% hard.',
+    individualCountLabel: 'How many puzzles',
+    individualBtn: 'Generate solo sudokus',
+    individualGenerating: 'Generating...',
+    invalidIndividualCount: 'Please enter a valid puzzle count',
     bulkGenerated: 'Bulk generation complete for {tc} teams:\nR1: {r1} ({tc} x 10: 9 easy JOC + 1 FINAL)\nR2: {r2} ({tc} x 16: 8E+6M+2H)\nR3: {r3} (5E+3M+2H)\nTotal: {total} new puzzles. The bank now has {inBank}.',
     bulkGenerateFailed: 'Bulk generation failed: {msg}',
     selectRoundAlert: 'Please select a round',

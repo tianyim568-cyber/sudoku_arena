@@ -238,8 +238,15 @@ describe('JudgeMonitoringPanel — participant detail', () => {
   });
 });
 
-describe('JudgeMonitoringPanel — projection is admin-only', () => {
-  it('does NOT show the "project to big screen" button for a plain judge', async () => {
+describe('JudgeMonitoringPanel — projection is JUDGE-only (2026-08-24)', () => {
+  // Product decision 2026-08-24: projection is a floor operation reserved
+  // for the JUDGE. ORG_ADMIN is intentionally excluded even though it is
+  // normally the more privileged role. See routes/display.js docstring.
+  it('does NOT show the "project to big screen" button for an ORG_ADMIN', async () => {
+    // Flip auth to ORG_ADMIN for this test.
+    authState.user = { id: 'admin1', role: 'ORG_ADMIN' };
+    authState.isAdmin = true;
+
     api.getMonitoringParticipants.mockResolvedValue({
       code: 200,
       data: {
@@ -252,7 +259,7 @@ describe('JudgeMonitoringPanel — projection is admin-only', () => {
     });
     renderPanel();
     await screen.findByText('Alice');
-    // No projection button anywhere — the judge cannot project.
+    // No projection button anywhere — an org admin cannot project.
     expect(screen.queryByRole('button', { name: /project to big screen|投影到大屏/i })).toBeNull();
     // And the explanation is shown.
     expect(screen.getByText(/projection is reserved|投影功能仅限/i)).toBeInTheDocument();
@@ -285,12 +292,11 @@ describe('JudgeMonitoringPanel — search filters the list', () => {
   });
 });
 
-describe('JudgeMonitoringPanel — admin projection flow', () => {
-  it('calls broadcastPlayer when an admin clicks "project to big screen" and confirms', async () => {
-    // Flip auth to admin for this test only.
-    authState.user = { id: 'admin1', role: 'ORG_ADMIN' };
-    authState.isAdmin = true;
-
+describe('JudgeMonitoringPanel — judge projection flow (2026-08-24)', () => {
+  it('calls broadcastPlayer when a JUDGE clicks "project to big screen" and confirms', async () => {
+    // Default authState already sets role: 'JUDGE' — see line 56. No need
+    // to flip auth. The judge is the one running the room; projection is
+    // their button (product decision 2026-08-24).
     api.getMonitoringParticipants.mockResolvedValue({
       code: 200,
       data: {
@@ -312,9 +318,8 @@ describe('JudgeMonitoringPanel — admin projection flow', () => {
     await waitFor(() => expect(api.broadcastPlayer).toHaveBeenCalledWith('c1', 'p1'));
   });
 
-  it('does NOT call broadcastPlayer when the admin cancels the confirm dialog', async () => {
-    authState.user = { id: 'admin1', role: 'ORG_ADMIN' };
-    authState.isAdmin = true;
+  it('does NOT call broadcastPlayer when the judge cancels the confirm dialog', async () => {
+    // Default authState is already JUDGE — no flip needed.
 
     api.getMonitoringParticipants.mockResolvedValue({
       code: 200,

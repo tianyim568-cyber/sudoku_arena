@@ -25,13 +25,13 @@
  *
  * ── Projection (big screen) ─────────────────────────────────────────
  *
- * The server gates PUT /display/broadcast/:playerId and
- * DELETE /display/broadcast on ORG_ADMIN/SUPER_ADMIN. A plain JUDGE
- * gets 403. We surface the buttons only when `isAdmin` is true, and
- * explain the restriction to a judge who looks for it.
- *
- * This is a real blocker — see the final report. Louise and Sylvain
- * need to decide whether to extend broadcast rights to judges.
+ * Product decision 2026-08-24: projection is a floor operation and is
+ * reserved for the JUDGE (SUPER_ADMIN too, for platform debugging).
+ * ORG_ADMIN is intentionally excluded — the org admin does configuration,
+ * the judge runs the room. The server gates PUT/DELETE /display/broadcast*
+ * accordingly (403 for anybody else). We surface the buttons only when
+ * `canProject` is true, and explain the restriction to whoever is not
+ * eligible via the projection notice.
  *
  * ── Large lists ────────────────────────────────────────────────────
  *
@@ -64,8 +64,15 @@ import JudgeLivePlayerView from './JudgeLivePlayerView';
 const VIRTUAL_MAX = 100;
 
 export default function JudgeMonitoringPanel({ competitionId }) {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const { t } = useLanguage();
+
+  // Projection eligibility — see the "Projection (big screen)" section
+  // in this file's docstring. JUDGE is the primary case; SUPER_ADMIN keeps
+  // access for platform-level debugging (rare) — kept in sync with the
+  // roleMiddleware on routes/display.js. ORG_ADMIN is intentionally NOT
+  // here.
+  const canProject = user?.role === 'JUDGE' || user?.role === 'SUPER_ADMIN';
 
   // Overview state
   const [participants, setParticipants] = useState(null); // null = loading
@@ -154,7 +161,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
 
   // ── Projection ───────────────────────────────────────────────────
   const handleProject = useCallback(async (playerId, playerName) => {
-    if (!isAdmin) return;
+    if (!canProject) return;
     if (!window.confirm(t('judgeMonitoring.projectConfirm'))) return;
     setProjectingId(playerId);
     setProjectError(null);
@@ -167,10 +174,10 @@ export default function JudgeMonitoringPanel({ competitionId }) {
     } else {
       setProjectError(t('judgeMonitoring.projectFailed', { msg: res.message || '' }));
     }
-  }, [isAdmin, competitionId, t]);
+  }, [canProject, competitionId, t]);
 
   const handleStopProject = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!canProject) return;
     if (!window.confirm(t('judgeMonitoring.stopProjectConfirm'))) return;
     setProjectingId('stop');
     setProjectError(null);
@@ -179,7 +186,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
     if (res.code !== 200) {
       setProjectError(t('judgeMonitoring.stopProjectFailed', { msg: res.message || '' }));
     }
-  }, [isAdmin, competitionId, t]);
+  }, [canProject, competitionId, t]);
 
   // ── Derived view ─────────────────────────────────────────────────
   const sorted = useMemo(() => {
@@ -302,7 +309,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
                     <div className="text-xs text-gray-400">{formatAgo(p.lastHeartbeatAt, t)}</div>
                   )}
                 </div>
-                {p.online && isAdmin && (
+                {p.online && canProject && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); handleProject(p.id, p.name); }}
@@ -332,7 +339,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
       )}
 
       {/* Judge-only projection notice. */}
-      {!isAdmin && participants && participants.participants.length > 0 && (
+      {!canProject && participants && participants.participants.length > 0 && (
         <p className="text-xs text-gray-400 mt-2">{t('judgeMonitoring.projectNotAllowed')}</p>
       )}
 
@@ -342,7 +349,7 @@ export default function JudgeMonitoringPanel({ competitionId }) {
           competitionId={competitionId}
           playerId={selectedId}
           detail={detail}
-          isAdmin={isAdmin}
+          canProject={canProject}
           projectingId={projectingId}
           onProject={handleProject}
           onStopProject={handleStopProject}

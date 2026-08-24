@@ -18,6 +18,12 @@ export default function DashboardPuzzleBankPage() {
   const [selectedRound, setSelectedRound] = useState('');
   const [bulkTeamsCount, setBulkTeamsCount] = useState(1);
   const [bulkGenerating, setBulkGenerating] = useState(false);
+  // BUG-04 fix: solo (INDIVIDUAL_STANDARD) rounds need their own generator
+  // path. Per-round buttons above are team-shaped (R1/R2/R3), so a separate
+  // input + button lives in its own section. Default 10 matches the ratio
+  // used by the server (5 easy + 3 medium + 2 hard).
+  const [individualCount, setIndividualCount] = useState(10);
+  const [individualGenerating, setIndividualGenerating] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [clearing, setClearing] = useState(false);
 
@@ -81,6 +87,32 @@ export default function DashboardPuzzleBankPage() {
     setGenerating(false);
   };
 
+  // BUG-04 fix: generates INDIVIDUAL_STANDARD sudokus. Runs alongside F88
+  // (Sylvain's PDF import) — this path is the fastest way to populate a
+  // solo round for testing; the PDF path is for real committee puzzles.
+  const handleGenerateIndividual = async () => {
+    const n = parseInt(individualCount);
+    if (!n || n < 1) return alert(t('puzzleBank.invalidIndividualCount'));
+    setIndividualGenerating(true);
+    try {
+      // The 2nd argument (teamsCount) is ignored for INDIVIDUAL_STANDARD
+      // on the server; the 3rd argument (count) is what drives the loop.
+      const res = await api.generatePuzzles('INDIVIDUAL_STANDARD', undefined, n);
+      if (res.code === 200) {
+        alert(t('puzzleBank.generated', {
+          type: t('common.roundName.INDIVIDUAL_STANDARD'),
+          n: res.data.generated,
+          total: res.data.totalInBank,
+        }));
+        load();
+      } else {
+        alert(t('puzzleBank.generateFailed', { msg: res.message || t('common.unknownError') }));
+      }
+    } finally {
+      setIndividualGenerating(false);
+    }
+  };
+
   const handleBulkGenerate = async () => {
     const tc = parseInt(bulkTeamsCount);
     if (!tc || tc < 1) return alert(t('puzzleBank.invalidTeamCount'));
@@ -131,6 +163,7 @@ export default function DashboardPuzzleBankPage() {
     ROUND1_NINE_ONE: t('common.roundShort.ROUND1_NINE_ONE'),
     ROUND2_RELAY: t('common.roundShort.ROUND2_RELAY'),
     ROUND3_COLLABORATE: t('common.roundShort.ROUND3_COLLABORATE'),
+    INDIVIDUAL_STANDARD: t('common.roundName.INDIVIDUAL_STANDARD'),
   };
 
   return (
@@ -203,6 +236,39 @@ export default function DashboardPuzzleBankPage() {
         </div>
       </section>
 
+      {/* Individual (solo) Generate — separate section because it is not
+          team-shaped and takes a `count` rather than a `teamsCount`. This
+          section is the temporary path until F88 (PDF import by Sylvain)
+          lands; the two coexist afterwards. */}
+      <section className="bg-white rounded-xl shadow p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-2">{t('puzzleBank.individualTitle')}</h2>
+        <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">
+          {t('puzzleBank.individualDesc')}
+        </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 sm:gap-4">
+          <div className="flex-1 w-full sm:w-auto">
+            <label htmlFor="individualCount" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+              {t('puzzleBank.individualCountLabel')}
+            </label>
+            <input
+              id="individualCount"
+              type="number"
+              min="1"
+              value={individualCount}
+              onChange={e => setIndividualCount(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-xs sm:text-sm"
+            />
+          </div>
+          <button
+            onClick={handleGenerateIndividual}
+            disabled={individualGenerating}
+            className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium disabled:opacity-50 whitespace-nowrap text-sm sm:text-base"
+          >
+            {individualGenerating ? t('puzzleBank.individualGenerating') : t('puzzleBank.individualBtn')}
+          </button>
+        </div>
+      </section>
+
       {/* Import to Round */}
       <section className="bg-white rounded-xl shadow p-4 sm:p-6">
         <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('puzzleBank.importTitle')}</h2>
@@ -232,6 +298,7 @@ export default function DashboardPuzzleBankPage() {
           <option value="ROUND1_NINE_ONE">{t('common.roundName.ROUND1_NINE_ONE')}</option>
           <option value="ROUND2_RELAY">{t('common.roundName.ROUND2_RELAY')}</option>
           <option value="ROUND3_COLLABORATE">{t('common.roundName.ROUND3_COLLABORATE')}</option>
+          <option value="INDIVIDUAL_STANDARD">{t('common.roundName.INDIVIDUAL_STANDARD')}</option>
         </select>
         <select value={filter.difficulty} onChange={e => setFilter({...filter, difficulty: e.target.value})}
           className="px-3 py-2 border rounded-lg text-xs sm:text-sm bg-white flex-1 sm:flex-initial min-w-0">
