@@ -73,7 +73,7 @@ export default {
       competitions: 'Competitions',
       puzzleBank: 'Puzzle Bank',
       participants: 'Participants',
-      judges: 'Judges',
+      judges: 'Users',
       teams: 'Teams',
       results: 'Results',
       superAdmin: 'Super Admin',
@@ -700,20 +700,33 @@ export default {
   // :id/judges route (which assigns), sidestepping the ISSUE-027 verb+path
   // collision until the routes are formally split.
   judges: {
-    title: 'Judges',
-    subtitle: 'Create judge accounts and manage them for your organization.',
-    createButton: 'Create judge',
+    title: 'Users',
+    subtitle: 'Create judges and additional organization admins.',
+    createButton: 'Create user',
     createSubmit: 'Create account',
-    createFailed: 'Could not create the judge.',
-    createdBanner: 'Judge created — share the credentials before dismissing this banner.',
+    createFailed: 'Could not create the user.',
+    createdBanner: '{role} created — share the credentials before dismissing this banner.',
     credentialsHint: 'The password is hashed on the server and cannot be retrieved again.',
     copyCredentials: 'Copy',
+    roleLabel: 'Role',
     usernameLabel: 'Username',
     passwordLabel: 'Password',
     passwordHint: 'At least 6 characters. Regenerate for a fresh random password.',
     regenerate: 'Regenerate',
-    listTitle: 'Existing judges',
-    empty: 'No judges yet — create the first one above.',
+    // Per-tab labels, empty states and list titles — the page manages
+    // both roles now, so the strings differ by which tab is active.
+    tabs: {
+      JUDGE: 'Judges',
+      ORG_ADMIN: 'Org admins',
+    },
+    listTitle: {
+      JUDGE: 'Existing judges',
+      ORG_ADMIN: 'Existing org admins',
+    },
+    empty: {
+      JUDGE: 'No judges yet — create the first one above.',
+      ORG_ADMIN: 'No additional org admin — create one to share the organization.',
+    },
     colUsername: 'Username',
     colStatus: 'Status',
     colCreated: 'Created',
@@ -725,7 +738,7 @@ export default {
     activate: 'Activate',
     deactivate: 'Deactivate',
     statusFailed: 'Could not update status.',
-    loadFailed: 'Could not load the judges list.',
+    loadFailed: 'Could not load the users list.',
   },
 
   // Participants dashboard — global read-only view (F32). Complements the
