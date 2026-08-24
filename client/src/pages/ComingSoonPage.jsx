@@ -5,13 +5,10 @@ import { useAuth } from '../hooks/useAuth';
 // `titleKey` is one of the keys under `dashboard.nav.*` (e.g. "participants"),
 // so the page title and the sidebar label always stay in sync.
 //
-// Phase 11: two optional props extend the component so it can also serve as
-// the Super Admin waiting page without duplicating the layout:
-//   - `messageKey` overrides the generic "Coming soon" subtitle with a more
-//     specific key (e.g. "dashboard.superAdminComingSoon").
+// Optional props:
 //   - `showLogout` renders a logout button — useful when the page is the
 //     user's only destination and they need a way out.
-export default function ComingSoonPage({ titleKey, messageKey, showLogout }) {
+export default function ComingSoonPage({ titleKey, showLogout }) {
   const { t } = useLanguage();
   const { logout } = useAuth();
   return (
@@ -23,7 +20,7 @@ export default function ComingSoonPage({ titleKey, messageKey, showLogout }) {
         {t(`dashboard.nav.${titleKey}`)}
       </h1>
       <p className="text-sm sm:text-base text-gray-500 max-w-md">
-        {messageKey ? t(messageKey) : t('dashboard.comingSoon')}
+        {t('dashboard.comingSoon')}
       </p>
       {showLogout && (
         <button

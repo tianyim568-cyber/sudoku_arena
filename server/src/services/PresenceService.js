@@ -19,6 +19,7 @@
  */
 
 const config = require('../config');
+const logger = require('../utils/logger');
 
 class PresenceService {
   /**
@@ -116,7 +117,7 @@ class PresenceService {
         }
       } catch (err) {
         // Log but don't crash — one bad competition shouldn't break the sweep
-        console.error(`[PresenceService] sweep error for competition ${competitionId}:`, err.message);
+        logger.error('[PresenceService] sweep error', { competitionId, error: err.message });
       }
     }
   }

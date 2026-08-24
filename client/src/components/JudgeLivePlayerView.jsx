@@ -50,7 +50,7 @@ import { useLanguage } from '../i18n/LanguageContext';
  * @param {string} props.competitionId — used in projection callbacks indirectly.
  * @param {string} props.playerId — the selected participant's id.
  * @param {object} props.detail — { data, loading, error } from the parent's fetch.
- * @param {boolean} props.isAdmin — gates projection controls (admin only).
+ * @param {boolean} props.canProject — gates projection controls (JUDGE + SUPER_ADMIN; ORG_ADMIN excluded — 2026-08-24 product decision).
  * @param {string|null} props.projectingId — the parent's in-flight projection id.
  * @param {(playerId: string, playerName: string) => void} props.onProject
  * @param {() => void} props.onStopProject
@@ -61,7 +61,7 @@ export default function JudgeLivePlayerView({
   competitionId,
   playerId,
   detail,
-  isAdmin,
+  canProject,
   projectingId,
   onProject,
   onStopProject,
@@ -119,8 +119,8 @@ export default function JudgeLivePlayerView({
             )}
           </div>
 
-          {/* Projection controls — admin only. */}
-          {isAdmin && (
+          {/* Projection controls — JUDGE-only (2026-08-24 product decision). */}
+          {canProject && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onProject(playerId, detail.data.playerName)}

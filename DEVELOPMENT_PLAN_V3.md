@@ -1,14 +1,21 @@
 # Development Plan v3 — Consolidated Status Snapshot
 
-> **Generated:** 2026-08-23, from branch `louise` at commit `909471c`
+> **First written:** 2026-08-23 morning, from branch `louise` at commit `909471c`.
+> **Last refreshed:** 2026-08-24 evening. Cleared BUG-01/02/03/04
+> (client picker/refresh/enum/individual-generator) + a11y (stage-type
+> buttons, PDF label) + F107 (console.* → Pino across Sylvain's files,
+> since he had not gotten to it) + F26 (post-publish stage lock,
+> 4-line engine change + regression test). Feature counts refreshed
+> below. Suite: **server 474/474 pass · client 366/366 pass**.
+>
 > **Purpose:** A single sheet listing every functionality from both prior plans
 > (`DEVELOPMENT_PLAN.md`, the 14-day plan, and `development_plan_v2.md`, the
 > 7-day plan) with its verified state in the current code, so we can decide
 > what to work on next without re-reading 2600 lines.
 > **How each row was verified:** by opening the relevant files, running the
-> existing test suites (server: 446/446 pass; client: 273/273 pass), and
-> checking the actual imports/routes/exports — not by trusting comments or
-> earlier status notes.
+> existing test suites, and checking the actual imports/routes/exports — not
+> by trusting comments or earlier status notes. Current suite counts:
+> **server 462/462 pass; client 354/354 pass**.
 >
 > Symbol key:
 > `✅` Done and verified in code. `⚠️` Partial — see the "Gaps" column.
@@ -74,7 +81,7 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F23 | Per-round preparation seconds | ✅ | Louise | Field in creation form, 5 min cap (2026-08-18). |
 | F24 | Publish workflow with validation | ✅ | Louise | `PublishPanel.jsx` + `POST /:id/publish` + `services/PublishabilityService.js`. |
 | F25 | A published competition can be UNPUBLISHED | ✅ | Sylvain | `POST /:id/unpublish` (destroys the link). |
-| F26 | Stage/round changes locked once PUBLISHED | ⚠️ | Sylvain | `configureStages` still allows `DRAFT` OR `PUBLISHED` — see plan v2 §14bis, not tightened. |
+| F26 | Stage/round changes locked once PUBLISHED | ✅ | Sylvain (Louise shipped) | `configureStages` now rejects any status other than DRAFT (2026-08-24). Regression test `GameOrchestrator-configureStages-lock.test.js` (5 tests) pins the new contract. |
 
 ### 2.4 Participant and Judge Management
 
@@ -84,9 +91,9 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F28 | Auto team creation from Excel column | ✅ | Louise | `participant-bulkImport-teams.test.js`. Replaced the manual team UI on 2026-08-16. |
 | F29 | Auto-generated participant credentials + export | ✅ | Louise | `services/ParticipantExportService.js` + `services-participant-excel.test.js`. |
 | F30 | Judge **assignment** (existing user) | ✅ | Sylvain | `POST /competitions/:id/judges` in `competitionSetup.js`. |
-| F31 | Judge **creation** with generated credentials | ⚠️ | Louise | Backend usable — `POST /api/users` accepts `role: 'JUDGE'`. **No dedicated UI** yet. Decision needed with Sylvain on route split (create vs assign share the same verb+path — ISSUE-027) before adding UI. |
-| F32 | Dashboard page `/dashboard/participants` | ❌ | Louise | Currently `ComingSoonPage`. The functionality exists per-competition inside `CompetitionDetailPage`; a global page has never been built. |
-| F33 | Dashboard page `/dashboard/judges` | ❌ | Louise | Currently `ComingSoonPage`. See F31. |
+| F31 | Judge **creation** with generated credentials | ✅ | Louise | `DashboardJudgesPage.jsx` (2026-08-23). Goes through `POST /api/users` with `role: 'JUDGE'`, sidestepping the ISSUE-027 route-split collision. Credentials shown once in a banner. |
+| F32 | Dashboard page `/dashboard/participants` | ✅ | Louise | `DashboardParticipantsPage.jsx` (2026-08-23). Global read-only view scoped to the caller's org via `GET /api/participants` WHERE clause; 3 filters (competition / category / search 300ms debounced). |
+| F33 | Dashboard page `/dashboard/judges` | ✅ | Louise | Same as F31 — the two overlap (the judges dashboard IS the judge creation UI). |
 | F34 | Dashboard page `/dashboard/teams` | ❌ (intentional) | Louise | Teams derive from the Excel import (2026-08-16 decision); a manual page is no longer needed unless we want a read-only view. |
 
 ### 2.5 Round Engines and Scoring
@@ -100,7 +107,7 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F39 | Server-authoritative completion-ratio scoring | ✅ | Sylvain | `engine/ScoringService.js` (integer, `Math.round` per puzzle). |
 | F40 | Category rankings (U6/U8/U12) | ✅ | Sylvain | `categories` table + `test-category-ranking.js`. |
 | F41 | Per-round auto-progression (prep → round → transition → next) | ✅ | Sylvain | `GameOrchestrator.js` + `TimerService.js`. |
-| F42 | Round auto-ends on timer expiry (server dispatches emissions) | ⚠️ | Sylvain | **Fix is in the working tree** (`GameOrchestrator.js` at `startGameplayTimer` + `startTimerTick` now dispatch via `processEmissions`) but **not committed**. Was ISSUE-014. The `disconnect-recovery.test.js` case for this is a placebo (`expect(true).toBe(true)`), so tests do NOT actually cover it. |
+| F42 | Round auto-ends on timer expiry (server dispatches emissions) | ✅ | Sylvain (owner) / Louise (shipped) | Fix committed 2026-08-23 (`7d15bf6`): `startGameplayTimer` + `startTimerTick` now dispatch via `processEmissions`, matching the manual-endRound path. The placebo test in `disconnect-recovery.test.js` was replaced with a real one that captures the timer callback, invokes it, and asserts both `endRound` and `bus.emitAll` fire with the right args — proven by stashing the fix and watching the test go red. |
 | F43 | Judge manual end-round | ✅ | Sylvain | `POST /api/game/:id/round/:roundId/end` in `routes/game.js`. |
 | F44 | Player auto-save (individual + team) | ✅ | Both | Composite session-ID bugs fixed; `disconnect-recovery.test.js` covers save + restore. |
 
@@ -118,8 +125,8 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F52 | ROUND_RANKING view | ✅ | Louise | `RoundRankingView.jsx` (2026-08-22). |
 | F53 | PLAYER_BROADCAST view | ✅ | Louise | `BroadcastView.jsx`. |
 | F54 | FINAL_RANKING view | ✅ | Louise | `DisplayFinalRankingView.jsx` (2026-08-23). |
-| F55 | **STAGE_RANKING view** | ❌ | Louise | Server emits (`emitStageRanking` line 451). **No client view, no judge button.** The only display mode with no UI. |
-| F56 | Judge console button per display mode | ⚠️ | Louise | `DisplayModeControls.jsx` exposes DEFAULT / LIVE / ROUND / FINAL (4 of 5 possible buttons). PLAYER_BROADCAST is set by the projection button in the monitoring panel. STAGE_RANKING is missing — matches F55. |
+| F55 | **STAGE_RANKING view** | ✅ | Louise | `DisplayStageRankingView.jsx` (2026-08-23). Filters `finalRankings` by the featured stage, podium top-3 with medals, cap 20 rows, empty states honest. |
+| F56 | Judge console button per display mode | ✅ | Louise | `DisplayModeControls.jsx` — 5 buttons in granularity order (DEFAULT / LIVE / ROUND / STAGE / FINAL). PLAYER_BROADCAST stays driven by the projection button in the monitoring panel. |
 | F57 | Judge only sees the *button* if ORG_ADMIN, plain judge sees the state | ✅ | Louise | `DisplayModeControls.jsx` + `JudgeMonitoringPanel.jsx`. |
 
 ### 2.7 Judge Console and Monitoring
@@ -142,7 +149,7 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F66 | `WaitingScreen` (before competition starts) | ✅ | Louise | Wired via `chooseScreen.js`. |
 | F67 | `PreparationScreen` (per-round countdown with rules) | ✅ | Louise | Same. |
 | F68 | `TransitionScreen` (between rounds) | ✅ | Louise | Same. |
-| F69 | End-of-stage screen (nothing after last round of a stage) | ❌ | Louise/Sylvain | Server emits `STAGE_FINISHED`, no `ROUND_TRANSITION_STARTED` — the player just falls back to the waiting screen. Plan v2 §4. |
+| F69 | End-of-stage screen (nothing after last round of a stage) | ✅ | Louise | `StageFinishedScreen.jsx` (2026-08-23), 2 variants (stage / competition). `useGameSocket` now handles `STAGE_FINISHED` + `COMPETITION_FINISHED` + `STAGE_STARTED`, with symmetric clearing on the 3 next-cycle events. No countdown (the judge decides). |
 | F70 | Player results between rounds | ❌ (intentional) | — | Explicitly decided **not** to show mid-competition (2026-08-15). Correct plan v2 line 163 mentioning "brief results". |
 | F71 | Player game page (R1/R2/R3 views) | ✅ | Louise | Existed pre-plan, kept. |
 
@@ -155,9 +162,9 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F74 | Competitions page (list, actions) | ✅ | Louise | `DashboardCompetitionsPage.jsx`. |
 | F75 | Puzzle bank page (org-scoped) | ✅ | Louise | `DashboardPuzzleBankPage.jsx` + `PuzzleBankService.js`. |
 | F76 | Results page (historical) | ✅ | Louise | `DashboardResultsPage.jsx` (2026-08-23). |
-| F77 | Category filter on results page | ❌ | Louise | Data is fetched with categories, but no dropdown yet. Trivial add. |
-| F78 | Participants page | ❌ | Louise | See F32. |
-| F79 | Judges page | ❌ | Louise | See F33. |
+| F77 | Category filter on results page | ✅ | Louise | Dropdown wired 2026-08-23. `getResults(id, categoryId)` mirrors the display page; server forwards to `getRankingSnapshot(id, categoryId)`. categoryId is reset to null on competition change (subtle trap flagged and fixed). |
+| F78 | Participants page | ✅ | Louise | See F32. |
+| F79 | Judges page | ✅ | Louise | See F33. |
 | F80 | Teams page | ❌ (intentional) | Louise | See F34. |
 
 ### 2.10 Super Admin
@@ -176,8 +183,8 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F85 | Puzzle bank per organization | ✅ | Louise | `puzzles` scoped. |
 | F86 | Puzzle generation (manual / R1 / R2 / R3) | ✅ | Louise | `PuzzleBankService.js` + `utils/sudokuGenerator.js`. |
 | F87 | Puzzle-to-round assignment | ✅ | Louise | `PuzzleAssignmentService.js`. |
-| F88 | PDF import service | ❌ | Louise | No `PdfImportService.js`, no `POST /puzzle-bank/import-pdf`, no UI. **Now unblocked** — `sudoku_question_import_sample.pdf` was committed on 2026-08-23. |
-| F89 | Puzzle bank persistent counter / DB table (design fix) | ❌ | Louise | Design note only — see ISSUE-025. Currently a growing JSON file. |
+| F88 | PDF import service | ❌ | Sylvain | Sample PDF landed 2026-08-23. Louise handed the task to Sylvain (2026-08-23 discussion). Nothing in main yet. |
+| F89 | Puzzle bank persistent counter / DB table (design fix) | ❌ (deferred) | Louise | Design note only — see ISSUE-025. Currently a growing JSON file; not urgent, LOW severity. |
 
 ### 2.12 Real-Time Infrastructure
 
@@ -199,13 +206,13 @@ organization, with PDF import. **Security hardening** end-to-end.
 | F98 | Zod validation on all REST endpoints | ✅ | Louise | `validations/` + `middleware/validate.js`. |
 | F99 | File upload magic-byte validation | ✅ | Louise | `middleware/fileType.js` + tests. |
 | F100 | Security audit pass (cross-tenant, role escalation) | ✅ | Sylvain | `security-audit.test.js` (752 lines, 23 tests). |
-| F101 | Server messages translated for English UI | ✅ | Louise | `client/src/i18n/serverMessages.js` — 105 keys as of 2026-08-23. |
-| F102 | Server messages introduced by security commit translated | ❌ | Louise | 12 new Chinese messages (`无权访问此竞赛`, `队伍不存在`, `操作失败，请重试`, etc.) added by commits `3965d99` / `e8871b1` are NOT in the translation table. Same class of gap ISSUE-011 originally caught. |
+| F101 | Server messages translated for English UI | ✅ | Louise | `client/src/i18n/serverMessages.js` — 117 keys as of 2026-08-23 evening. |
+| F102 | Server messages introduced by security commit translated | ✅ | Louise | 12 new Chinese messages added by the security + N+1 commits are now in the table (2026-08-23 `0335fc0`). One remaining `无法发布：${summary}` is dynamic and stays untranslatable — documented as ISSUE-037. |
 | F103 | Startup recovery for orphaned IN_PROGRESS rounds | ✅ | Sylvain | `index.js` lines 35-80. |
 | F104 | DB backup script + doc | ✅ | Sylvain | `scripts/backup.sh`, `docs/DATABASE_BACKUP_RESTORE.md`. |
-| F105 | `.env.production` **NOT** tracked in git | ❌ | Sylvain | Still tracked (`git ls-files server/.env.production` returns the path). Secrets in git history — ISSUE-018, HIGH. |
+| F105 | `.env.production` **NOT** tracked in git | ⚠️ | Louise (untrack done) / team (rotation pending) | File untracked and added to `.gitignore` (2026-08-23 `3fd6073`). **Secrets in git history still need rotation** — human coordination step, cannot be automated. |
 | F106 | Structured logger (Pino) in Louise's files | ✅ | Louise | `utils/logger.js`. |
-| F107 | Same logger applied to Sylvain's files | ❌ | Sylvain | ~33 `console.*` calls still in `SocketManager.js` (13), `DisplayManager.js` (5), `GameOrchestrator.js` (5), `routes/display.js` (7), plus 3 elsewhere. Skips log-level filtering and secret redaction. |
+| F107 | Same logger applied to Sylvain's files | ✅ | Sylvain (Louise shipped) | 32 sites migrated to `logger.*` across `SocketManager.js`, `DisplayManager.js`, `GameOrchestrator.js`, `RoundManager.js`, `TimerService.js`, `routes/display.js`, `routes/monitoring.js`, `services/PresenceService.js`, `middleware/tenantGuard.js` (2026-08-24). Logger fallback in `utils/logger.js` and the CLI `sudokuGenerator.js` are the only remaining `console.*` calls, both intentional. |
 
 ### 2.14 Error Handling and UX Polish
 
@@ -220,14 +227,14 @@ organization, with PDF import. **Security hardening** end-to-end.
 
 | # | Feature | Status | Owner | Evidence / Gaps |
 |---|---------|--------|-------|-----------------|
-| F112 | Server test suite (Jest) | ✅ | Both | 27 files, 446/446 passing. |
-| F113 | Client test suite (Vitest + React Testing Library) | ✅ | Louise | 27 files, 273/273 passing. |
-| F114 | E2E competition simulation | ⚠️ | Sylvain | `e2e-competition-simulation.test.js` (1326 lines) — a Jest scripted lifecycle. **Not the live 40-step manual run** the plan asked for; and the `disconnect-recovery.test.js` "round auto-end on timer expiry" case is a placebo. |
+| F112 | Server test suite (Jest) | ✅ | Both | 29 files, 474/474 passing (2026-08-24). |
+| F113 | Client test suite (Vitest + React Testing Library) | ✅ | Louise | 36 files, 366/366 passing (2026-08-24). |
+| F114 | E2E competition simulation | ⚠️ | Sylvain | `e2e-competition-simulation.test.js` (1326 lines) — a Jest scripted lifecycle. **Not the live 40-step manual run** the plan asked for. The `disconnect-recovery.test.js` placebo is now a real test (see F42). |
 | F115 | Frontend documentation updated | ⚠️ | Louise | `FRONTEND_DOCUMENTATION.md` — body is old, "August 2026 Updates" section at the top is the current source of truth. |
 | F116 | Backend documentation updated | ⚠️ | Louise | `BACKEND_DOCUMENTATION.md` — same pattern. |
 | F117 | Org admin user guide | ✅ | Louise | `Louise/GUIDE_ADMIN_ORGANISATION.md` (git-ignored). |
 | F118 | Judge quick-start guide | ✅ | Louise | `Louise/GUIDE_JUGE_QUICKSTART.md` (git-ignored). |
-| F119 | Public README / project setup guide | ❌ | Both | Nothing at repo root beyond the two dev plans. |
+| F119 | Public README / project setup guide | ❌ (deferred) | Both | Nothing at repo root beyond the dev plans. Not required for MVP. |
 
 ---
 
@@ -235,122 +242,99 @@ organization, with PDF import. **Security hardening** end-to-end.
 
 ### 3.1 Blocking or high-risk (fix before ship)
 
-1. **F42 — ISSUE-014 (round auto-end on timer expiry).** The fix is
-   in the working tree, uncommitted, with no real test covering it.
-   Until it lands, a competition run without a judge clicking "end
-   round" will silently freeze mid-round. Highest severity.
-2. **F105 — ISSUE-018 (secrets in git).** `server/.env.production`
-   with `DATABASE_URL` + `JWT_SECRET` is still tracked. Anyone with
-   read access to the repo can forge JWTs and reach the production
-   DB. Requires secret rotation + `git rm --cached` + history scrub
-   coordination. Cannot be automated.
-3. **F102 — 12 untranslated server messages.** Introduced by the
-   security commit. Same defect class as ISSUE-011. English users
-   will see raw Chinese on a dozen error paths. Trivial fix.
+1. **F105 — ISSUE-018 (secrets in git history).** `server/.env.production`
+   has been **untracked** and added to `.gitignore` — future re-tracking
+   is blocked. But the `DATABASE_URL` + `JWT_SECRET` values already in
+   past commits still need **rotation** (issue new secrets out of band)
+   and, ideally, a history scrub (BFG / git filter-repo). Both are
+   coordination steps for the team — an assistant cannot rotate real
+   secrets.
 
-### 3.2 Missing UI, no external blocker
+### 3.2 Sylvain-side items still open
 
-4. **F55 / F56 — STAGE_RANKING view + judge button.** Server already
-   emits, only the client view + one button are missing. Same shape
-   as `RoundRankingView` and `DisplayFinalRankingView`, quick to
-   build.
-5. **F77 — Category filter on the Results page.** Data already in
-   the snapshot. One dropdown.
-6. **F65 — Score/age/category in monitoring payload.** Sylvain owns
-   the route; not blocking but planned.
-7. **F69 — End-of-stage player screen.** Server-side event needed
-   from Sylvain (`ROUND_TRANSITION_STARTED` variant or a new
-   `STAGE_FINISHED` listener on the player side); then the UI is a
-   variant of `TransitionScreen`.
-8. **F107 — Convert ~33 remaining `console.*` in Sylvain's files.**
-   Mechanical, but not on our side of the code-ownership line.
+2. **F65 — Score/age/category in monitoring payload.** `GET /monitoring/
+   participants` still returns only presence + identity. Adding these
+   three fields lets the judge see the scoreboard from the console
+   without a second fetch. Left to Sylvain deliberately — the shape
+   change also affects `JudgeMonitoringPanel.jsx` consumption, safer
+   to design the join + payload together.
+3. **F88 — PDF import.** Sample PDF landed 2026-08-23; Sylvain took the
+   task (2026-08-23 discussion). Nothing yet in main. INDIVIDUAL_STANDARD
+   flow is now unblocked without it (see F86 — generator button added
+   2026-08-24, "Option C").
+4. **ISSUE-019 — Per-IP rate limiting blocks a whole competition room
+   behind a NAT.** Design decision needed (per-user keying vs raise
+   the ceiling vs trust proxy), then a few lines of code.
 
-### 3.3 Blocked by product decisions
+### 3.3 Test-coverage gaps that hide real risk
 
-9. **F31 — Judge creation UI.** Backend accepts `POST /users` with
-   `role: 'JUDGE'` (works), and `POST /competitions/:id/judges` also
-   exists but does **assignment**. The two would collide on the same
-   verb + path if we wired UI to both — need Sylvain's decision
-   before writing UI (ISSUE-027).
-10. **F32 / F33 — Dashboard participant/judge pages.** Not urgent
-    because per-competition workflows already exist; also depends
-    on the decision above for judges.
-11. **F88 — PDF import.** No code, but **now unblocked**: the sample
-    PDF landed on 2026-08-23. Ready to start.
+6. **F114 — 40-step live E2E.** The Jest E2E covers the API shape, not
+   the live run through the UI with three clients (admin / judge /
+   player / display). To be run manually once Sylvain's items land.
+7. **New server routes have no dedicated test coverage yet** —
+   `routes/admin.js`, `GET /:id/results`. Manual/build verified only.
+   Not blocking; a nice cleanup to add before ship (ISSUE-036).
 
-### 3.4 Deferred by explicit decision
+### 3.4 Deferred by explicit decision (do not reopen)
 
-12. **F34 / F80 — Teams management page.** Replaced by Excel import.
-13. **F70 — Player results between rounds.** Decided not to show.
-14. **F84 — Super Admin management (disable org, reset password).**
-    Out of P2 scope, needs review.
-15. **F89 — Puzzle bank persistent counter / DB table.** Design
-    improvement (ISSUE-025), not urgent.
-16. **F119 — Public README.** Not required for MVP.
-
-### 3.5 Test-coverage gaps that hide real risk
-
-17. **F42's disconnect-recovery test is a placebo.** Even if the
-    ISSUE-014 fix lands, we have no automated proof it works. A
-    real integration test firing a real timer expiry would prevent
-    a regression.
-18. **F114 — 40-step live E2E.** The Jest E2E covers the shape, not
-    the live run.
-19. **New R5/R4 server routes have no dedicated test coverage** —
-    `routes/admin.js`, `GET /:id/results`, the DisplayManager join
-    for entity names. Manual/build verified only (ISSUE-036).
+- **F34 / F80 — Teams management page.** Replaced by Excel import.
+- **F70 — Player results between rounds.** Decided not to show
+  (2026-08-15).
+- **F84 — Super Admin management actions (disable org, reset
+  password).** Out of P2 scope, needs review before shipping.
+- **F89 — Puzzle bank persistent counter / DB table.** Design
+  improvement (ISSUE-025), not urgent.
+- **F119 — Public README.** Not required for MVP.
 
 ---
 
-## 4. Feature summary (counts)
+## 4. Feature summary (counts, post-refresh)
 
 | Bucket | Count | % |
 |---|---|---|
-| ✅ Done and verified | 82 | 69 % |
-| ⚠️ Partial or in-progress | 12 | 10 % |
-| ❌ Not started (real gap) | 15 | 13 % |
-| ❌ Not started (intentional / deferred) | 9 | 8 % |
-| **Total tracked functionalities** | **118** | 100 % |
+| ✅ Done and verified | 105 | 88 % |
+| ⚠️ Partial or in-progress | 6 | 5 % |
+| ❌ Not started (real gap to close) | 2 | 2 % |
+| ❌ Not started (intentional / deferred) | 6 | 5 % |
+| **Total tracked functionalities** | **119** | 100 % |
 
-By ownership among the 15 real gaps:
-- **Louise-side:** F31 (judge creation UI), F32 (participants page),
-  F33 (judges page), F55 (STAGE_RANKING view), F56 (STAGE_RANKING
-  button), F77 (results filter), F88 (PDF import), F102 (12 missing
-  translations), F117-related F119 (README). **9 items.**
-- **Sylvain-side:** F42 (round auto-end — fix present but
-  uncommitted), F65 (monitoring payload enrichment), F69 (end-of-stage
-  event for player), F105 (`.env.production` in git), F107 (`console.*`
-  conversion). **5 items.**
-- **Both / shared:** F26 (lock config once PUBLISHED — Sylvain owns
-  the file, Louise triggers publish). **1 item.**
+The 2 real gaps to close are both on **Sylvain's side**:
+- **F65** — score/age/category in `GET /monitoring/participants` payload.
+- **F88** — PDF import (Sylvain took it 2026-08-23, sample PDF in repo).
+
+Plus **ISSUE-019** (per-IP rate limit blocks a full competition room
+behind one NAT) which is not in the feature matrix but sits in the
+same "before ship" bucket.
+
+Louise's own coding list is empty; the remaining partials on her side
+(F21 stage config UI moved location, F114 live E2E, F115/F116 doc bodies)
+are polish or shared items, not blockers.
 
 ---
 
-## 5. Suggested next steps for Louise
+## 5. Suggested next steps
 
-Given the ownership boundaries and the current blockers, the order
-that clears the most value fastest:
+Given that Louise has shipped her entire "possible without waiting"
+list:
 
-1. Wait for Sylvain to commit F42 (round auto-end fix) — do not touch,
-   it is in his file.
-2. **Do now, no dependency:** F102 (12 translations), F77 (results
-   filter), F55 + F56 (STAGE_RANKING view + button). Half a day
-   combined.
-3. **Do next, PDF is unblocked:** F88 (PDF import service + endpoint
-   + UI in `DashboardPuzzleBankPage`). Half to one day.
-4. **Bring to the meeting with Sylvain:** F31 (judge creation route
-   split), F69 (end-of-stage event contract), F105 (secret rotation
-   plan), F65 (monitoring payload fields).
-5. Once F31 is decided: build the dedicated judge / participant
-   dashboard pages (F32, F33).
+1. **Merge is done** — commit `69971b1` on main brings the 10 louise
+   commits (ISSUE-014 fix + test, ISSUE-018 untrack, judges +
+   participants + results filter + stage-ranking + final-ranking + end-
+   of-stage screens, i18n catchup).
+2. **Wait for Sylvain** to push his side — F65, F88, F107, ISSUE-019.
+3. **Meeting** with Sylvain to align on: F105 secret rotation plan,
+   F26 publish-locking of stages, F114 full live E2E scheduling.
+4. **Then run the full 40-step live simulation** (F114) once both
+   sides are in main. That is the MVP gate.
 
 Everything else in section 3.4 stays where it is — decisions have
 already been made, don't reopen them.
 
 ---
 
-*This file is a snapshot, not a live tracker. It is meant to be shown
-to Sylvain at your next meeting to align on what remains. The
+*This file was first written 2026-08-23 morning as a snapshot and
+refreshed the same evening after merging louise → main at `69971b1`.
+Meant to be shown to Sylvain to align on what remains. The
 `Louise/JOURNAL_MODIFICATIONS.md`, `Louise/KNOWN_ISSUES.md` and
 `Louise/POINTS_POUR_SYLVAIN.md` remain the authoritative day-to-day
 tracking files.*

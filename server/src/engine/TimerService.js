@@ -9,6 +9,8 @@
  * Holds only interval IDs in memory — NOT game state.
  */
 
+const logger = require('../utils/logger');
+
 class TimerService {
   /**
    * @param {import('../state/StateRepository')} state
@@ -125,7 +127,7 @@ class TimerService {
         try {
           await onExpire();
         } catch (e) {
-          console.error('[TimerService] onExpire callback failed:', e.message);
+          logger.error('[TimerService] onExpire callback failed', { error: e.message });
         }
         return;
       }

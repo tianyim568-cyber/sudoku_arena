@@ -76,7 +76,6 @@ export default {
     },
     // Phase 11: shown on /admin-coming-soon. Explains why the Super Admin
     // lands on a waiting page instead of the org dashboard.
-    superAdminComingSoon: '平台管理员界面尚未上线。未来您可以在此跨组织管理所有赛事。请先退出登录，使用组织管理员账号管理具体赛事。',
   },
 
   login: {
@@ -193,6 +192,8 @@ export default {
     createTeamFailed: '创建队伍失败',
     addMemberFailed: '添加成员失败',
     judgeNotFound: '未找到裁判用户',
+    judgeNotSelected: '请先选择一位裁判',
+    selectJudge: '选择裁判…',
     judgeAssigned: '裁判已分配！',
     assignJudgeFailed: '分配裁判失败',
     bankInsufficient: '题库仅有 {bankCount} 道 {type} 题目（需要 {required} 道）{detail}。请前往题库页面生成更多。',
@@ -288,6 +289,12 @@ export default {
     generated: '已为 {type} 生成 {n} 道题目。题库当前共 {total} 道',
     generateFailed: '生成失败：{msg}',
     invalidTeamCount: '请输入有效的队伍数量',
+    individualTitle: '生成个人题目',
+    individualDesc: '为 INDIVIDUAL_STANDARD 轮次添加经典数独题目。在委员会 PDF 尚未导入时使用。难度比例：50% 简单，30% 中等，20% 困难。',
+    individualCountLabel: '题目数量',
+    individualBtn: '生成个人数独',
+    individualGenerating: '生成中...',
+    invalidIndividualCount: '请输入有效的题目数量',
     bulkGenerated: '已为 {tc} 支队伍批量生成完成：\nR1：{r1} 道 ({tc} x 10: 9道简单JOC + 1道FINAL)\nR2：{r2} 道 ({tc} x 16: 8E+6M+2H)\nR3：{r3} 道 (5E+3M+2H)\n共计：{total} 道新题。题库当前共 {inBank} 道。',
     bulkGenerateFailed: '批量生成失败：{msg}',
     selectRoundAlert: '请选择一个轮次',

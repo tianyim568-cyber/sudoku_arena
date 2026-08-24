@@ -27,12 +27,17 @@ function createUserRouter(repos) {
   router.post('/', validateBody(createUserSchema), async (req, res) => {
     const { username, password, role, organizationId } = req.body;
 
-    // SECURITY: ORG_ADMIN can only create users in their own organization
-    if (req.user.role === 'ORG_ADMIN' && organizationId !== req.user.organizationId) {
+    // SECURITY: ORG_ADMIN can only create users in their own organization.
+    // Auto-assign the caller's org when the field is omitted (the common
+    // case from the dashboard). The order matters: resolve effectiveOrgId
+    // FIRST, then compare — an earlier version compared raw
+    // `organizationId` and rejected every ORG_ADMIN call that omitted the
+    // field (BUG-06, 2026-08-24). SUPER_ADMIN keeps its ability to create
+    // users in any org by passing organizationId explicitly.
+    const effectiveOrgId = organizationId || (req.user.role === 'ORG_ADMIN' ? req.user.organizationId : null);
+    if (req.user.role === 'ORG_ADMIN' && effectiveOrgId !== req.user.organizationId) {
       return res.json({ code: 40301, message: '无权在此组织下创建用户', data: null });
     }
-    // SECURITY: If no organizationId provided and caller is ORG_ADMIN, auto-assign their org
-    const effectiveOrgId = organizationId || (req.user.role === 'ORG_ADMIN' ? req.user.organizationId : null);
 
     const existing = await repos.users.findByUsernameSafe(username);
     if (existing) {
