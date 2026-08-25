@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { authMiddleware, roleMiddleware, ADMIN_ROLES } = require('../middleware/auth');
 const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateBody } = require('../middleware/validate');
@@ -7,7 +8,9 @@ const {
   createTeamSchema,
   addTeamMemberSchema,
   assignJudgeSchema,
+  createAndAssignJudgeSchema,
 } = require('../validations/competitions');
+const { generateUsername, generatePassword } = require('../utils/credentials');
 const {
   TeamRoundType,
   IndividualRoundType,
@@ -215,6 +218,85 @@ function createCompetitionSetupRouter(repos, prisma) {
     await repos.teams.assignJudge({ competitionId, judgeId });
     res.json({ code: 200, message: 'success', data: { competitionId, judgeId } });
   });
+
+  // Create a new judge user from a display name and assign them to the
+  // competition in one step. The system generates a unique username and a
+  // random password, hashes it, and atomically creates the user row + the
+  // competition_judges junction row. Retries up to 3 times on username
+  // collision (P2002) — the random suffix makes this vanishingly unlikely,
+  // but the loop is cheap insurance.
+  router.post(
+    '/competitions/:id/judges/create-and-assign',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    validateBody(createAndAssignJudgeSchema),
+    async (req, res) => {
+      const { displayName } = req.body;
+      const competitionId = req.params.id;
+      const organizationId = req.user.organizationId;
+
+      const MAX_RETRIES = 3;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        const username = generateUsername(displayName);
+        const password = generatePassword(10);
+        const passwordHash = bcrypt.hashSync(password, 10);
+
+        try {
+          const result = await prisma.$transaction(async (tx) => {
+            // Create the user with role JUDGE, scoped to the caller's org.
+            const newUser = await tx.users.create({
+              data: {
+                username,
+                password_hash: passwordHash,
+                role: 'JUDGE',
+                organization_id: organizationId,
+              },
+            });
+
+            // Assign the new judge to the competition.
+            await tx.competition_judges.create({
+              data: {
+                competition_id: competitionId,
+                user_id: newUser.id,
+              },
+            });
+
+            return newUser;
+          });
+
+          // Success — return the plaintext password so the admin can share it
+          // once. It is never stored or logged server-side beyond this response.
+          return res.json({
+            code: 200,
+            message: 'success',
+            data: {
+              userId: result.id,
+              username,
+              password,
+              displayName,
+            },
+          });
+        } catch (err) {
+          // P2002 = unique constraint violation on username. Another admin
+          // created a judge with the same slug at the same moment. Retry with
+          // a fresh random suffix.
+          if (err.code === 'P2002' && attempt < MAX_RETRIES - 1) {
+            continue;
+          }
+          // Anything else (or retries exhausted) — report the failure.
+          return res.json({
+            code: 40010,
+            message: err.message || 'Failed to create judge',
+            data: null,
+          });
+        }
+      }
+
+      // Exhausted retries (should not reach here, but guard anyway).
+      res.json({ code: 40010, message: 'Failed to generate unique username', data: null });
+    }
+  );
 
   return router;
 }

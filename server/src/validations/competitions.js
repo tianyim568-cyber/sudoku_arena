@@ -47,9 +47,15 @@ const addTeamMemberSchema = z.object({
   position: z.coerce.number().int().optional(),
 });
 
-// Zod schema for POST /api/competitions/:id/judges (assign judge)
+// Zod schema for POST /api/competitions/:id/judges (assign existing judge)
 const assignJudgeSchema = z.object({
   judgeId: z.string().uuid(),
+});
+
+// Zod schema for POST /api/competitions/:id/judges/create-and-assign
+// Admin enters a display name; system auto-generates username + password.
+const createAndAssignJudgeSchema = z.object({
+  displayName: z.string().min(1).max(100),
 });
 
 // Zod schema for PUT /api/competitions/:id/display/mode
@@ -64,5 +70,6 @@ module.exports = {
   createTeamSchema,
   addTeamMemberSchema,
   assignJudgeSchema,
+  createAndAssignJudgeSchema,
   updateDisplayModeSchema,
 };

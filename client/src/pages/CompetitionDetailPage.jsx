@@ -36,6 +36,11 @@ export default function CompetitionDetailPage() {
   // filtered against competition.judges so an already-assigned judge cannot
   // be picked twice.
   const [selectedJudgeId, setSelectedJudgeId] = useState('');
+  // Create & Assign judge: admin types a name, the system generates credentials
+  const [newJudgeName, setNewJudgeName] = useState('');
+  const [creatingJudge, setCreatingJudge] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState(null);
+  const [showCredentialsDialog, setShowCredentialsDialog] = useState(false);
   // BUG-02 fix: PublishPanel only refetches on status prop change. Adding
   // a stage after publication does NOT change the status, so the checklist
   // went stale until a manual page reload. This counter increments on every
@@ -203,11 +208,33 @@ export default function CompetitionDetailPage() {
     }
   };
 
+  const handleCreateAndAssignJudge = async () => {
+    if (!newJudgeName.trim()) return msg(t('competitionDetail.judgeNameRequired'), 'error');
+    setCreatingJudge(true);
+    try {
+      const res = await api.createAndAssignJudge(id, newJudgeName.trim());
+      if (res.code === 200) {
+        setCreatedCredentials(res.data);
+        setShowCredentialsDialog(true);
+        setNewJudgeName('');
+        await load();
+        bumpPublishRefresh();
+      } else {
+        msg(t('competitionDetail.createJudgeFailed', { msg: res.message || res.code }), 'error');
+      }
+    } catch (err) {
+      msg(t('competitionDetail.createJudgeFailed', { msg: err.message }), 'error');
+    } finally {
+      setCreatingJudge(false);
+    }
+  };
+
   // BUG-01 fix: unassigned judges = users with role JUDGE who are not already
   // in competition.judges. The server sends judges with either id or userId
-  // (depends on the join), so we check both.
+  // (depends on the join), so we check both. Use optional chaining because
+  // competition is null on first render (before the null guard).
   const unassignedJudges = users.filter(u => u.role === 'JUDGE' &&
-    !(competition.judges || []).some(j => j.id === u.id || j.userId === u.id));
+    !(competition?.judges || []).some(j => j.id === u.id || j.userId === u.id));
 
   const handleDeleteParticipants = async () => {
     if (!window.confirm(t('competitionDetail.confirmDeleteParticipants'))) return;
@@ -292,6 +319,7 @@ export default function CompetitionDetailPage() {
             competitionId={id}
             status={competition.status}
             refreshKey={publishRefreshKey}
+            onStatusChange={load}
           />
         )}
 
@@ -578,10 +606,8 @@ export default function CompetitionDetailPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
             <h2 className="text-base sm:text-lg font-semibold">{t('competitionDetail.judgesTitle')}</h2>
             {isAdmin && isEditable && (
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                {/* BUG-01 fix: a dropdown of unassigned org judges replaces
-                    the single button that always grabbed users[0]. Hidden
-                    when there is nobody to assign — no empty dropdown. */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center w-full sm:w-auto">
+                {/* Existing dropdown for pre-created judges */}
                 {unassignedJudges.length > 0 && (
                   <select
                     value={selectedJudgeId}
@@ -602,6 +628,25 @@ export default function CompetitionDetailPage() {
                 >
                   {t('competitionDetail.assignJudge')}
                 </button>
+
+                {/* New: create judge from name input */}
+                <div className="flex gap-2 sm:ml-2">
+                  <input
+                    type="text"
+                    value={newJudgeName}
+                    onChange={(e) => setNewJudgeName(e.target.value)}
+                    placeholder={t('competitionDetail.newJudgeNamePlaceholder')}
+                    className="px-2 py-1.5 border rounded text-xs sm:text-sm flex-1 sm:w-40"
+                    disabled={creatingJudge}
+                  />
+                  <button
+                    onClick={handleCreateAndAssignJudge}
+                    disabled={creatingJudge || !newJudgeName.trim()}
+                    className="px-3 py-1.5 bg-green-600 text-white rounded text-xs sm:text-sm hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {creatingJudge ? '...' : t('competitionDetail.createAndAssignJudge')}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -617,6 +662,47 @@ export default function CompetitionDetailPage() {
             <p className="text-gray-400 text-xs sm:text-sm">{t('competitionDetail.noJudges')}</p>
           )}
         </section>
+
+        {/* Credentials dialog — shown once after judge creation */}
+        {showCredentialsDialog && createdCredentials && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold mb-4">{t('competitionDetail.judgeCredentialsTitle')}</h3>
+              <p className="text-xs sm:text-sm text-gray-600 mb-4">{t('competitionDetail.judgeCredentialsHint')}</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">{t('judges.usernameLabel')}</label>
+                  <div className="bg-gray-50 px-3 py-2 rounded text-sm font-mono break-all">{createdCredentials.username}</div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">{t('judges.passwordLabel')}</label>
+                  <div className="bg-gray-50 px-3 py-2 rounded text-sm font-mono break-all">{createdCredentials.password}</div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={() => {
+                    const text = `${createdCredentials.username}\n${createdCredentials.password}`;
+                    navigator.clipboard.writeText(text);
+                    msg(t('judges.copyCredentials'));
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-500"
+                >
+                  {t('judges.copyCredentials')}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCredentialsDialog(false);
+                    setCreatedCredentials(null);
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                >
+                  {t('common.close')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Access link — the server already generates/reads/revokes the entry
             code; this block is the missing UI. Shown to admins only because

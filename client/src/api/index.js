@@ -138,6 +138,8 @@ export const api = {
 
   // Judges
   assignJudge: (competitionId, judgeId) => request('POST', `/competitions/${competitionId}/judges`, { judgeId }),
+  createAndAssignJudge: (competitionId, displayName) =>
+    request('POST', `/competitions/${competitionId}/judges/create-and-assign`, { displayName }),
 
   // Game control — Phase 10: paths migrated to /competitions, functions renamed
   // to match. The orchestrator methods on the server keep their historical

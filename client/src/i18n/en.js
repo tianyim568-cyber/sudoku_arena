@@ -244,6 +244,12 @@ export default {
     noExportData: 'No participant data to export',
     account: 'Account',
     passwordCol: 'Password',
+    newJudgeNamePlaceholder: 'Enter judge\'s name…',
+    createAndAssignJudge: 'Create & Assign',
+    judgeNameRequired: 'Please enter a name for the judge',
+    createJudgeFailed: 'Failed to create judge: {msg}',
+    judgeCredentialsTitle: 'Judge Credentials Created',
+    judgeCredentialsHint: 'Share these credentials with the judge now. The password will not be shown again.',
   },
 
   puzzleBank: {

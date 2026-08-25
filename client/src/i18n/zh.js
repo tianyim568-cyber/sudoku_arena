@@ -238,6 +238,12 @@ export default {
     noExportData: '没有可导出的选手数据',
     account: '账号',
     passwordCol: '密码',
+    newJudgeNamePlaceholder: '输入裁判姓名…',
+    createAndAssignJudge: '创建并分配',
+    judgeNameRequired: '请输入裁判姓名',
+    createJudgeFailed: '创建裁判失败：{msg}',
+    judgeCredentialsTitle: '裁判账号已创建',
+    judgeCredentialsHint: '请立即将以下凭据分享给裁判。密码不会再次显示。',
   },
 
   puzzleBank: {
