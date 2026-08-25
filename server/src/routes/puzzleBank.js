@@ -269,7 +269,7 @@ function createPuzzleBankRouter(repos) {
           where: { id: roundId },
           select: {
             id: true,
-            round_type: true,
+            type: true,
             competition_stages: {
               select: { competitions: { select: { organization_id: true } } },
             },
@@ -305,24 +305,24 @@ function createPuzzleBankRouter(repos) {
         });
       }
 
-      // PDF-03: check every referenced categoryId against the caller's org
-      // in one query. Foreign ids get stripped rather than passing through.
+      // PDF-03: check every referenced categoryId exists in the DB.
+      // Categories are GLOBAL (no organization_id column) — any valid
+      // category id is acceptable for any org's puzzles.
       const referencedCategoryIds = [
         ...new Set(stash.questions.map(q => q.categoryId).filter(Boolean)),
       ];
       let validCategoryIds = new Set();
       if (referencedCategoryIds.length > 0) {
         try {
-          const owned = await prisma.categories.findMany({
+          const existing = await prisma.categories.findMany({
             where: {
               id: { in: referencedCategoryIds },
-              organization_id: organizationId,
             },
             select: { id: true },
           });
-          validCategoryIds = new Set(owned.map(c => c.id));
+          validCategoryIds = new Set(existing.map(c => c.id));
         } catch (err) {
-          logger.error('[puzzle-bank] category tenant check failed', { error: err.message });
+          logger.error('[puzzle-bank] category validation failed', { error: err.message });
           return res.json({ code: 50000, message: '校验类别失败，请稍后再试', data: null });
         }
       }
@@ -353,7 +353,7 @@ function createPuzzleBankRouter(repos) {
             difficulty: safeQuestion.difficulty,
             points: safeQuestion.score,
             categoryId: safeQuestion.categoryId || null,
-            roundType: round.round_type,
+            roundType: round.type,
             initialGrid: safeQuestion.initialGrid,
             solution: safeQuestion.solutionGrid,
           });

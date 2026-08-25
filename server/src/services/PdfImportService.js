@@ -59,9 +59,18 @@ class PdfImportService {
       return { questions: [], errors: ['PDF 文件中未提取到文本内容'] };
     }
 
-    // Split by page break (form feed \f) or by QUESTION marker.
-    // pdf-parse concatenates pages with \f between them.
-    const pages = fullText.split('\f').filter(p => p.trim().length > 0);
+    // Split by page separator. pdf-parse v1 used form-feed (\f); v2 uses
+    // the pattern "\n-- N of M --\n". Handle both, plus a bare fallback for
+    // PDFs that have no separator at all (single-page or unusual renderers).
+    let pages;
+    if (fullText.includes('\f')) {
+      pages = fullText.split('\f').filter(p => p.trim().length > 0);
+    } else if (/\n--\s*\d+\s+of\s+\d+\s+--\n/.test(fullText)) {
+      pages = fullText.split(/\n--\s*\d+\s+of\s+\d+\s+--\n/).filter(p => p.trim().length > 0);
+    } else {
+      // Single page or no separator — treat the whole text as one page.
+      pages = [fullText];
+    }
 
     const questions = [];
     const errors = [];
