@@ -24,7 +24,7 @@
 
 - [ ] PostgreSQL is running (Docker or local) on port 5432
 - [ ] `server/.env` exists with `JWT_SECRET`, `DATABASE_URL`, `PORT=3001`, `NODE_ENV=development`
-- [ ] Migrations up to date: from `server/` run `npx prisma migrate deploy`
+- [ ] Migrations up to date: from `server/` run `npm run migrate:up`
 - [ ] Client generated: from `server/` run `npx prisma generate`
 - [ ] Seed the demo data: from `server/` run `npx prisma db seed`
 - [ ] Start the server: from `server/` run `npm run dev` — should listen on 3001, no red errors

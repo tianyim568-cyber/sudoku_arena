@@ -61,7 +61,7 @@ After restoring, run migrations to ensure schema is current:
 
 ```bash
 cd server
-npx prisma migrate deploy
+npm run migrate:up
 ```
 
 ## Remote Database (Production)
@@ -157,7 +157,7 @@ If the server crashes and you need to recover quickly:
 3. **Run migrations**
    ```bash
    cd server
-   npx prisma migrate deploy
+   npm run migrate:up
    ```
 
 4. **Restart server**
