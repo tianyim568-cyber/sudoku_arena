@@ -632,6 +632,74 @@ export default {
     notAllowed: 'Switching the big-screen mode is reserved for org admins.',
   },
 
+  // Big-screen display views (public projection). These labels used to be
+  // hardcoded Chinese: the audience was Chinese and the room only had one
+  // language. Since the app now carries a language switcher, the display
+  // views honor it too — the language chosen in the browser that opened the
+  // display token drives everything shown here.
+  display: {
+    // Errors + loading on the display shell (DisplayPage.jsx)
+    errInvalidToken: 'Invalid display token or data load failure',
+    errNetworkRetry: 'Network connection failed, retrying…',
+    errTokenRevoked: 'Display token has been revoked',
+    errTokenHint: 'Please check the display token is correct',
+    loading: 'Loading…',
+
+    // Shared chrome across ranking views (round / stage / final / rankings /
+    // broadcast). {time} is a locale-formatted clock time.
+    updatedAt: 'Updated at {time}',
+    live: 'live',
+    autoRefresh: 'refreshes every {n}s',
+
+    // Footer branding — one per view
+    footerRound: 'Sudoku Arena — Round Ranking',
+    footerStage: 'Sudoku Arena — Stage Ranking',
+    footerFinal: 'Sudoku Arena — Final Ranking',
+    footerLive: 'Sudoku Arena — Player Broadcast',
+    footerRankings: 'Sudoku Arena — Rankings',
+
+    // Empty states (RoundRankingView)
+    emptyRoundTitle: 'No round in progress or finished',
+    emptyRoundSubtitle: 'Round ranking will appear here after the competition starts',
+    emptyRoundNoData: '"{name}" has no ranking data yet',
+    emptyRoundInProgressHint: 'Ranking updates live as players submit correct answers',
+    emptyRoundPausedHint: 'Round paused — submitted rankings are shown below',
+    emptyRoundFinishedHint: 'Final ranking will appear after the round ends',
+
+    // Empty states (DisplayStageRankingView)
+    emptyStageTitle: 'No stage in progress or finished',
+    emptyStageSubtitle: 'Stage ranking will appear here after the competition starts',
+    emptyStageNoData: '"Stage {n}" has no ranking data yet',
+    emptyStageInProgressHint: 'Stage in progress — cumulative ranking will appear after each round ends',
+    emptyStageFinishedHint: 'Cumulative ranking will appear after the stage ends',
+
+    // Empty states (DisplayFinalRankingView)
+    emptyFinalTitle: 'Final ranking not generated yet',
+    emptyFinalSubtitle: 'Final ranking will appear here after the competition ends',
+
+    // Empty states (RankingView)
+    emptyStageData: 'No stage data',
+    emptyRoundData: 'No round data',
+    emptyRankData: 'No ranking data',
+
+    // Small labels reused across views
+    finalTitle: 'Final Ranking',
+    stageLabel: 'Stage {n}',
+    podiumGold: 'Gold',
+    podiumSilver: 'Silver',
+    podiumBronze: 'Bronze',
+    age: 'age {n}',
+    ageRange: '(age {min}-{max})',
+    team: 'Team',
+    scoreUnit: 'pts',
+    allCategories: 'All categories',
+    // Short stage-type badges (used by the big screen — different from the
+    // longer competitionDetail.stageTypeIndividual which reads "Individual
+    // stage").
+    typeIndividual: 'Individual',
+    typeTeam: 'Team',
+  },
+
   // Judge monitoring panel — the live participant list with presence, the
   // per-player detail, and the one-click "project to big screen" action.
   // Visibility of the projection buttons is gated on isAdmin because the

@@ -23,19 +23,20 @@
  * does not see a style break when the judge switches modes. Do not shrink
  * anything without checking the on-screen result first.
  *
- * The labels are Chinese hardcoded, matching the other display views: this
- * is a public page shown in the room, the audience is Chinese-speaking,
- * and the rest of the display page has never been i18n'd.
+ * i18n: labels flow through the app's language context; the browser that
+ * opened the display token chooses the language. Default is Chinese to
+ * match the original audience.
  *
  * Presentational only — receives the snapshot in props, touches no network.
  * Polling, token, socket: the parent's job, same as RankingView and
  * RoundRankingView.
  */
+import { useLanguage } from '../i18n/LanguageContext';
 
-const PODIUM_LABEL = {
-  GOLD: '冠军',
-  SILVER: '亚军',
-  BRONZE: '季军',
+const PODIUM_KEY = {
+  GOLD: 'display.podiumGold',
+  SILVER: 'display.podiumSilver',
+  BRONZE: 'display.podiumBronze',
 };
 
 // Podium medals — same colors as RoundRankingView so a mode switch does not
@@ -65,13 +66,13 @@ function PodiumBadge({ rank }) {
   return <span className="text-gray-400 text-3xl font-semibold pl-3">{rank}</span>;
 }
 
-// Podium headline — a large label for the top 3 (冠军/亚军/季军), so the
+// Podium headline — a large label for the top 3 (Gold/Silver/Bronze), so the
 // room sees at a glance which position they are looking at. Ranks 4+ do not
 // get a headline — they are listed below in a plain table-like layout.
-function podiumHeadline(rank) {
-  if (rank === 1) return PODIUM_LABEL.GOLD;
-  if (rank === 2) return PODIUM_LABEL.SILVER;
-  if (rank === 3) return PODIUM_LABEL.BRONZE;
+function podiumHeadlineKey(rank) {
+  if (rank === 1) return PODIUM_KEY.GOLD;
+  if (rank === 2) return PODIUM_KEY.SILVER;
+  if (rank === 3) return PODIUM_KEY.BRONZE;
   return null;
 }
 
@@ -79,7 +80,8 @@ function podiumHeadline(rank) {
 // ranks 4+ get a compact row so the view scales to 20 participants without
 // overflowing the screen.
 function FinalRankRow({ fr }) {
-  const headline = podiumHeadline(fr.rank);
+  const { t } = useLanguage();
+  const headlineKey = podiumHeadlineKey(fr.rank);
   const name = fr.entityName || `ID ${String(fr.entityId || '').slice(0, 8)}`;
   const isPodium = fr.rank <= 3;
 
@@ -99,17 +101,17 @@ function FinalRankRow({ fr }) {
           <div className={`truncate ${isPodium ? 'text-3xl sm:text-4xl' : 'text-2xl'} font-semibold`}>
             {name}
           </div>
-          {headline && (
-            <span className="text-base text-yellow-400 font-medium">{headline}</span>
+          {headlineKey && (
+            <span className="text-base text-yellow-400 font-medium">{t(headlineKey)}</span>
           )}
         </div>
         <div className="text-base text-gray-400 truncate mt-1">
           {fr.school && <span>{fr.school}</span>}
           {fr.age != null && (
-            <span className="ml-3">{fr.age}岁</span>
+            <span className="ml-3">{t('display.age', { n: fr.age })}</span>
           )}
           {fr.entityType === 'TEAM' && (
-            <span className="ml-3 text-purple-400">队伍</span>
+            <span className="ml-3 text-purple-400">{t('display.team')}</span>
           )}
         </div>
       </div>
@@ -119,7 +121,7 @@ function FinalRankRow({ fr }) {
         <span className={`tabular-nums font-bold ${isPodium ? 'text-4xl sm:text-5xl' : 'text-3xl'}`}>
           {fr.score}
         </span>
-        <span className="text-base text-gray-500 ml-2">分</span>
+        <span className="text-base text-gray-500 ml-2">{t('display.scoreUnit')}</span>
       </div>
     </div>
   );
@@ -141,8 +143,10 @@ export default function DisplayFinalRankingView({
   pollIntervalSeconds,
   socketConnected = false,
 }) {
+  const { t, lang } = useLanguage();
   const { competition, finalRankings } = data;
   const rankings = finalRankings || [];
+  const locale = lang === 'zh' ? 'zh-CN' : 'en-US';
 
   // Separate the podium from the rest so we can give it more visual weight.
   // Anything past rank 20 would be unreadable from the back of the room —
@@ -162,12 +166,12 @@ export default function DisplayFinalRankingView({
             </h1>
             <span className="text-gray-500">·</span>
             <h2 className="text-2xl sm:text-3xl font-bold text-yellow-400">
-              最终排名
+              {t('display.finalTitle')}
             </h2>
           </div>
           {lastUpdated && (
             <span className="text-gray-400 text-xs">
-              更新于 {lastUpdated.toLocaleTimeString('zh-CN')}
+              {t('display.updatedAt', { time: lastUpdated.toLocaleTimeString(locale) })}
             </span>
           )}
         </div>
@@ -180,8 +184,8 @@ export default function DisplayFinalRankingView({
           // ended but the final-rankings table has not been populated. The
           // room sees a clear message instead of a blank wall.
           <EmptyState
-            title="最终排名尚未生成"
-            subtitle="比赛结束后，最终排名将显示在此处"
+            title={t('display.emptyFinalTitle')}
+            subtitle={t('display.emptyFinalSubtitle')}
           />
         ) : (
           <div className="space-y-6">
@@ -213,10 +217,10 @@ export default function DisplayFinalRankingView({
       {/* Footer — same wording as the other display views so the room does
           not see a style break when the judge switches modes. */}
       <footer className="border-t border-white/10 px-6 py-3 text-center text-gray-600 text-xs">
-        数独竞技场 — 最终排名
+        {t('display.footerFinal')}
         {socketConnected
-          ? <> · 实时连接</>
-          : pollIntervalSeconds != null && <> · 每 {pollIntervalSeconds} 秒自动刷新</>}
+          ? <> · {t('display.live')}</>
+          : pollIntervalSeconds != null && <> · {t('display.autoRefresh', { n: pollIntervalSeconds })}</>}
       </footer>
     </div>
   );

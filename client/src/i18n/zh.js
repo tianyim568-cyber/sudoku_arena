@@ -610,6 +610,70 @@ export default {
     notAllowed: '切换大屏模式仅限机构管理员使用。',
   },
 
+  // 大屏显示视图（公共投影）。这些标签之前是硬编码的中文：受众是中文用户，
+  // 房间只有一种语言。现在整个应用支持语言切换，大屏视图也遵守：打开显示令牌
+  // 的浏览器所选择的语言，决定这里显示的所有内容。
+  display: {
+    // 错误 + 加载 (DisplayPage.jsx)
+    errInvalidToken: '无效的显示令牌或数据加载失败',
+    errNetworkRetry: '网络连接失败，正在重试...',
+    errTokenRevoked: '显示令牌已被撤销',
+    errTokenHint: '请检查显示令牌是否正确',
+    loading: '加载中...',
+
+    // 排名视图共用的框架（round / stage / final / rankings / broadcast）
+    updatedAt: '更新于 {time}',
+    live: '实时连接',
+    autoRefresh: '每 {n} 秒自动刷新',
+
+    // 页脚品牌 —— 每个视图一个
+    footerRound: '数独竞技场 — 单轮排名',
+    footerStage: '数独竞技场 — 阶段排名',
+    footerFinal: '数独竞技场 — 最终排名',
+    footerLive: '数独竞技场 — 选手直播',
+    footerRankings: '数独竞技场 — 大屏排名显示',
+
+    // 空状态 (RoundRankingView)
+    emptyRoundTitle: '暂无进行中或已结束的轮次',
+    emptyRoundSubtitle: '比赛开始后，本轮排名将显示在此处',
+    emptyRoundNoData: '「{name}」暂无排名数据',
+    emptyRoundInProgressHint: '选手提交正确答案后，排名将实时更新',
+    emptyRoundPausedHint: '轮次暂停中，已提交的排名如下',
+    emptyRoundFinishedHint: '轮次结束后将显示最终排名',
+
+    // 空状态 (DisplayStageRankingView)
+    emptyStageTitle: '暂无进行中或已结束的阶段',
+    emptyStageSubtitle: '比赛开始后，阶段排名将显示在此处',
+    emptyStageNoData: '「阶段 {n}」暂无排名数据',
+    emptyStageInProgressHint: '阶段进行中，轮次结束后将显示综合排名',
+    emptyStageFinishedHint: '阶段结束后将显示综合排名',
+
+    // 空状态 (DisplayFinalRankingView)
+    emptyFinalTitle: '最终排名尚未生成',
+    emptyFinalSubtitle: '比赛结束后，最终排名将显示在此处',
+
+    // 空状态 (RankingView)
+    emptyStageData: '暂无比赛阶段数据',
+    emptyRoundData: '暂无轮次数据',
+    emptyRankData: '暂无排名数据',
+
+    // 各视图复用的小标签
+    finalTitle: '最终排名',
+    stageLabel: '阶段 {n}',
+    podiumGold: '冠军',
+    podiumSilver: '亚军',
+    podiumBronze: '季军',
+    age: '{n}岁',
+    ageRange: '({min}-{max}岁)',
+    team: '队伍',
+    scoreUnit: '分',
+    allCategories: '全部组别',
+    // 大屏使用的短阶段类型徽章（区别于较长的 competitionDetail.stageTypeIndividual
+    // "个人赛阶段"）。
+    typeIndividual: '个人',
+    typeTeam: '团队',
+  },
+
   // 裁判监控面板 —— 实时选手列表与在线状态、选手详情、一键投影到大屏。
   // 投影按钮仅对管理员可见：服务端路由要求 ORG_ADMIN，普通裁判会收到 403。
   judgeMonitoring: {

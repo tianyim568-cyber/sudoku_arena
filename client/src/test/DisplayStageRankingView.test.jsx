@@ -19,6 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { LanguageProvider } from '../i18n/LanguageContext';
 import DisplayStageRankingView from '../components/DisplayStageRankingView';
 
 const COMPETITION = { id: 'c1', name: 'Spring Cup', status: 'RUNNING', displayMode: 'STAGE_RANKING' };
@@ -35,13 +36,15 @@ function makeSnapshot(stages, finalRankings) {
 
 function renderView(props = {}) {
   return render(
-    <DisplayStageRankingView
-      data={props.data || makeSnapshot([], [])}
-      lastUpdated={null}
-      pollIntervalSeconds={10}
-      socketConnected={false}
-      {...props}
-    />
+    <LanguageProvider>
+      <DisplayStageRankingView
+        data={props.data || makeSnapshot([], [])}
+        lastUpdated={null}
+        pollIntervalSeconds={10}
+        socketConnected={false}
+        {...props}
+      />
+    </LanguageProvider>
   );
 }
 
@@ -234,9 +237,11 @@ describe('DisplayStageRankingView — presentational contract', () => {
     // The parent may omit lastUpdated / pollIntervalSeconds / socketConnected.
     // The view must still render — they are optional.
     render(
-      <DisplayStageRankingView
-        data={makeSnapshot([mkStage('s1', 1, 'RUNNING')], [mkRow('s1', 'p1', 'Alice', 1, 150)])}
-      />,
+      <LanguageProvider>
+        <DisplayStageRankingView
+          data={makeSnapshot([mkStage('s1', 1, 'RUNNING')], [mkRow('s1', 'p1', 'Alice', 1, 150)])}
+        />
+      </LanguageProvider>,
     );
     expect(screen.getByText('Spring Cup')).toBeInTheDocument();
   });

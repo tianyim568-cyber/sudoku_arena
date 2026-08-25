@@ -15,32 +15,35 @@
  * prevent — saying "ranking not available yet for Round 2" is honest; a
  * frozen previous round or a black wall is not.
  *
- * Big-screen constraints: fond sombre, gros caractères, médailles pour le
+ * Big-screen constraints: dark background, large text, medals for the
  * podium — same language as RankingView so the room does not see a style
  * break when the judge switches modes. Do not shrink anything without
  * checking the on-screen result first.
  *
- * The labels are Chinese hardcoded, matching RankingView: this is a public
- * page shown in the room, the audience is Chinese-speaking, and the rest
- * of the display page has never been i18n'd.
+ * i18n: labels flow through the app's language context; the browser that
+ * opened the display token chooses the language. Default is Chinese to
+ * match the original audience.
  *
  * Presentational only — receives the snapshot in props, touches no network.
  * Polling, token, socket: the parent's job, same as RankingView and
  * BroadcastView.
  */
+import { useLanguage } from '../i18n/LanguageContext';
 import { selectRoundToFeature } from '../utils/selectRoundToFeature';
 
-const STATUS_BADGE = {
-  WAITING: { label: '未开始', color: 'bg-gray-500' },
-  IN_PROGRESS: { label: '进行中', color: 'bg-green-500' },
-  PAUSED: { label: '已暂停', color: 'bg-yellow-500' },
-  FINISHED: { label: '已结束', color: 'bg-blue-500' },
+// Colors stay hardcoded — they don't translate. Labels are resolved from
+// the shared common.status.* keys so the same wording appears everywhere.
+const STATUS_COLOR = {
+  WAITING: 'bg-gray-500',
+  IN_PROGRESS: 'bg-green-500',
+  PAUSED: 'bg-yellow-500',
+  FINISHED: 'bg-blue-500',
 };
 
-const STAGE_STATUS_BADGE = {
-  WAITING: { label: '待开始', color: 'text-gray-400' },
-  RUNNING: { label: '进行中', color: 'text-green-400' },
-  FINISHED: { label: '已结束', color: 'text-blue-400' },
+const STAGE_STATUS_COLOR = {
+  WAITING: 'text-gray-400',
+  RUNNING: 'text-green-400',
+  FINISHED: 'text-blue-400',
 };
 
 // The podium medals — same colors as RankingView so a mode switch does not
@@ -96,14 +99,21 @@ export default function RoundRankingView({
   pollIntervalSeconds,
   socketConnected = false,
 }) {
+  const { t, lang } = useLanguage();
   const { competition, stages } = data;
   const selected = selectRoundToFeature(stages);
-  const roundStatusBadge = selected
-    ? STATUS_BADGE[selected.round.status] || STATUS_BADGE.WAITING
-    : null;
-  const stageStatusBadge = selected
-    ? STAGE_STATUS_BADGE[selected.stage.status]
-    : null;
+  const roundStatus = selected?.round.status || 'WAITING';
+  const stageStatus = selected?.stage.status;
+  const roundStatusColor = STATUS_COLOR[roundStatus] || STATUS_COLOR.WAITING;
+  const stageStatusColor = stageStatus ? STAGE_STATUS_COLOR[stageStatus] : null;
+  const locale = lang === 'zh' ? 'zh-CN' : 'en-US';
+
+  const emptyRoundHint =
+    roundStatus === 'IN_PROGRESS'
+      ? t('display.emptyRoundInProgressHint')
+      : roundStatus === 'PAUSED'
+        ? t('display.emptyRoundPausedHint')
+        : t('display.emptyRoundFinishedHint');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 text-white flex flex-col">
@@ -121,12 +131,12 @@ export default function RoundRankingView({
                 <h2 className="text-2xl sm:text-3xl font-bold">
                   {selected.round.name}
                 </h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${roundStatusBadge.color}`}>
-                  {roundStatusBadge.label}
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${roundStatusColor}`}>
+                  {t(`common.status.${roundStatus}`)}
                 </span>
-                {stageStatusBadge && (
-                  <span className={`text-xs font-medium ${stageStatusBadge.color}`}>
-                    阶段 {selected.stage.orderNumber} · {stageStatusBadge.label}
+                {stageStatusColor && (
+                  <span className={`text-xs font-medium ${stageStatusColor}`}>
+                    {t('display.stageLabel', { n: selected.stage.orderNumber })} · {t(`common.status.${stageStatus}`)}
                   </span>
                 )}
               </>
@@ -134,7 +144,7 @@ export default function RoundRankingView({
           </div>
           {lastUpdated && (
             <span className="text-gray-400 text-xs">
-              更新于 {lastUpdated.toLocaleTimeString('zh-CN')}
+              {t('display.updatedAt', { time: lastUpdated.toLocaleTimeString(locale) })}
             </span>
           )}
         </div>
@@ -146,8 +156,8 @@ export default function RoundRankingView({
           // No round qualifies: nothing live, nothing finished. The room
           // sees a clear message instead of a blank wall.
           <EmptyState
-            title="暂无进行中或已结束的轮次"
-            subtitle="比赛开始后，本轮排名将显示在此处"
+            title={t('display.emptyRoundTitle')}
+            subtitle={t('display.emptyRoundSubtitle')}
           />
         ) : (selected.round.rankings || []).length === 0 ? (
           // A round is selected, but it has no rankings yet. This happens
@@ -155,14 +165,8 @@ export default function RoundRankingView({
           // the round finished but the server has not computed rankings
           // yet. Either way: name the round, say why it is empty.
           <EmptyState
-            title={`「${selected.round.name}」暂无排名数据`}
-            subtitle={
-              selected.round.status === 'IN_PROGRESS'
-                ? '选手提交正确答案后，排名将实时更新'
-                : selected.round.status === 'PAUSED'
-                  ? '轮次暂停中，已提交的排名如下'
-                  : '轮次结束后将显示最终排名'
-            }
+            title={t('display.emptyRoundNoData', { name: selected.round.name })}
+            subtitle={emptyRoundHint}
           />
         ) : (
           // The ranking itself. One row per participant, large, with a
@@ -189,7 +193,7 @@ export default function RoundRankingView({
                     <div className="text-base text-gray-400 truncate mt-1">
                       {r.player?.school && <span>{r.player.school}</span>}
                       {r.player?.age != null && (
-                        <span className="ml-3">{r.player.age}岁</span>
+                        <span className="ml-3">{t('display.age', { n: r.player.age })}</span>
                       )}
                       {categoryLabel(r.player?.category) && (
                         <span className="ml-3 text-purple-400">
@@ -204,7 +208,7 @@ export default function RoundRankingView({
                     <span className="text-3xl sm:text-4xl font-bold tabular-nums">
                       {r.totalScore}
                     </span>
-                    <span className="text-base text-gray-500 ml-2">分</span>
+                    <span className="text-base text-gray-500 ml-2">{t('display.scoreUnit')}</span>
                   </div>
                 </div>
               ))}
@@ -216,10 +220,10 @@ export default function RoundRankingView({
       {/* Footer — same wording as RankingView so the room does not see a
           style break when the judge switches modes. */}
       <footer className="border-t border-white/10 px-6 py-3 text-center text-gray-600 text-xs">
-        数独竞技场 — 单轮排名
+        {t('display.footerRound')}
         {socketConnected
-          ? <> · 实时连接</>
-          : pollIntervalSeconds != null && <> · 每 {pollIntervalSeconds} 秒自动刷新</>}
+          ? <> · {t('display.live')}</>
+          : pollIntervalSeconds != null && <> · {t('display.autoRefresh', { n: pollIntervalSeconds })}</>}
       </footer>
     </div>
   );

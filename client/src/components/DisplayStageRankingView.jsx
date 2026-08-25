@@ -28,33 +28,34 @@
  * the room does not see a style break when the judge switches modes. Do not
  * shrink anything without checking the on-screen result first.
  *
- * The labels are Chinese hardcoded, matching the other display views: this
- * is a public page shown in the room, the audience is Chinese-speaking, and
- * the rest of the display page has never been i18n'd.
+ * i18n: labels flow through the app's language context; the browser that
+ * opened the display token chooses the language. Default is Chinese to
+ * match the original audience.
  *
  * Presentational only — receives the snapshot in props, touches no network.
  * Polling, token, socket: the parent's job, same as RankingView and the
  * other display views.
  */
+import { useLanguage } from '../i18n/LanguageContext';
 import { selectStageToFeature } from '../utils/selectStageToFeature';
 
-// Stage status badge — different shape from the round status badge, since
-// stages use RUNNING where rounds use IN_PROGRESS.
-const STAGE_STATUS_BADGE = {
-  WAITING: { label: '待开始', color: 'bg-gray-500' },
-  RUNNING: { label: '进行中', color: 'bg-green-500' },
-  FINISHED: { label: '已结束', color: 'bg-blue-500' },
+// Colors stay hardcoded — they don't translate. Labels are resolved at
+// render time through the language context.
+const STAGE_STATUS_COLOR = {
+  WAITING: 'bg-gray-500',
+  RUNNING: 'bg-green-500',
+  FINISHED: 'bg-blue-500',
 };
 
-const STAGE_TYPE_LABEL = {
-  INDIVIDUAL: '个人',
-  TEAM: '团队',
+const STAGE_TYPE_KEY = {
+  INDIVIDUAL: 'display.typeIndividual',
+  TEAM: 'display.typeTeam',
 };
 
-const PODIUM_LABEL = {
-  GOLD: '冠军',
-  SILVER: '亚军',
-  BRONZE: '季军',
+const PODIUM_KEY = {
+  GOLD: 'display.podiumGold',
+  SILVER: 'display.podiumSilver',
+  BRONZE: 'display.podiumBronze',
 };
 
 // Podium medals — same colors as DisplayFinalRankingView so a mode switch
@@ -84,13 +85,13 @@ function PodiumBadge({ rank }) {
   return <span className="text-gray-400 text-3xl font-semibold pl-3">{rank}</span>;
 }
 
-// Podium headline — a large label for the top 3 (冠军/亚军/季军), so the
+// Podium headline — a large label for the top 3 (Gold/Silver/Bronze), so the
 // room sees at a glance which position they are looking at. Ranks 4+ do not
 // get a headline — they are listed below in a plain table-like layout.
-function podiumHeadline(rank) {
-  if (rank === 1) return PODIUM_LABEL.GOLD;
-  if (rank === 2) return PODIUM_LABEL.SILVER;
-  if (rank === 3) return PODIUM_LABEL.BRONZE;
+function podiumHeadlineKey(rank) {
+  if (rank === 1) return PODIUM_KEY.GOLD;
+  if (rank === 2) return PODIUM_KEY.SILVER;
+  if (rank === 3) return PODIUM_KEY.BRONZE;
   return null;
 }
 
@@ -101,7 +102,8 @@ function podiumHeadline(rank) {
 // (entityName / entityType / school / age / rank / score), so we reuse the
 // layout rather than inventing a new one.
 function StageRankRow({ fr }) {
-  const headline = podiumHeadline(fr.rank);
+  const { t } = useLanguage();
+  const headlineKey = podiumHeadlineKey(fr.rank);
   const name = fr.entityName || `ID ${String(fr.entityId || '').slice(0, 8)}`;
   const isPodium = fr.rank <= 3;
   const isTeam = fr.entityType === 'TEAM';
@@ -122,11 +124,11 @@ function StageRankRow({ fr }) {
           <div className={`truncate ${isPodium ? 'text-3xl sm:text-4xl' : 'text-2xl'} font-semibold`}>
             {name}
           </div>
-          {headline && (
-            <span className="text-base text-yellow-400 font-medium">{headline}</span>
+          {headlineKey && (
+            <span className="text-base text-yellow-400 font-medium">{t(headlineKey)}</span>
           )}
           {isTeam && (
-            <span className="text-base text-purple-400 font-medium">队伍</span>
+            <span className="text-base text-purple-400 font-medium">{t('display.team')}</span>
           )}
         </div>
         {/* Teams do not carry school/age in the snapshot — the server joins
@@ -136,7 +138,7 @@ function StageRankRow({ fr }) {
           <div className="text-base text-gray-400 truncate mt-1">
             {fr.school && <span>{fr.school}</span>}
             {fr.age != null && (
-              <span className="ml-3">{fr.age}岁</span>
+              <span className="ml-3">{t('display.age', { n: fr.age })}</span>
             )}
           </div>
         )}
@@ -147,7 +149,7 @@ function StageRankRow({ fr }) {
         <span className={`tabular-nums font-bold ${isPodium ? 'text-4xl sm:text-5xl' : 'text-3xl'}`}>
           {fr.score}
         </span>
-        <span className="text-base text-gray-500 ml-2">分</span>
+        <span className="text-base text-gray-500 ml-2">{t('display.scoreUnit')}</span>
       </div>
     </div>
   );
@@ -168,11 +170,13 @@ export default function DisplayStageRankingView({
   pollIntervalSeconds,
   socketConnected = false,
 }) {
+  const { t, lang } = useLanguage();
   const { competition, stages, finalRankings } = data;
   const selected = selectStageToFeature(stages);
-  const statusBadge = selected
-    ? STAGE_STATUS_BADGE[selected.status] || STAGE_STATUS_BADGE.WAITING
+  const statusColor = selected
+    ? STAGE_STATUS_COLOR[selected.status] || STAGE_STATUS_COLOR.WAITING
     : null;
+  const locale = lang === 'zh' ? 'zh-CN' : 'en-US';
 
   // Filter finalRankings to the selected stage. The server writes one row
   // per entity × stage × category, so this gives us the stage-level
@@ -201,14 +205,14 @@ export default function DisplayStageRankingView({
               <>
                 <span className="text-gray-500">·</span>
                 <h2 className="text-2xl sm:text-3xl font-bold">
-                  阶段 {selected.orderNumber}
+                  {t('display.stageLabel', { n: selected.orderNumber })}
                   <span className="ml-3 text-base font-medium text-gray-400">
-                    {STAGE_TYPE_LABEL[selected.type] || selected.type}
+                    {STAGE_TYPE_KEY[selected.type] ? t(STAGE_TYPE_KEY[selected.type]) : selected.type}
                   </span>
                 </h2>
-                {statusBadge && (
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusBadge.color}`}>
-                    {statusBadge.label}
+                {statusColor && (
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusColor}`}>
+                    {t(`common.status.${selected.status}`)}
                   </span>
                 )}
               </>
@@ -216,7 +220,7 @@ export default function DisplayStageRankingView({
           </div>
           {lastUpdated && (
             <span className="text-gray-400 text-xs">
-              更新于 {lastUpdated.toLocaleTimeString('zh-CN')}
+              {t('display.updatedAt', { time: lastUpdated.toLocaleTimeString(locale) })}
             </span>
           )}
         </div>
@@ -228,8 +232,8 @@ export default function DisplayStageRankingView({
           // No stage qualifies: nothing running, nothing finished. The room
           // sees a clear message instead of a blank wall.
           <EmptyState
-            title="暂无进行中或已结束的阶段"
-            subtitle="比赛开始后，阶段排名将显示在此处"
+            title={t('display.emptyStageTitle')}
+            subtitle={t('display.emptyStageSubtitle')}
           />
         ) : stageRankings.length === 0 ? (
           // A stage is selected, but it has no ranking rows yet. This
@@ -237,11 +241,11 @@ export default function DisplayStageRankingView({
           // or when the stage finished but the aggregate has not been
           // written yet. Either way: name the stage, say why it is empty.
           <EmptyState
-            title={`「阶段 ${selected.orderNumber}」暂无排名数据`}
+            title={t('display.emptyStageNoData', { n: selected.orderNumber })}
             subtitle={
               selected.status === 'RUNNING'
-                ? '阶段进行中，轮次结束后将显示综合排名'
-                : '阶段结束后将显示综合排名'
+                ? t('display.emptyStageInProgressHint')
+                : t('display.emptyStageFinishedHint')
             }
           />
         ) : (
@@ -274,10 +278,10 @@ export default function DisplayStageRankingView({
       {/* Footer — same wording as the other display views so the room does
           not see a style break when the judge switches modes. */}
       <footer className="border-t border-white/10 px-6 py-3 text-center text-gray-600 text-xs">
-        数独竞技场 — 阶段排名
+        {t('display.footerStage')}
         {socketConnected
-          ? <> · 实时连接</>
-          : pollIntervalSeconds != null && <> · 每 {pollIntervalSeconds} 秒自动刷新</>}
+          ? <> · {t('display.live')}</>
+          : pollIntervalSeconds != null && <> · {t('display.autoRefresh', { n: pollIntervalSeconds })}</>}
       </footer>
     </div>
   );

@@ -15,24 +15,26 @@
  * font sizes, contrast, and rank badges must stay generous. Do not shrink
  * anything without checking the on-screen result first.
  *
- * The labels are intentionally Chinese hardcoded: this is a public page shown
- * in the room, not an admin surface, and the audience is Chinese-speaking.
- * Translating it would be a separate task (the rest of the app is i18n'd, but
- * this public page has never been).
+ * i18n: labels flow through the app's language context; the browser that
+ * opened the display token chooses the language. Default is Chinese to
+ * match the original audience.
  */
+import { useLanguage } from '../i18n/LanguageContext';
 
-const STATUS_BADGE = {
-  PENDING: { label: '等待中', color: 'bg-gray-500' },
-  NOT_STARTED: { label: '未开始', color: 'bg-gray-500' },
-  IN_PROGRESS: { label: '进行中', color: 'bg-green-500' },
-  PAUSED: { label: '已暂停', color: 'bg-yellow-500' },
-  FINISHED: { label: '已结束', color: 'bg-red-500' },
+// Colors stay hardcoded — they don't translate. Labels are resolved from
+// the shared common.status.* keys at render time.
+const STATUS_COLOR = {
+  PENDING: 'bg-gray-500',
+  NOT_STARTED: 'bg-gray-500',
+  IN_PROGRESS: 'bg-green-500',
+  PAUSED: 'bg-yellow-500',
+  FINISHED: 'bg-red-500',
 };
 
-const STAGE_STATUS_BADGE = {
-  PENDING: { label: '待开始', color: 'text-gray-400' },
-  IN_PROGRESS: { label: '进行中', color: 'text-green-400' },
-  FINISHED: { label: '已结束', color: 'text-blue-400' },
+const STAGE_STATUS_COLOR = {
+  PENDING: 'text-gray-400',
+  IN_PROGRESS: 'text-green-400',
+  FINISHED: 'text-blue-400',
 };
 
 /**
@@ -53,8 +55,11 @@ export default function RankingView({
   pollIntervalSeconds,
   socketConnected = false,
 }) {
+  const { t, lang } = useLanguage();
   const { competition, categories, stages, finalRankings } = data;
-  const statusBadge = STATUS_BADGE[competition.status] || STATUS_BADGE.PENDING;
+  const compStatus = competition.status || 'PENDING';
+  const statusColor = STATUS_COLOR[compStatus] || STATUS_COLOR.PENDING;
+  const locale = lang === 'zh' ? 'zh-CN' : 'en-US';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 text-white">
@@ -63,14 +68,14 @@ export default function RankingView({
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-4">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{competition.name}</h1>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusBadge.color}`}>
-              {statusBadge.label}
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold text-white ${statusColor}`}>
+              {t(`common.status.${compStatus}`)}
             </span>
           </div>
           <div className="flex items-center gap-4">
             {lastUpdated && (
               <span className="text-gray-400 text-xs">
-                更新于 {lastUpdated.toLocaleTimeString('zh-CN')}
+                {t('display.updatedAt', { time: lastUpdated.toLocaleTimeString(locale) })}
               </span>
             )}
           </div>
@@ -89,7 +94,7 @@ export default function RankingView({
                   : 'bg-white/10 text-gray-300 hover:bg-white/20'
               }`}
             >
-              全部组别
+              {t('display.allCategories')}
             </button>
             {categories.map(cat => (
               <button
@@ -104,7 +109,7 @@ export default function RankingView({
                 {cat.name}
                 {cat.min_age != null && cat.max_age != null && (
                   <span className="ml-1 text-xs opacity-70">
-                    ({cat.min_age}-{cat.max_age}岁)
+                    {t('display.ageRange', { min: cat.min_age, max: cat.max_age })}
                   </span>
                 )}
               </button>
@@ -118,7 +123,7 @@ export default function RankingView({
         {stages.length === 0 && (
           <div className="text-center text-gray-500 py-20">
             <div className="text-5xl mb-4">📋</div>
-            <div className="text-lg">暂无比赛阶段数据</div>
+            <div className="text-lg">{t('display.emptyStageData')}</div>
           </div>
         )}
 
@@ -127,20 +132,20 @@ export default function RankingView({
             <section key={stage.id}>
               <div className="flex items-center gap-3 mb-4">
                 <h2 className="text-xl font-semibold">
-                  阶段 {stage.orderNumber}
+                  {t('display.stageLabel', { n: stage.orderNumber })}
                   <span className="ml-2 text-gray-400 font-normal text-base">
                     ({stage.type})
                   </span>
                 </h2>
-                {STAGE_STATUS_BADGE[stage.status] && (
-                  <span className={`text-xs font-medium ${STAGE_STATUS_BADGE[stage.status].color}`}>
-                    {STAGE_STATUS_BADGE[stage.status].label}
+                {STAGE_STATUS_COLOR[stage.status] && (
+                  <span className={`text-xs font-medium ${STAGE_STATUS_COLOR[stage.status]}`}>
+                    {t(`common.status.${stage.status}`)}
                   </span>
                 )}
               </div>
 
               {stage.rounds.length === 0 && (
-                <div className="text-gray-500 text-sm pl-4">暂无轮次数据</div>
+                <div className="text-gray-500 text-sm pl-4">{t('display.emptyRoundData')}</div>
               )}
 
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -151,15 +156,15 @@ export default function RankingView({
                   >
                     <div className="px-4 py-3 border-b border-white/10 bg-white/5 flex items-center justify-between">
                       <h3 className="font-semibold text-sm">{round.name}</h3>
-                      {STAGE_STATUS_BADGE[round.status] && (
-                        <span className={`text-xs ${STAGE_STATUS_BADGE[round.status].color}`}>
-                          {STAGE_STATUS_BADGE[round.status].label}
+                      {STAGE_STATUS_COLOR[round.status] && (
+                        <span className={`text-xs ${STAGE_STATUS_COLOR[round.status]}`}>
+                          {t(`common.status.${round.status}`)}
                         </span>
                       )}
                     </div>
 
                     {round.rankings.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-gray-500 text-sm">暂无排名数据</div>
+                      <div className="px-4 py-6 text-center text-gray-500 text-sm">{t('display.emptyRankData')}</div>
                     ) : (
                       <div className="divide-y divide-white/5">
                         {round.rankings.slice(0, 20).map((r, idx) => (
@@ -191,7 +196,7 @@ export default function RankingView({
                               <div className="text-sm font-medium truncate">{r.player.name}</div>
                               <div className="text-xs text-gray-400 truncate">
                                 {r.player.school && <span>{r.player.school}</span>}
-                                {r.player.age != null && <span className="ml-2">{r.player.age}岁</span>}
+                                {r.player.age != null && <span className="ml-2">{t('display.age', { n: r.player.age })}</span>}
                                 {r.player.category && (
                                   <span className="ml-2 text-purple-400">{r.player.category.name}</span>
                                 )}
@@ -203,7 +208,7 @@ export default function RankingView({
                               <span className="text-lg font-bold tabular-nums">
                                 {r.totalScore}
                               </span>
-                              <span className="text-xs text-gray-500 ml-1">分</span>
+                              <span className="text-xs text-gray-500 ml-1">{t('display.scoreUnit')}</span>
                             </div>
                           </div>
                         ))}
@@ -219,7 +224,7 @@ export default function RankingView({
         {/* Final Rankings */}
         {finalRankings && finalRankings.length > 0 && (
           <section className="mt-10">
-            <h2 className="text-xl font-semibold mb-4">最终排名</h2>
+            <h2 className="text-xl font-semibold mb-4">{t('display.finalTitle')}</h2>
             <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
               <div className="divide-y divide-white/5">
                 {finalRankings.map((fr, idx) => (
@@ -262,10 +267,10 @@ export default function RankingView({
           "refreshes every 10s" while updates arrive instantly would be a
           small lie on a screen the whole room is reading. */}
       <footer className="border-t border-white/10 mt-8 px-6 py-3 text-center text-gray-600 text-xs">
-        数独竞技场 — 大屏排名显示
+        {t('display.footerRankings')}
         {socketConnected
-          ? <> · 实时连接</>
-          : pollIntervalSeconds != null && <> · 每 {pollIntervalSeconds} 秒自动刷新</>}
+          ? <> · {t('display.live')}</>
+          : pollIntervalSeconds != null && <> · {t('display.autoRefresh', { n: pollIntervalSeconds })}</>}
       </footer>
     </div>
   );

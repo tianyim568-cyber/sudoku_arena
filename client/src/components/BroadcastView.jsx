@@ -16,8 +16,12 @@
  * DISPLAY_PLAYER_BROADCAST; streaming their board is a separate contract
  * (PLAYER_GRID_UPDATE) that this view will consume once it is specced.
  */
+import { useLanguage } from '../i18n/LanguageContext';
+
 export default function BroadcastView({ player, lastUpdated }) {
+  const { t, lang } = useLanguage();
   if (!player) return null;
+  const locale = lang === 'zh' ? 'zh-CN' : 'en-US';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-800 text-white flex flex-col">
@@ -29,7 +33,7 @@ export default function BroadcastView({ player, lastUpdated }) {
           </div>
           {lastUpdated && (
             <span className="text-gray-400 text-xs">
-              更新于 {lastUpdated.toLocaleTimeString('zh-CN')}
+              {t('display.updatedAt', { time: lastUpdated.toLocaleTimeString(locale) })}
             </span>
           )}
         </div>
@@ -52,7 +56,7 @@ export default function BroadcastView({ player, lastUpdated }) {
                   <span className="text-base sm:text-xl">{player.school}</span>
                 )}
                 {player.age != null && (
-                  <span className="text-base sm:text-xl">{player.age}岁</span>
+                  <span className="text-base sm:text-xl">{t('display.age', { n: player.age })}</span>
                 )}
                 {player.category && (
                   <span className="px-3 py-1 bg-blue-500/20 border border-blue-500/30 rounded text-sm sm:text-base">
@@ -66,7 +70,7 @@ export default function BroadcastView({ player, lastUpdated }) {
       </main>
 
       <footer className="border-t border-white/10 px-6 py-3 text-center text-gray-600 text-xs">
-        数独竞技场 — 选手直播
+        {t('display.footerLive')}
       </footer>
     </div>
   );

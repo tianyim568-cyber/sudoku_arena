@@ -29,6 +29,7 @@ import {
   disconnectDisplaySocket,
   onDisplayEvent,
 } from '../api/socket';
+import { useLanguage } from '../i18n/LanguageContext';
 import RankingView from '../components/RankingView';
 import BroadcastView from '../components/BroadcastView';
 import RoundRankingView from '../components/RoundRankingView';
@@ -49,6 +50,7 @@ async function fetchRanking(token, categoryId) {
 
 export default function DisplayPage() {
   const { token } = useParams();
+  const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -63,6 +65,14 @@ export default function DisplayPage() {
   // the initial value forever.
   const dataRef = useRef(null);
   dataRef.current = data;
+  // Same reasoning as DashboardResultsPage: `t` changes identity every
+  // language toggle. Putting it in the socket effect's dep array would
+  // tear down + reconnect the display socket every ZH↔EN switch, which
+  // would blink the wall screen for no data change. We read `t` through a
+  // ref so the error message still resolves in the current language when
+  // it fires, without re-firing the effect.
+  const tRef = useRef(t);
+  useEffect(() => { tRef.current = t; }, [t]);
 
   // Applying a snapshot is the same work whether it arrived by socket or by
   // poll, so it lives in one place.
@@ -83,14 +93,14 @@ export default function DisplayPage() {
     try {
       const snapshot = await fetchRanking(token, selectedCategoryId);
       if (!snapshot) {
-        setError('无效的显示令牌或数据加载失败');
+        setError(t('display.errInvalidToken'));
         return;
       }
       applySnapshot(snapshot);
     } catch {
-      setError('网络连接失败，正在重试...');
+      setError(t('display.errNetworkRetry'));
     }
-  }, [token, selectedCategoryId, applySnapshot]);
+  }, [token, selectedCategoryId, applySnapshot, t]);
 
   // Realtime channel.
   useEffect(() => {
@@ -132,7 +142,7 @@ export default function DisplayPage() {
         // The judge revoked this screen. Say so plainly and stop reconnecting:
         // silently showing a frozen ranking would be worse than an explicit
         // message on a wall in front of a room.
-        setError('显示令牌已被撤销');
+        setError(tRef.current('display.errTokenRevoked'));
         disconnectDisplaySocket();
       }
     });
@@ -167,7 +177,7 @@ export default function DisplayPage() {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-400 text-2xl mb-4">{error}</div>
-          <div className="text-gray-500 text-sm">请检查显示令牌是否正确</div>
+          <div className="text-gray-500 text-sm">{t('display.errTokenHint')}</div>
         </div>
       </div>
     );
@@ -176,7 +186,7 @@ export default function DisplayPage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl">加载中...</div>
+        <div className="text-white text-xl">{t('display.loading')}</div>
       </div>
     );
   }

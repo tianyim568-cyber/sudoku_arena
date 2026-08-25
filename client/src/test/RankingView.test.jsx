@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { LanguageProvider } from '../i18n/LanguageContext';
 import RankingView from '../components/RankingView';
 
 const SNAPSHOT = {
@@ -57,12 +58,14 @@ const SNAPSHOT = {
 function renderView(props = {}) {
   const onSelectCategory = vi.fn();
   render(
-    <RankingView
-      data={SNAPSHOT}
-      selectedCategoryId={null}
-      onSelectCategory={onSelectCategory}
-      {...props}
-    />
+    <LanguageProvider>
+      <RankingView
+        data={SNAPSHOT}
+        selectedCategoryId={null}
+        onSelectCategory={onSelectCategory}
+        {...props}
+      />
+    </LanguageProvider>
   );
   return { onSelectCategory };
 }

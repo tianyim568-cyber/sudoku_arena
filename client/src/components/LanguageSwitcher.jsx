@@ -1,4 +1,6 @@
-// Le petit bouton de bascule de langue 中文 / EN.
+// Small language-toggle button. The label shows the OTHER language (so the
+// user reads what they'll switch to), which is why we keep the native names
+// hardcoded here — they're the switcher's own identity, not translatable UI.
 import { useLanguage } from '../i18n/LanguageContext';
 
 export default function LanguageSwitcher({ className = '' }) {

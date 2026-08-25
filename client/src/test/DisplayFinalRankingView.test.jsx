@@ -19,6 +19,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { LanguageProvider } from '../i18n/LanguageContext';
 import DisplayFinalRankingView from '../components/DisplayFinalRankingView';
 
 const COMPETITION = { id: 'c1', name: 'Spring Cup', status: 'FINISHED', displayMode: 'FINAL_RANKING' };
@@ -35,13 +36,15 @@ function makeSnapshot(finalRankings) {
 
 function renderView(props = {}) {
   return render(
-    <DisplayFinalRankingView
-      data={props.data || makeSnapshot([])}
-      lastUpdated={null}
-      pollIntervalSeconds={10}
-      socketConnected={false}
-      {...props}
-    />
+    <LanguageProvider>
+      <DisplayFinalRankingView
+        data={props.data || makeSnapshot([])}
+        lastUpdated={null}
+        pollIntervalSeconds={10}
+        socketConnected={false}
+        {...props}
+      />
+    </LanguageProvider>
   );
 }
 
@@ -235,7 +238,9 @@ describe('DisplayFinalRankingView — presentational contract', () => {
     // The parent may omit lastUpdated / pollIntervalSeconds / socketConnected.
     // The view must still render — they are optional.
     render(
-      <DisplayFinalRankingView data={makeSnapshot(PODIUM)} />
+      <LanguageProvider>
+        <DisplayFinalRankingView data={makeSnapshot(PODIUM)} />
+      </LanguageProvider>
     );
     expect(screen.getByText('Spring Cup')).toBeInTheDocument();
   });
