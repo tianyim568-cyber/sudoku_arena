@@ -29,6 +29,7 @@ const AuthContext = createContext(null);
 // Single source of truth — pages read `isAdmin` from the context instead of
 // comparing role strings themselves.
 // Mirrors ADMIN_ROLES in server/src/middleware/auth.js — keep both in sync.
+// oxlint-disable-next-line react/only-export-components -- refactor tracked as follow-up; would touch 26 imports
 export const ADMIN_ROLES = ['ORG_ADMIN', 'SUPER_ADMIN'];
 
 // The server returns the user with `id`; the game UI reads `user.userId`
@@ -43,6 +44,7 @@ function normalizeUser(u) {
 // shows and where to redirect. Every real authorization decision is made by
 // the server, which does verify the signature. Never trust these claims for
 // anything that grants access.
+// oxlint-disable-next-line react/only-export-components -- refactor tracked as follow-up; would touch 26 imports
 export function decodeJwtPayload(token) {
   try {
     const part = String(token).split('.')[1];
@@ -207,6 +209,7 @@ export function AuthProvider({ children }) {
   );
 }
 
+// oxlint-disable-next-line react/only-export-components -- refactor tracked as follow-up; would touch 26 imports
 export function useAuth() {
   return useContext(AuthContext);
 }

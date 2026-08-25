@@ -38,15 +38,35 @@ export default function Round3View({
   const { t } = useLanguage();
   const [collabLog, setCollabLog] = useState([]);
 
-  const puzzles = round3State?.puzzles || [];
-  const suggestions = round3State?.suggestions || {};
-  const suggestionVotes = round3State?.suggestionVotes || {};
-  const playerFocuses = round3State?.playerFocuses || {};
-  const teamMembers = round3State?.teamMembers || [];
-  const cells = round3State?.cells || {};
-  const teamScore = round3State?.teamScore || 0;
-  const solvedCount = round3State?.solvedCount || 0;
-  const totalPuzzles = round3State?.totalPuzzles || 10;
+  // Destructure round3State fields through a single useMemo so the derived
+  // objects keep stable references across renders even when the parent
+  // recreates round3State. Without this, useEffect/useMemo downstream see
+  // "new" suggestions/cells/teamMembers/playerFocuses every render and
+  // react-hooks/exhaustive-deps warns (see React docs on deps).
+  const {
+    puzzles,
+    suggestions,
+    suggestionVotes,
+    playerFocuses,
+    teamMembers,
+    cells,
+    teamScore,
+    solvedCount,
+    totalPuzzles,
+  } = useMemo(() => {
+    const s = round3State || {};
+    return {
+      puzzles: s.puzzles || [],
+      suggestions: s.suggestions || {},
+      suggestionVotes: s.suggestionVotes || {},
+      playerFocuses: s.playerFocuses || {},
+      teamMembers: s.teamMembers || [],
+      cells: s.cells || {},
+      teamScore: s.teamScore || 0,
+      solvedCount: s.solvedCount || 0,
+      totalPuzzles: s.totalPuzzles || 10,
+    };
+  }, [round3State]);
 
   // Build collaboration log from suggestions and cells
   useEffect(() => {

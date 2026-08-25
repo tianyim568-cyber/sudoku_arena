@@ -11,6 +11,7 @@ const STORAGE_KEY = 'sa_lang';
 // provider — typically an error boundary's fallback UI, which must NEVER
 // throw: an exception thrown while rendering an error would blank the
 // whole app. Regular code uses useLanguage() instead.
+// oxlint-disable-next-line react/only-export-components -- refactor tracked as follow-up; would touch 62 imports
 export const LanguageContext = createContext(null);
 
 // Read a dotted key ("login.title") deep in the dictionary object.
@@ -54,6 +55,7 @@ export function LanguageProvider({ children }) {
   );
 }
 
+// oxlint-disable-next-line react/only-export-components -- refactor tracked as follow-up; would touch 62 imports
 export function useLanguage() {
   const ctx = useContext(LanguageContext);
   if (!ctx) throw new Error('useLanguage must be used inside a <LanguageProvider>');
