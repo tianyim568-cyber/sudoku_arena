@@ -253,12 +253,13 @@ function generateInitialBank() {
   const r3 = BANK.puzzles.filter(p=>p.roundType==='ROUND3_COLLABORATE').length;
   console.log(`\nTotal: ${BANK.puzzles.length} puzzles (R1: ${r1}, R2: ${r2}, R3: ${r3})`);
 
-  const fs = require('fs');
-  const path = require('path');
-  const outPath = path.join(__dirname, '..', '..', 'data', 'puzzle-bank.json');
-  fs.mkdirSync(path.dirname(outPath), {recursive:true});
-  fs.writeFileSync(outPath, JSON.stringify(BANK, null, 2));
-  console.log(`Puzzle bank saved to: ${outPath}`);
+  // ISSUE-25 (2026-08-25): puzzle-bank.json is gone — the puzzle bank
+  // lives in the `puzzles` table now. This script no longer writes a
+  // file; it just returns the generated bank object so a future caller
+  // (e.g. a seeding script that talks to the DB) can use it in-memory.
+  // To populate the bank, use POST /api/puzzle-bank/generate or
+  // /api/puzzle-bank/generate-bulk instead.
+  console.log('Puzzle bank generated in memory. To persist, use the API endpoint POST /api/puzzle-bank/generate.');
   return BANK;
 }
 

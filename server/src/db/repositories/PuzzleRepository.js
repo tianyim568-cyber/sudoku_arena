@@ -35,6 +35,175 @@ class PuzzleRepository {
   }
 
   /**
+   * Find a single puzzle by UUID, but only if it belongs to the given
+   * organization. Returns null if the puzzle doesn't exist or is owned
+   * by a different tenant — callers can't tell the two apart by design
+   * (no information leak across tenants).
+   *
+   * @param {string} id - Puzzle UUID.
+   * @param {string} organizationId - Calling org's UUID.
+   * @returns {Promise<object|null>}
+   */
+  async findByIdAndOrg(id, organizationId) {
+    return this.prisma.puzzles.findFirst({
+      where: { id, organization_id: organizationId },
+    });
+  }
+
+  /**
+   * List puzzles belonging to an organization, with optional filters.
+   *
+   * Replaces the old in-memory filtering done on puzzle-bank.json. The
+   * `roundType` filter is handled separately (see _roundTypeClause)
+   * because the new schema has no `round_type` column on puzzles —
+   * puzzles are round-agnostic until linked via round_puzzles.
+   *
+   * @param {object} opts
+   * @param {string} opts.organizationId
+   * @param {string} [opts.roundType]    - Round type hint (metadata, not a column).
+   * @param {string} [opts.difficulty]
+   * @param {string} [opts.puzzleType]   - Maps to `type`.
+   * @param {number} [opts.limit]
+   * @param {number} [opts.offset]
+   */
+  async findByOrganization({
+    organizationId,
+    roundType,
+    difficulty,
+    puzzleType,
+    limit,
+    offset,
+  } = {}) {
+    const where = { organization_id: organizationId };
+    if (difficulty) where.difficulty = difficulty;
+    if (puzzleType) where.type = puzzleType;
+    if (roundType) where.round_type = roundType;
+
+    const take = limit ? parseInt(limit) : undefined;
+    const skip = offset ? parseInt(offset) : 0;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.puzzles.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        take,
+        skip,
+      }),
+      this.prisma.puzzles.count({ where }),
+    ]);
+
+    return { total, puzzles: rows };
+  }
+
+  /**
+   * Create a puzzle in the library WITHOUT attaching it to a round.
+   *
+   * Use this when an admin generates puzzles into the bank for later
+   * assignment (e.g. the old generatePuzzles → importToRound flow).
+   * The puzzle is stamped with the owning organization_id so listing
+   * by tenant works at the DB level.
+   *
+   * NOTE: The new schema has no `order_in_round`, `letter` or `team_id`
+   * columns on puzzles — those concepts live in round_puzzles or are
+   * gone entirely. The legacy caller still passes them; we accept them
+   * for API stability and drop them silently.
+   */
+  async createStandalone({
+    organizationId,
+    puzzleType,
+    initialGrid,
+    solution,
+    points,
+    difficulty,
+    categoryId,
+    source,
+    roundType,
+    // Legacy fields kept for caller-compat but not stored on the row:
+    orderInRound, letter, teamId,
+  }) {
+    const parsedInitial = typeof initialGrid === 'string' ? JSON.parse(initialGrid) : initialGrid;
+    const parsedSolution = typeof solution === 'string' ? JSON.parse(solution) : solution;
+
+    return this.prisma.puzzles.create({
+      data: {
+        type: puzzleType || 'STANDARD',
+        initial_grid: parsedInitial,
+        solution_grid: parsedSolution,
+        difficulty: difficulty || null,
+        score: points || 100,
+        organization_id: organizationId || null,
+        category_id: categoryId || null,
+        round_type: roundType || null,
+      },
+    });
+  }
+
+  /**
+   * Attach an existing puzzle to a round (junction row in round_puzzles).
+   *
+   * Used by importToRound when puzzles already exist in the library
+   * (generated earlier or imported via PDF) and now need to be linked
+   * to a specific round with an order number.
+   */
+  async attachToRound({ roundId, puzzleId, orderInRound, points }) {
+    let order = orderInRound;
+    if (order === undefined) {
+      const existing = await this.prisma.round_puzzles.count({ where: { round_id: roundId } });
+      order = existing + 1;
+    }
+    return this.prisma.round_puzzles.create({
+      data: {
+        round_id: roundId,
+        puzzle_id: puzzleId,
+        order_number: order,
+        score: points || 100,
+      },
+    });
+  }
+
+  /**
+   * Count puzzles belonging to an organization.
+   *
+   * Used by PuzzleBankService.generatePuzzles to report totalInBank
+   * after a generation run. Replaces the old `bank.puzzles.length`.
+   */
+  async countByOrganization(organizationId) {
+    return this.prisma.puzzles.count({
+      where: { organization_id: organizationId },
+    });
+  }
+
+  /**
+   * Find puzzles by their UUIDs (batch lookup).
+   *
+   * Used by importToRound when the caller passes an explicit list of
+   * puzzle IDs to import. Returns the full rows including solution.
+   */
+  async findByIds(ids) {
+    if (!ids || ids.length === 0) return [];
+    return this.prisma.puzzles.findMany({
+      where: { id: { in: ids } },
+    });
+  }
+
+  /**
+   * Delete a single puzzle from the library, but only if it belongs to
+   * the given organization. Round links are cascade-deleted via FK.
+   */
+  async deleteByIdAndOrg(id, organizationId) {
+    // findFirst to check tenant, then delete. Two queries instead of
+    // a deleteMany({id, organization_id}) because the caller expects
+    // to know whether the puzzle existed at all (to return 404 vs 200).
+    const row = await this.prisma.puzzles.findFirst({
+      where: { id, organization_id: organizationId },
+      select: { id: true },
+    });
+    if (!row) return null;
+    await this.prisma.puzzles.delete({ where: { id: row.id } });
+    return row;
+  }
+
+  /**
    * Find all puzzles assigned to a round, ordered by their order_number in
    * the round_puzzles junction.
    */

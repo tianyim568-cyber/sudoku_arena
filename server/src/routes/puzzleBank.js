@@ -70,44 +70,69 @@ function createPuzzleBankRouter(repos) {
   }
 
   // List puzzles in bank (with filters)
-  router.get('/puzzle-bank', authMiddleware, (req, res) => {
+  router.get('/puzzle-bank', authMiddleware, async (req, res) => {
     const { roundType, difficulty, puzzleType, limit, offset } = req.query;
-    const data = puzzleBankService.listPuzzles({
-      roundType, difficulty, puzzleType, limit, offset,
-      organizationId: req.user.organizationId,
-    });
-    res.json({ code: 200, message: 'success', data });
+    try {
+      const data = await puzzleBankService.listPuzzles({
+        roundType, difficulty, puzzleType, limit, offset,
+        organizationId: req.user.organizationId,
+      });
+      res.json({ code: 200, message: 'success', data });
+    } catch (err) {
+      logger.error('[puzzle-bank] listPuzzles failed', { error: err.message });
+      res.json({ code: 50000, message: '获取题库失败', data: null });
+    }
   });
 
   // Get single puzzle detail (includes solution, ADMIN/JUDGE only)
-  router.get('/puzzle-bank/:id', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), (req, res) => {
-    const puzzle = puzzleBankService.getPuzzleDetail(req.params.id, req.user.organizationId);
-    if (!puzzle) return res.json({ code: 40400, message: '题目不存在', data: null });
-    res.json({ code: 200, message: 'success', data: puzzle });
+  router.get('/puzzle-bank/:id', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), async (req, res) => {
+    try {
+      const puzzle = await puzzleBankService.getPuzzleDetail(req.params.id, req.user.organizationId);
+      if (!puzzle) return res.json({ code: 40400, message: '题目不存在', data: null });
+      res.json({ code: 200, message: 'success', data: puzzle });
+    } catch (err) {
+      logger.error('[puzzle-bank] getPuzzleDetail failed', { error: err.message });
+      res.json({ code: 50000, message: '获取题目失败', data: null });
+    }
   });
 
   // Preview puzzle grid (for admin to check)
-  router.get('/puzzle-bank/:id/preview', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), (req, res) => {
-    const preview = puzzleBankService.getPuzzlePreview(req.params.id, req.user.organizationId);
-    if (!preview) return res.json({ code: 40400, message: '题目不存在', data: null });
-    res.json({ code: 200, message: 'success', data: preview });
+  router.get('/puzzle-bank/:id/preview', authMiddleware, roleMiddleware(...ADMIN_ROLES, 'JUDGE'), async (req, res) => {
+    try {
+      const preview = await puzzleBankService.getPuzzlePreview(req.params.id, req.user.organizationId);
+      if (!preview) return res.json({ code: 40400, message: '题目不存在', data: null });
+      res.json({ code: 200, message: 'success', data: preview });
+    } catch (err) {
+      logger.error('[puzzle-bank] getPuzzlePreview failed', { error: err.message });
+      res.json({ code: 50000, message: '获取题目预览失败', data: null });
+    }
   });
 
   // Generate new puzzles and add to bank
-  router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generatePuzzlesSchema), (req, res) => {
+  router.post('/puzzle-bank/generate', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generatePuzzlesSchema), async (req, res) => {
     const { roundType, count, teamsCount } = req.body;
-    const data = puzzleBankService.generatePuzzles({
-      roundType, count, teamsCount,
-      organizationId: req.user.organizationId,
-    });
-    res.json({ code: 200, message: 'success', data });
+    try {
+      const data = await puzzleBankService.generatePuzzles({
+        roundType, count, teamsCount,
+        organizationId: req.user.organizationId,
+      });
+      res.json({ code: 200, message: 'success', data });
+    } catch (err) {
+      logger.error('[puzzle-bank] generatePuzzles failed', { error: err.message });
+      res.json({ code: 50000, message: '生成题目失败', data: null });
+    }
   });
 
   // Bulk generate puzzles for ALL rounds at once (given team count)
-  router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generateBulkSchema), (req, res) => {
+  router.post('/puzzle-bank/generate-bulk', expensiveLimiter, authMiddleware, roleMiddleware(...ADMIN_ROLES), validateBody(generateBulkSchema), async (req, res) => {
     const { teamsCount } = req.body;
-    const result = puzzleBankService.generateBulk(teamsCount, req.user.organizationId);
-    res.json({ code: 200, message: 'success', data: result });
+    try {
+      const result = await puzzleBankService.generateBulk(teamsCount, req.user.organizationId);
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (err) {
+      logger.error('[puzzle-bank] generateBulk failed', { error: err.message });
+      res.json({ code: 50000, message: '批量生成题目失败', data: null });
+    }
   });
 
   // Import puzzles from bank into a round
@@ -302,8 +327,17 @@ function createPuzzleBankRouter(repos) {
         }
       }
 
-      const bank = puzzleBankService._load();
-      const newPuzzles = [];
+      // ─── Write puzzles to the library + attach to the round ───────
+      //
+      // ISSUE-25 (2026-08-25): the puzzle bank no longer lives in
+      // puzzle-bank.json. The confirm phase writes each parsed PDF
+      // question straight into the `puzzles` table via the repository,
+      // then calls importToRound to link them to the target round.
+      //
+      // PDF-01 (scoped duplicate check) is now implicit: UUIDs are
+      // generated by the DB (uuid_generate_v4), so collisions are
+      // astronomically unlikely. The explicit pre-check is gone.
+      const newPuzzleIds = [];
       let strippedCategoryCount = 0;
 
       for (const q of stash.questions) {
@@ -312,35 +346,32 @@ function createPuzzleBankRouter(repos) {
             ? (strippedCategoryCount++, { ...q, categoryId: null })
             : q;
 
-        // Tag every puzzle with the round's actual type so
-        // `importToRound` can match them.
-        const entry = pdfImportService.toPuzzleBankEntry(
-          safeQuestion,
-          round.round_type,
-          organizationId
-        );
-
-        // PDF-01: scoped duplicate check (defense in depth — ids are
-        // regenerated via crypto.randomUUID so collisions are astronomical).
-        if (
-          bank.puzzles.some(
-            p => p.id === entry.id && p.organizationId === organizationId
-          )
-        ) {
-          continue;
+        try {
+          const row = await repos.puzzles.createStandalone({
+            organizationId,
+            puzzleType: safeQuestion.type === 'TEAM' ? 'STANDARD' : 'JOC',
+            difficulty: safeQuestion.difficulty,
+            points: safeQuestion.score,
+            categoryId: safeQuestion.categoryId || null,
+            roundType: round.round_type,
+            initialGrid: safeQuestion.initialGrid,
+            solution: safeQuestion.solutionGrid,
+          });
+          newPuzzleIds.push(row.id);
+        } catch (err) {
+          logger.error('[puzzle-bank] createStandalone failed', {
+            error: err.message, organizationId, roundId,
+          });
         }
-
-        entry.orderInRound =
-          bank.puzzles.filter(
-            p => p.roundType === entry.roundType && p.organizationId === organizationId
-          ).length +
-          newPuzzles.filter(p => p.roundType === entry.roundType).length +
-          1;
-        newPuzzles.push(entry);
       }
 
-      bank.puzzles.push(...newPuzzles);
-      puzzleBankService._save();
+      // totalInBank now comes from the DB count for this org.
+      let totalInBank = 0;
+      try {
+        totalInBank = await repos.puzzles.countByOrganization(organizationId);
+      } catch (err) {
+        logger.error('[puzzle-bank] countByOrganization failed', { error: err.message });
+      }
 
       // Auto-import into the target round. Guarantees the "every batch
       // belongs to one round" rule at write time: an admin never has a
@@ -349,22 +380,20 @@ function createPuzzleBankRouter(repos) {
       try {
         importResult = await puzzleBankService.importToRound({
           roundId,
-          puzzleIds: newPuzzles.map(p => p.id),
+          puzzleIds: newPuzzleIds,
         });
       } catch (err) {
         logger.error('[puzzle-bank] importToRound after PDF confirm failed', {
           error: err.message, roundId,
         });
-        // The bank has been written — return partial success so the admin
-        // knows to re-run the round-import manually.
         return res.json({
           code: 50001,
           message: '题目已入库，但导入到轮次失败，请手动重试',
           data: {
-            imported: newPuzzles.length,
+            imported: newPuzzleIds.length,
             importedToRound: 0,
-            totalInBank: bank.puzzles.length,
-            newPuzzleIds: newPuzzles.map(p => p.id),
+            totalInBank,
+            newPuzzleIds,
           },
         });
       }
@@ -376,12 +405,12 @@ function createPuzzleBankRouter(repos) {
         code: 200,
         message: 'success',
         data: {
-          imported: newPuzzles.length,
-          importedToRound: importResult.imported || newPuzzles.length,
-          skipped: stash.questions.length - newPuzzles.length,
+          imported: newPuzzleIds.length,
+          importedToRound: importResult.imported || newPuzzleIds.length,
+          skipped: stash.questions.length - newPuzzleIds.length,
           strippedCategoryIds: strippedCategoryCount,
-          totalInBank: bank.puzzles.length,
-          newPuzzleIds: newPuzzles.map(p => p.id),
+          totalInBank,
+          newPuzzleIds,
         },
       });
     }

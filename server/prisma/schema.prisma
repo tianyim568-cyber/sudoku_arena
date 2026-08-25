@@ -88,6 +88,7 @@ model organizations {
   created_at   DateTime       @default(now()) @db.Timestamptz(6)
   updated_at   DateTime       @default(now()) @db.Timestamptz(6)
   competitions competitions[]
+  puzzles      puzzles[]
   users        users[]
 }
 
@@ -156,11 +157,16 @@ model puzzles {
   score          Int              @default(100)
   created_at     DateTime         @default(now()) @db.Timestamptz(6)
   category_id    String?          @db.Uuid
+  organization_id String?         @db.Uuid
+  round_type     String?          @db.VarChar(50)
   puzzle_answers puzzle_answers[]
   categories     categories?      @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations  organizations?   @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   round_puzzles  round_puzzles[]
 
   @@index([category_id], map: "puzzles_category_id_index")
+  @@index([organization_id], map: "puzzles_organization_id_index")
+  @@index([round_type], map: "puzzles_round_type_index")
 }
 
 model round_puzzles {

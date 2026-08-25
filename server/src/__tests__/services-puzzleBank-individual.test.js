@@ -1,57 +1,64 @@
 // Unit tests for PuzzleBankService.generatePuzzles({ roundType: 'INDIVIDUAL_STANDARD' })
 // (BUG-04 fix, Option C).
 //
-// Before this fix, the generator only knew ROUND1_NINE_ONE, ROUND2_RELAY,
-// ROUND3_COLLABORATE — a solo round (INDIVIDUAL_STANDARD) fell through to
-// the "default" branch that emitted one puzzle with a generic RX- id, no
-// matter how much was asked for. Admins had no way to populate a solo round
-// from the UI.
-//
-// This test pins the new case:
+// ISSUE-25 (2026-08-25): the puzzle bank moved from puzzle-bank.json to
+// the `puzzles` table. These tests no longer write to a tmp JSON file;
+// they mock the repository so the service talks to an in-memory store.
+// The assertions that matter are preserved:
 //   - N puzzles are actually produced (default 10 when count is omitted)
-//   - Difficulty ratio is roughly 5/3/2 (EASY/MEDIUM/HARD) so a solo round
-//     is not just "easy warm-ups"
+//   - Difficulty ratio is roughly 5/3/2 (EASY/MEDIUM/HARD)
 //   - Every puzzle carries the organizationId (tenant isolation)
 //   - Every puzzle has a valid 9x9 initialGrid and matching solution
 //
-// The bank file is redirected to a tmp path so the run does not pollute the
-// real data/puzzle-bank.json (a live-test earlier this month polluted it,
-// see JOURNAL_MODIFICATIONS.md 2026-08-24).
+// The mock records every call so tests can assert on the arguments.
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
 const PuzzleBankService = require('../services/PuzzleBankService');
 
-describe('PuzzleBankService — INDIVIDUAL_STANDARD generator (BUG-04)', () => {
+// Build an in-memory mock of the puzzles repository. Each call to
+// createStandalone returns a row with a fresh UUID-like id and stores
+// the puzzle in `store` so later assertions can inspect it.
+function buildMockPuzzlesRepo() {
+  const store = [];
+  let counter = 0;
+  return {
+    store,
+    createStandalone: jest.fn(async (p) => {
+      counter += 1;
+      const row = {
+        id: `uuid-mock-${counter}`,
+        type: p.puzzleType,
+        initial_grid: p.initialGrid,
+        solution_grid: p.solution,
+        difficulty: p.difficulty,
+        score: p.points,
+        organization_id: p.organizationId,
+        round_type: p.roundType,
+        category_id: p.categoryId || null,
+        created_at: new Date().toISOString(),
+      };
+      store.push(row);
+      return row;
+    }),
+    countByOrganization: jest.fn(async () => store.length),
+    attachToRound: jest.fn(async () => ({})),
+    findByIdAndOrg: jest.fn(async () => null),
+    deleteByIdAndOrg: jest.fn(async () => null),
+    clearByOrganization: jest.fn(async () => 0),
+    findByOrganization: jest.fn(async () => ({ total: store.length, puzzles: store })),
+  };
+}
+
+describe('PuzzleBankService — INDIVIDUAL_STANDARD generator (BUG-04, ISSUE-25)', () => {
   let service;
-  let tmpDir;
-  let tmpBankPath;
+  let puzzlesRepo;
 
   beforeEach(() => {
-    // Fresh empty bank on disk so tests do not see each other's puzzles.
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sa-puzzlebank-'));
-    tmpBankPath = path.join(tmpDir, 'puzzle-bank.json');
-    fs.writeFileSync(tmpBankPath, JSON.stringify({ meta: {}, puzzles: [] }));
-
-    // The service loads the bank from a hard-coded path; we point its
-    // private _bankPath at our tmp file after construction. The public API
-    // does not expose it, but tests are allowed to reach in — same pattern
-    // as logger.__pino.
-    service = new PuzzleBankService({});
-    service._bankPath = tmpBankPath;
-    service._bank = null; // force reload from tmp file
+    puzzlesRepo = buildMockPuzzlesRepo();
+    service = new PuzzleBankService({ puzzles: puzzlesRepo });
   });
 
-  afterEach(() => {
-    // Clean up the temp directory so /tmp does not accumulate stale banks.
-    try {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    } catch (_) { /* ignore */ }
-  });
-
-  test('generates the requested count with the default 5/3/2 ratio', () => {
-    const result = service.generatePuzzles({
+  test('generates the requested count with the default 5/3/2 ratio', async () => {
+    const result = await service.generatePuzzles({
       roundType: 'INDIVIDUAL_STANDARD',
       count: 10,
       organizationId: 'org-1',
@@ -61,11 +68,10 @@ describe('PuzzleBankService — INDIVIDUAL_STANDARD generator (BUG-04)', () => {
     expect(result.totalInBank).toBe(10);
     expect(result.newPuzzleIds).toHaveLength(10);
 
-    // Re-read the bank to inspect the puzzles themselves.
-    const bank = JSON.parse(fs.readFileSync(tmpBankPath, 'utf8'));
-    expect(bank.puzzles).toHaveLength(10);
+    // Inspect the stored puzzles.
+    expect(puzzlesRepo.store).toHaveLength(10);
 
-    const byDiff = bank.puzzles.reduce((acc, p) => {
+    const byDiff = puzzlesRepo.store.reduce((acc, p) => {
       acc[p.difficulty] = (acc[p.difficulty] || 0) + 1;
       return acc;
     }, {});
@@ -73,49 +79,48 @@ describe('PuzzleBankService — INDIVIDUAL_STANDARD generator (BUG-04)', () => {
     expect(byDiff).toEqual({ EASY: 5, MEDIUM: 3, HARD: 2 });
   });
 
-  test('defaults to 10 puzzles when count is omitted', () => {
-    const result = service.generatePuzzles({
+  test('defaults to 10 puzzles when count is omitted', async () => {
+    const result = await service.generatePuzzles({
       roundType: 'INDIVIDUAL_STANDARD',
       organizationId: 'org-1',
     });
     expect(result.generated).toBe(10);
   });
 
-  test('tags every puzzle with the caller organizationId (tenant isolation)', () => {
-    service.generatePuzzles({
+  test('tags every puzzle with the caller organizationId (tenant isolation)', async () => {
+    await service.generatePuzzles({
       roundType: 'INDIVIDUAL_STANDARD',
       count: 5,
       organizationId: 'org-tenant-A',
     });
-    const bank = JSON.parse(fs.readFileSync(tmpBankPath, 'utf8'));
-    for (const p of bank.puzzles) {
-      expect(p.organizationId).toBe('org-tenant-A');
-      expect(p.roundType).toBe('INDIVIDUAL_STANDARD');
-      expect(p.puzzleType).toBe('STANDARD');
+
+    for (const p of puzzlesRepo.store) {
+      expect(p.organization_id).toBe('org-tenant-A');
+      expect(p.round_type).toBe('INDIVIDUAL_STANDARD');
+      expect(p.type).toBe('STANDARD');
     }
   });
 
-  test('produces valid 9x9 grids with a matching solution', () => {
-    service.generatePuzzles({
+  test('produces valid 9x9 grids with a matching solution', async () => {
+    await service.generatePuzzles({
       roundType: 'INDIVIDUAL_STANDARD',
       count: 3,
       organizationId: 'org-1',
     });
-    const bank = JSON.parse(fs.readFileSync(tmpBankPath, 'utf8'));
 
-    for (const p of bank.puzzles) {
+    for (const p of puzzlesRepo.store) {
       // 9 rows, 9 columns.
-      expect(p.initialGrid).toHaveLength(9);
-      expect(p.solution).toHaveLength(9);
+      expect(p.initial_grid).toHaveLength(9);
+      expect(p.solution_grid).toHaveLength(9);
       for (let r = 0; r < 9; r++) {
-        expect(p.initialGrid[r]).toHaveLength(9);
-        expect(p.solution[r]).toHaveLength(9);
+        expect(p.initial_grid[r]).toHaveLength(9);
+        expect(p.solution_grid[r]).toHaveLength(9);
       }
 
       // Solution is a filled valid grid: every cell is in 1..9.
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
-          const v = p.solution[r][c];
+          const v = p.solution_grid[r][c];
           expect(v).toBeGreaterThanOrEqual(1);
           expect(v).toBeLessThanOrEqual(9);
         }
@@ -124,17 +129,17 @@ describe('PuzzleBankService — INDIVIDUAL_STANDARD generator (BUG-04)', () => {
       // initialGrid uses 0 for blanks; every non-blank must match the solution.
       for (let r = 0; r < 9; r++) {
         for (let c = 0; c < 9; c++) {
-          const given = p.initialGrid[r][c];
+          const given = p.initial_grid[r][c];
           if (given !== 0) {
-            expect(given).toBe(p.solution[r][c]);
+            expect(given).toBe(p.solution_grid[r][c]);
           }
         }
       }
     }
   });
 
-  test('clamps count to at least 1', () => {
-    const result = service.generatePuzzles({
+  test('clamps count to at least 1', async () => {
+    const result = await service.generatePuzzles({
       roundType: 'INDIVIDUAL_STANDARD',
       count: 0,
       organizationId: 'org-1',

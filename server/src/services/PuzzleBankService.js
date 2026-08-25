@@ -1,12 +1,23 @@
 /**
  * PuzzleBankService — encapsulates puzzle bank CRUD operations.
  *
- * Extracted from puzzleBank.js route handlers following SRP.
- * Manages the puzzle-bank.json file and coordinates with PuzzleRepository.
+ * ISSUE-25 (2026-08-25): the flat JSON file (puzzle-bank.json) is gone.
+ * The bank now lives in the `puzzles` table, scoped by organization_id.
+ * This kills three bugs at once:
+ *   1. ID collisions after deletion (UUIDs replace R1-N array-length IDs)
+ *   2. Unbounded growth (a DB table is naturally bounded by org)
+ *   3. Concurrent-write races (Prisma is the single writer)
+ *
+ * The public API stays compatible with the route handlers:
+ *   listPuzzles, getPuzzleDetail, getPuzzlePreview,
+ *   generatePuzzles, generateBulk, importToRound,
+ *   deletePuzzle, clearAll.
+ *
+ * The methods now async because they hit the DB instead of an
+ * in-memory object. Callers that used to be sync (listPuzzles,
+ * generatePuzzles, getPuzzleDetail) are now async.
  */
 
-const fs = require('fs');
-const path = require('path');
 const logger = require('../utils/logger');
 
 class PuzzleBankService {
@@ -15,56 +26,31 @@ class PuzzleBankService {
    */
   constructor(repos) {
     this.repos = repos;
-    this._bankPath = path.join(__dirname, '..', '..', 'data', 'puzzle-bank.json');
-    this._bank = null;
-  }
-
-  // ─── Lazy-load bank ────────────────────────────────────────────
-
-  _load() {
-    if (this._bank) return this._bank;
-    if (fs.existsSync(this._bankPath)) {
-      this._bank = JSON.parse(fs.readFileSync(this._bankPath, 'utf8'));
-    } else {
-      this._bank = { meta: {}, puzzles: [] };
-    }
-    return this._bank;
-  }
-
-  _save() {
-    fs.writeFileSync(this._bankPath, JSON.stringify(this._bank, null, 2));
   }
 
   // ─── Read operations ───────────────────────────────────────────
 
-  listPuzzles({ roundType, difficulty, puzzleType, limit, offset, organizationId } = {}) {
-    let puzzles = (this._load().puzzles || []).slice();
+  async listPuzzles({ roundType, difficulty, puzzleType, limit, offset, organizationId } = {}) {
+    const result = await this.repos.puzzles.findByOrganization({
+      organizationId, roundType, difficulty, puzzleType, limit, offset,
+    });
 
-    // SECURITY: Filter by organization
-    if (organizationId) puzzles = puzzles.filter(p => p.organizationId === organizationId);
+    // Don't expose solution in listing — keeps the payload small and
+    // matches the old behavior where solution was stripped.
+    const safe = result.puzzles.map(p => this._stripSolution(p));
 
-    if (roundType) puzzles = puzzles.filter(p => p.roundType === roundType);
-    if (difficulty) puzzles = puzzles.filter(p => p.difficulty === difficulty);
-    if (puzzleType) puzzles = puzzles.filter(p => p.puzzleType === puzzleType);
-
-    // Don't expose solutions in listing
-    const safe = puzzles.map(({ solution, ...rest }) => rest);
-
-    const start = parseInt(offset) || 0;
-    const end = start + (parseInt(limit) || safe.length);
-
-    return { total: safe.length, puzzles: safe.slice(start, end), meta: this._bank.meta };
+    return { total: result.total, puzzles: safe, meta: {} };
   }
 
-  getPuzzleDetail(id, organizationId) {
-    const puzzle = this._load().puzzles.find(p => p.id === id);
-    // SECURITY: Verify organization ownership
-    if (!puzzle || (organizationId && puzzle.organizationId !== organizationId)) return null;
-    return puzzle;
+  async getPuzzleDetail(id, organizationId) {
+    const puzzle = await this.repos.puzzles.findByIdAndOrg(id, organizationId);
+    if (!puzzle) return null;
+    // Reshape to the legacy field names the route expects.
+    return this._legacyShape(puzzle);
   }
 
-  getPuzzlePreview(id, organizationId) {
-    const puzzle = this.getPuzzleDetail(id, organizationId);
+  async getPuzzlePreview(id, organizationId) {
+    const puzzle = await this.getPuzzleDetail(id, organizationId);
     if (!puzzle) return null;
     return {
       id: puzzle.id,
@@ -80,39 +66,29 @@ class PuzzleBankService {
 
   // ─── Generate puzzles ──────────────────────────────────────────
 
-  generatePuzzles({ roundType, count, teamsCount = 1, organizationId }) {
+  async generatePuzzles({ roundType, count, teamsCount = 1, organizationId }) {
     const { SudokuGenerator } = require('../utils/sudokuGenerator');
     const gen = new SudokuGenerator();
-    const bank = this._load();
     const newPuzzles = [];
-    const nextOrder = (rt) => (bank.puzzles.filter(p => p.roundType === rt).length) + newPuzzles.filter(p => p.roundType === rt).length + 1;
 
     switch (roundType) {
       case 'ROUND1_NINE_ONE': {
-        // Per team-set: 9 EASY JOC (1 empty cell each) + 1 MEDIUM FINAL = 10
-        // `teamsCount` controls how many team-sets to generate (default 1)
         const sets = Math.max(1, teamsCount || 1);
         for (let s = 0; s < sets; s++) {
-          // 9 EASY JOC
           for (let i = 0; i < 9; i++) {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `R1-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'JOC', difficulty: 'EASY',
-              orderInRound: nextOrder(roundType),
+              organizationId, roundType,
+              puzzleType: 'JOC', difficulty: 'EASY',
               letter: null, points: 10,
               initialGrid: gen.generateRound1Puzzle(sol), solution: sol,
             });
           }
-          // 1 MEDIUM FINAL
           {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `R1-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'FINAL', difficulty: 'MEDIUM',
-              orderInRound: nextOrder(roundType),
+              organizationId, roundType,
+              puzzleType: 'FINAL', difficulty: 'MEDIUM',
               letter: null, points: 10,
               initialGrid: gen.createPuzzle(sol, { emptyCells: 30, symmetric: true }), solution: sol,
             });
@@ -122,43 +98,33 @@ class PuzzleBankService {
       }
 
       case 'ROUND2_RELAY': {
-        // Per team: 8 EASY + 6 MEDIUM + 2 HARD = 16
         const sets = Math.max(1, teamsCount || 1);
         for (let t = 0; t < sets; t++) {
           for (let i = 0; i < 8; i++) {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `R2-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'STANDARD', difficulty: 'EASY',
-              orderInRound: newPuzzles.length + 1,
+              organizationId, roundType,
+              puzzleType: 'STANDARD', difficulty: 'EASY',
               letter: null, points: 8,
               initialGrid: gen.generateRound2EasyPuzzle(sol), solution: sol,
-              teamIndex: t,
             });
           }
           for (let i = 0; i < 6; i++) {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `R2-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'STANDARD', difficulty: 'MEDIUM',
-              orderInRound: newPuzzles.length + 1,
+              organizationId, roundType,
+              puzzleType: 'STANDARD', difficulty: 'MEDIUM',
               letter: null, points: 16,
               initialGrid: gen.generateRound2Puzzle(sol), solution: sol,
-              teamIndex: t,
             });
           }
           for (let i = 0; i < 2; i++) {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `R2-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'STANDARD', difficulty: 'HARD',
-              orderInRound: newPuzzles.length + 1,
+              organizationId, roundType,
+              puzzleType: 'STANDARD', difficulty: 'HARD',
               letter: null, points: 20,
               initialGrid: gen.generateRound2HardPuzzle(sol), solution: sol,
-              teamIndex: t,
             });
           }
         }
@@ -166,19 +132,6 @@ class PuzzleBankService {
       }
 
       case 'INDIVIDUAL_STANDARD': {
-        // Classic 9x9 Sudoku for solo speed-solving. `count` is the total
-        // number of puzzles to generate (default 10). Difficulty is spread
-        // across EASY / MEDIUM / HARD in a 5/3/2 ratio, so an individual
-        // round is not just "easy warm-ups". Point values scale with
-        // difficulty to match how ScoringService already weighs them for
-        // the team rounds — the same easy/medium/hard tiers already exist.
-        //
-        // Rationale: F88 (PDF import handled by Sylvain) will eventually
-        // supply committee-curated puzzles for real competitions. Until
-        // then, this generator unblocks the INDIVIDUAL_STANDARD round
-        // flow so admins can create the round and test end-to-end. When
-        // F88 lands, both paths coexist — generate to test, import PDF
-        // for production.
         const n = Math.max(1, count || 10);
         const nEasy = Math.round(n * 0.5);
         const nMed = Math.round(n * 0.3);
@@ -192,10 +145,8 @@ class PuzzleBankService {
           for (let j = 0; j < d.count; j++) {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `IS-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'STANDARD', difficulty: d.diff,
-              orderInRound: nextOrder(roundType),
+              organizationId, roundType,
+              puzzleType: 'STANDARD', difficulty: d.diff,
               letter: null, points: d.pts,
               initialGrid: gen.createPuzzle(sol, { emptyCells: d.emptyCells, symmetric: true }),
               solution: sol,
@@ -206,7 +157,6 @@ class PuzzleBankService {
       }
 
       case 'ROUND3_COLLABORATE': {
-        // 5 EASY + 3 MEDIUM + 2 HARD = 10 (shared across all teams)
         const dist = [
           { diff: 'EASY', gen: (s) => gen.generateRound3EasyPuzzle(s), pts: 10, count: 5 },
           { diff: 'MEDIUM', gen: (s) => gen.generateRound3MediumPuzzle(s), pts: 20, count: 3 },
@@ -216,10 +166,8 @@ class PuzzleBankService {
           for (let j = 0; j < d.count; j++) {
             const sol = gen.generateSolution();
             newPuzzles.push({
-              id: `R3-${bank.puzzles.length + newPuzzles.length + 1}`,
-              organizationId,
-              roundType, puzzleType: 'STANDARD', difficulty: d.diff,
-              orderInRound: newPuzzles.length + 1,
+              organizationId, roundType,
+              puzzleType: 'STANDARD', difficulty: d.diff,
               letter: null, points: d.pts,
               initialGrid: d.gen(sol), solution: sol,
             });
@@ -232,23 +180,38 @@ class PuzzleBankService {
         const solution = gen.generateSolution();
         const initial = gen.createPuzzle(solution, { emptyCells: 35 });
         newPuzzles.push({
-          id: `RX-${bank.puzzles.length + 1}`,
           organizationId,
-          roundType: roundType || 'UNKNOWN', puzzleType: 'STANDARD', difficulty: 'MEDIUM',
-          orderInRound: 1,
+          roundType: roundType || 'UNKNOWN',
+          puzzleType: 'STANDARD', difficulty: 'MEDIUM',
           letter: null, points: 100,
           initialGrid: initial, solution,
         });
       }
     }
 
-    bank.puzzles.push(...newPuzzles);
-    this._save();
+    // Write each puzzle to the DB. We don't use a transaction because
+    // each row is independent and partial failures should not roll
+    // back the successful ones — better to import 8 of 10 than 0.
+    const created = [];
+    for (const p of newPuzzles) {
+      try {
+        const row = await this.repos.puzzles.createStandalone(p);
+        created.push(row);
+      } catch (e) {
+        logger.error('PuzzleBankService.generatePuzzles: createStandalone failed', {
+          organizationId, roundType, error: e.message,
+        });
+      }
+    }
+
+    // totalInBank now comes from the DB count for this org, not from
+    // an in-memory array length. This is slower but accurate.
+    const totalInBank = await this.repos.puzzles.countByOrganization(organizationId);
 
     return {
-      generated: newPuzzles.length,
-      totalInBank: bank.puzzles.length,
-      newPuzzleIds: newPuzzles.map(p => p.id),
+      generated: created.length,
+      totalInBank,
+      newPuzzleIds: created.map(p => p.id),
     };
   }
 
@@ -256,28 +219,24 @@ class PuzzleBankService {
 
   /**
    * Generate puzzles for all three rounds given a team count.
-   * R1: teamsCount × 10 (3E+3M+3H JOC + 1 FINAL each)
+   * R1: teamsCount × 10 (9 JOC + 1 FINAL each)
    * R2: teamsCount × 16 (8E+6M+2H each)
    * R3: 10 (5E+3M+2H, shared across all teams)
-   *
-   * @param {number} teamsCount - number of teams
-   * @returns {{ r1: object, r2: object, r3: object, totalGenerated: number, totalInBank: number }}
    */
-  generateBulk(teamsCount, organizationId) {
-    const r1 = this.generatePuzzles({ roundType: 'ROUND1_NINE_ONE', teamsCount, organizationId });
-    const r2 = this.generatePuzzles({ roundType: 'ROUND2_RELAY', teamsCount, organizationId });
-    const r3 = this.generatePuzzles({ roundType: 'ROUND3_COLLABORATE', organizationId });
+  async generateBulk(teamsCount, organizationId) {
+    const r1 = await this.generatePuzzles({ roundType: 'ROUND1_NINE_ONE', teamsCount, organizationId });
+    const r2 = await this.generatePuzzles({ roundType: 'ROUND2_RELAY', teamsCount, organizationId });
+    const r3 = await this.generatePuzzles({ roundType: 'ROUND3_COLLABORATE', organizationId });
     return {
       r1, r2, r3,
       totalGenerated: r1.generated + r2.generated + r3.generated,
-      totalInBank: r3.totalInBank, // Last call has the final total
+      totalInBank: r3.totalInBank,
     };
   }
 
   // ─── Import to round ───────────────────────────────────────────
 
   async importToRound({ roundId, puzzleIds, count, teamsCount }) {
-    const bank = this._load();
     const round = await this.repos.rounds.findById(roundId);
     if (!round) return { error: '轮次不存在', code: 40400 };
 
@@ -290,28 +249,32 @@ class PuzzleBankService {
     let successCount = 0;
 
     if (puzzleIds && Array.isArray(puzzleIds)) {
-      selectedPuzzles = bank.puzzles.filter(p => puzzleIds.includes(p.id));
+      // Pull the requested puzzles directly from the DB by their UUIDs.
+      selectedPuzzles = await this.repos.puzzles.findByIds(puzzleIds);
     } else {
       const type = round.round_type;
-      let pool = bank.puzzles.filter(p => p.roundType === type);
+      // The pool is now the puzzles in this org with matching round_type.
+      const pool = await this.repos.puzzles.findByOrganization({
+        organizationId: round.organization_id || undefined,
+        roundType: type,
+      });
+      const puzzles = pool.puzzles;
 
       if (type === 'ROUND1_NINE_ONE') {
-        // R1: Import ALL available puzzles (not just 10).
-        // Team-specific assignment happens at game start via PuzzleAssignmentService.
-        // We need enough puzzles for all teams: teamsCount * (9 JOC + 1 FINAL)
-        return await this._importR1Puzzles(roundId, round.competition_id, pool, teamsCount);
+        return await this._importR1Puzzles(roundId, round.competition_id, puzzles, teamsCount);
       } else if (type === 'ROUND2_RELAY') {
-        return await this._importR2Puzzles(roundId, pool);
+        return await this._importR2Puzzles(roundId, puzzles);
       } else if (type === 'ROUND3_COLLABORATE') {
-        selectedPuzzles = this._selectR3Puzzles(pool);
+        selectedPuzzles = this._selectR3Puzzles(puzzles);
       } else {
         // Shuffle and pick
-        for (let i = pool.length - 1; i > 0; i--) {
+        const shuffled = [...puzzles];
+        for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
-          [pool[i], pool[j]] = [pool[j], pool[i]];
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         const n = count || 1;
-        selectedPuzzles = pool.slice(0, n);
+        selectedPuzzles = shuffled.slice(0, n);
       }
     }
 
@@ -322,15 +285,11 @@ class PuzzleBankService {
     for (let i = 0; i < selectedPuzzles.length; i++) {
       const p = selectedPuzzles[i];
       try {
-        await this.repos.puzzles.create({
-          roundId: parseInt(roundId),
-          puzzleType: p.puzzleType,
+        await this.repos.puzzles.attachToRound({
+          roundId,
+          puzzleId: p.id,
           orderInRound: i + 1,
-          initialGrid: JSON.stringify(p.initialGrid),
-          solution: JSON.stringify(p.solution),
-          points: p.points,
-          letter: p.letter,
-          difficulty: p.difficulty || null,
+          points: p.points || p.score || 100,
         });
         successCount++;
       } catch (e) {
@@ -345,9 +304,8 @@ class PuzzleBankService {
     const teams = await this.repos.teams.findByCompetition(competitionId);
     const numTeams = teamsCount || teams.length || 1;
 
-    // Validate: need at least numTeams * 9 JOC + numTeams * 1 FINAL
-    const jocPool = pool.filter(p => p.puzzleType === 'JOC');
-    const finalPool = pool.filter(p => p.puzzleType === 'FINAL');
+    const jocPool = pool.filter(p => (p.type || p.puzzleType) === 'JOC');
+    const finalPool = pool.filter(p => (p.type || p.puzzleType) === 'FINAL');
     const requiredJoc = numTeams * 9;
     const requiredFinal = numTeams;
 
@@ -368,7 +326,6 @@ class PuzzleBankService {
       };
     }
 
-    // Shuffle both pools for random order in DB
     const shuffle = (arr) => {
       const a = [...arr];
       for (let i = a.length - 1; i > 0; i--) {
@@ -381,23 +338,16 @@ class PuzzleBankService {
     const shuffledJoc = shuffle(jocPool);
     const shuffledFinal = shuffle(finalPool);
 
-    // Import ALL JOC and FINAL puzzles into the round.
-    // Letter assignment is NOT done at import time — it happens at game start
-    // via PuzzleAssignmentService which assigns 9-letter words.
     let successCount = 0;
     let orderIdx = 1;
 
     for (const p of shuffledJoc) {
       try {
-        await this.repos.puzzles.create({
-          roundId: parseInt(roundId),
-          puzzleType: p.puzzleType,
+        await this.repos.puzzles.attachToRound({
+          roundId,
+          puzzleId: p.id,
           orderInRound: orderIdx,
-          initialGrid: JSON.stringify(p.initialGrid),
-          solution: JSON.stringify(p.solution),
-          points: p.points || 100,
-          letter: null, // Letter will be assigned by PuzzleAssignmentService at game start
-          difficulty: p.difficulty || null,
+          points: p.score || p.points || 100,
         });
         successCount++;
         orderIdx++;
@@ -408,15 +358,11 @@ class PuzzleBankService {
 
     for (const p of shuffledFinal) {
       try {
-        await this.repos.puzzles.create({
-          roundId: parseInt(roundId),
-          puzzleType: p.puzzleType,
+        await this.repos.puzzles.attachToRound({
+          roundId,
+          puzzleId: p.id,
           orderInRound: orderIdx,
-          initialGrid: JSON.stringify(p.initialGrid),
-          solution: JSON.stringify(p.solution),
-          points: p.points || 100,
-          letter: null,
-          difficulty: p.difficulty || null,
+          points: p.score || p.points || 100,
         });
         successCount++;
         orderIdx++;
@@ -436,7 +382,6 @@ class PuzzleBankService {
   }
 
   _selectR3Puzzles(pool) {
-    // Shuffle each difficulty pool for random selection
     const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
     const selected = [];
     const easy = shuffle(pool.filter(p => p.difficulty === 'EASY')).slice(0, 5);
@@ -447,34 +392,45 @@ class PuzzleBankService {
   }
 
   async _importR2Puzzles(roundId, pool) {
-    // Round 2 uses ONE shared set of 16 puzzles (8 EASY + 6 MEDIUM + 2 HARD)
-    // for ALL teams — every team is tested on the same questions. Puzzles are
-    // stored with team_id = null (shared); the engine already reads shared
-    // puzzles (`|| !p.team_id`, `team_id IS NULL`) and tracks progress per team.
-    // No teams need to exist before importing.
-    const r2Pool = [...pool].filter(p => p.roundType === 'ROUND2_RELAY').sort(() => Math.random() - 0.5);
+    const r2Pool = [...pool].sort(() => Math.random() - 0.5);
 
     let easyPuzzles = r2Pool.filter(p => p.difficulty === 'EASY').slice(0, 8);
     let medPuzzles = r2Pool.filter(p => p.difficulty === 'MEDIUM').slice(0, 6);
     let hardPuzzles = r2Pool.filter(p => p.difficulty === 'HARD').slice(0, 2);
 
+    // If the bank doesn't have enough puzzles of a given difficulty,
+    // generate fresh ones and write them to the library + attach to
+    // the round in one go. This is the same fallback as before, but
+    // it now goes through the DB instead of the JSON file.
     const { SudokuGenerator } = require('../utils/sudokuGenerator');
     const gen = new SudokuGenerator();
 
     while (easyPuzzles.length < 8) {
       const sol = gen.generateSolution();
-      easyPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'EASY', points: 8,
-        initialGrid: gen.generateRound2EasyPuzzle(sol), solution: sol });
+      const created = await this.repos.puzzles.createStandalone({
+        puzzleType: 'STANDARD', difficulty: 'EASY', points: 8,
+        initialGrid: gen.generateRound2EasyPuzzle(sol), solution: sol,
+        roundType: 'ROUND2_RELAY',
+      });
+      easyPuzzles.push(created);
     }
     while (medPuzzles.length < 6) {
       const sol = gen.generateSolution();
-      medPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'MEDIUM', points: 16,
-        initialGrid: gen.generateRound2Puzzle(sol), solution: sol });
+      const created = await this.repos.puzzles.createStandalone({
+        puzzleType: 'STANDARD', difficulty: 'MEDIUM', points: 16,
+        initialGrid: gen.generateRound2Puzzle(sol), solution: sol,
+        roundType: 'ROUND2_RELAY',
+      });
+      medPuzzles.push(created);
     }
     while (hardPuzzles.length < 2) {
       const sol = gen.generateSolution();
-      hardPuzzles.push({ puzzleType: 'STANDARD', difficulty: 'HARD', points: 20,
-        initialGrid: gen.generateRound2HardPuzzle(sol), solution: sol });
+      const created = await this.repos.puzzles.createStandalone({
+        puzzleType: 'STANDARD', difficulty: 'HARD', points: 20,
+        initialGrid: gen.generateRound2HardPuzzle(sol), solution: sol,
+        roundType: 'ROUND2_RELAY',
+      });
+      hardPuzzles.push(created);
     }
 
     const ordered = [...easyPuzzles, ...medPuzzles, ...hardPuzzles];
@@ -483,16 +439,11 @@ class PuzzleBankService {
     for (let i = 0; i < ordered.length; i++) {
       const p = ordered[i];
       try {
-        await this.repos.puzzles.create({
-          roundId: parseInt(roundId),
-          puzzleType: p.puzzleType,
+        await this.repos.puzzles.attachToRound({
+          roundId,
+          puzzleId: p.id,
           orderInRound: i + 1,
-          initialGrid: JSON.stringify(p.initialGrid),
-          solution: JSON.stringify(p.solution),
-          points: p.points || 100,
-          letter: p.letter || null,
-          difficulty: p.difficulty,
-          teamId: null, // shared across all teams
+          points: p.score || p.points || 100,
         });
         successCount++;
       } catch (e) {
@@ -506,50 +457,46 @@ class PuzzleBankService {
   // ─── Delete operations ─────────────────────────────────────────
 
   async deletePuzzle(id, organizationId) {
-    const bank = this._load();
-    const index = bank.puzzles.findIndex(p => p.id === id);
-    if (index === -1) return { deleted: false, message: '题目不存在' };
-
-    // SECURITY: Verify organization ownership
-    const puzzle = bank.puzzles[index];
-    if (organizationId && puzzle.organizationId !== organizationId) {
-      return { deleted: false, message: '无权删除此题目' };
-    }
-
-    bank.puzzles.splice(index, 1);
-    this._save();
-
-    // Also delete from DB if it was imported
-    const dbPuzzle = await this.repos.puzzles.findById(parseInt(id.replace(/^[A-Z]+-/, '')));
-    if (dbPuzzle) {
-      await this.repos.puzzles.deleteById(dbPuzzle.id);
-    }
-
+    const row = await this.repos.puzzles.deleteByIdAndOrg(id, organizationId);
+    if (!row) return { deleted: false, message: '题目不存在或无权删除' };
     return { deleted: true, id };
   }
 
   async clearAll(organizationId) {
-    const bank = this._load();
-
-    // SECURITY: Only clear puzzles belonging to this organization
-    const originalCount = bank.puzzles.length;
-    if (organizationId) {
-      bank.puzzles = bank.puzzles.filter(p => p.organizationId !== organizationId);
-    } else {
-      bank.puzzles = [];
-    }
-    const count = originalCount - bank.puzzles.length;
-
-    this._save();
-
-    // Also clear from DB (only puzzles from this organization's rounds)
-    if (organizationId) {
-      await this.repos.puzzles.clearByOrganization(organizationId);
-    } else {
-      await this.repos.puzzles.clearAll();
-    }
-
+    const count = await this.repos.puzzles.clearByOrganization(organizationId);
     return { deleted: count };
+  }
+
+  // ─── Shaping helpers ───────────────────────────────────────────
+
+  /**
+   * Strip the solution from a puzzle row for the listing endpoint.
+   * Keeps the payload small and matches the old JSON behavior.
+   */
+  _stripSolution(p) {
+    const { solution_grid, ...rest } = p;
+    return rest;
+  }
+
+  /**
+   * Reshape a DB puzzle row to the legacy field names the route
+   * handlers and the client expect. The new schema uses snake_case;
+   * the old JSON used camelCase.
+   */
+  _legacyShape(p) {
+    return {
+      id: p.id,
+      organizationId: p.organization_id,
+      roundType: p.round_type,
+      puzzleType: p.type,
+      difficulty: p.difficulty,
+      points: p.score,
+      letter: null, // column removed in new schema
+      initialGrid: p.initial_grid,
+      solution: p.solution_grid,
+      categoryId: p.category_id,
+      createdAt: p.created_at,
+    };
   }
 }
 

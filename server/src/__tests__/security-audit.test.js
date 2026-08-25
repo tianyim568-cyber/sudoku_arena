@@ -466,79 +466,104 @@ describe('Security: Competition setup two-hop validation', () => {
 
 // ─────────────────────────────────────────────────────────────────────
 // 4. Puzzle Bank — Tenant Isolation
+//
+// ISSUE-25 (2026-08-25): the puzzle bank moved from puzzle-bank.json to
+// the `puzzles` table. These tests mock the puzzles repository (in-memory
+// store) instead of poking at `service._bank`. They cover the same
+// invariants: listPuzzles filters by org, getPuzzleDetail rejects
+// cross-tenant reads, deletePuzzle rejects cross-tenant deletes, and
+// generatePuzzles stamps organizationId on every created row.
 // ─────────────────────────────────────────────────────────────────────
 
 describe('Security: Puzzle bank tenant isolation', () => {
   const PuzzleBankService = require('../services/PuzzleBankService');
 
-  const mockRepos = {
-    rounds: {
-      findById: jest.fn(),
-    },
-    puzzles: {
-      countByRound: jest.fn(async () => 0),
-      create: jest.fn(async (data) => data),
-      clearByOrganization: jest.fn(async () => {}),
-      clearAll: jest.fn(async () => {}),
-    },
-  };
-
-  test('listPuzzles filters by organizationId', () => {
-    const service = new PuzzleBankService(mockRepos);
-
-    // Inject test data
-    service._bank = {
-      meta: {},
-      puzzles: [
-        { id: 'p1', organizationId: 'org-a', roundType: 'R1' },
-        { id: 'p2', organizationId: 'org-b', roundType: 'R1' },
-        { id: 'p3', organizationId: 'org-a', roundType: 'R2' },
-      ],
+  // Build an in-memory mock of the puzzles repository. The store is
+  // pre-seeded with a couple of rows so listPuzzles/getPuzzleDetail have
+  // something to filter; createStandalone pushes new rows so
+  // generatePuzzles can assert on what it wrote.
+  function buildMockPuzzlesRepo(seed = []) {
+    const store = [...seed];
+    let counter = store.length;
+    return {
+      store,
+      findByOrganization: jest.fn(async ({ organizationId }) => {
+        const rows = store.filter(p => p.organization_id === organizationId);
+        return { total: rows.length, puzzles: rows };
+      }),
+      findByIdAndOrg: jest.fn(async (id, organizationId) => {
+        return store.find(p => p.id === id && p.organization_id === organizationId) || null;
+      }),
+      createStandalone: jest.fn(async (p) => {
+        counter += 1;
+        const row = {
+          id: `uuid-mock-${counter}`,
+          type: p.puzzleType,
+          initial_grid: p.initialGrid,
+          solution_grid: p.solution,
+          difficulty: p.difficulty,
+          score: p.points,
+          organization_id: p.organizationId,
+          round_type: p.roundType,
+          category_id: p.categoryId || null,
+          created_at: new Date().toISOString(),
+        };
+        store.push(row);
+        return row;
+      }),
+      deleteByIdAndOrg: jest.fn(async (id, organizationId) => {
+        const idx = store.findIndex(p => p.id === id && p.organization_id === organizationId);
+        if (idx === -1) return null;
+        const [row] = store.splice(idx, 1);
+        return row;
+      }),
+      countByOrganization: jest.fn(async (organizationId) =>
+        store.filter(p => p.organization_id === organizationId).length
+      ),
+      attachToRound: jest.fn(async () => ({})),
     };
+  }
 
-    const result = service.listPuzzles({ organizationId: 'org-a' });
+  // Pre-seed the bank with three puzzles across two orgs so filters
+  // have something to discriminate between.
+  const SEED = [
+    { id: 'p1', organization_id: 'org-a', round_type: 'R1', type: 'JOC', difficulty: 'EASY', score: 10, initial_grid: [], solution_grid: [] },
+    { id: 'p2', organization_id: 'org-b', round_type: 'R1', type: 'JOC', difficulty: 'EASY', score: 10, initial_grid: [], solution_grid: [] },
+    { id: 'p3', organization_id: 'org-a', round_type: 'R2', type: 'STANDARD', difficulty: 'EASY', score: 10, initial_grid: [], solution_grid: [] },
+  ];
+
+  test('listPuzzles filters by organizationId', async () => {
+    const puzzlesRepo = buildMockPuzzlesRepo(SEED);
+    const service = new PuzzleBankService({ puzzles: puzzlesRepo });
+
+    const result = await service.listPuzzles({ organizationId: 'org-a' });
 
     expect(result.total).toBe(2);
-    expect(result.puzzles.every((p) => p.organizationId === 'org-a')).toBe(true);
+    expect(result.puzzles.every(p => p.organization_id === 'org-a')).toBe(true);
   });
 
-  test('getPuzzleDetail rejects cross-tenant access', () => {
-    const service = new PuzzleBankService(mockRepos);
+  test('getPuzzleDetail rejects cross-tenant access', async () => {
+    const puzzlesRepo = buildMockPuzzlesRepo(SEED);
+    const service = new PuzzleBankService({ puzzles: puzzlesRepo });
 
-    service._bank = {
-      meta: {},
-      puzzles: [
-        { id: 'p1', organizationId: 'org-a', roundType: 'R1' },
-      ],
-    };
-
-    const result = service.getPuzzleDetail('p1', 'org-b');
+    const result = await service.getPuzzleDetail('p1', 'org-b');
     expect(result).toBeNull();
   });
 
   test('deletePuzzle rejects cross-tenant deletion', async () => {
-    const service = new PuzzleBankService(mockRepos);
-
-    service._bank = {
-      meta: {},
-      puzzles: [
-        { id: 'p1', organizationId: 'org-a', roundType: 'R1' },
-      ],
-    };
-    service._bankPath = '/tmp/test-puzzle-bank.json';
+    const puzzlesRepo = buildMockPuzzlesRepo(SEED);
+    const service = new PuzzleBankService({ puzzles: puzzlesRepo });
 
     const result = await service.deletePuzzle('p1', 'org-b');
     expect(result.deleted).toBe(false);
     expect(result.message).toMatch(/无权/);
+    // The puzzle must still be in the store — the delete was rejected.
+    expect(puzzlesRepo.store.find(p => p.id === 'p1')).toBeDefined();
   });
 
-  test('generatePuzzles stamps organizationId on new puzzles', () => {
-    const service = new PuzzleBankService(mockRepos);
-    const os = require('os');
-    const path = require('path');
-
-    service._bank = { meta: {}, puzzles: [] };
-    service._bankPath = path.join(os.tmpdir(), 'test-puzzle-bank-' + Date.now() + '.json');
+  test('generatePuzzles stamps organizationId on new puzzles', async () => {
+    const puzzlesRepo = buildMockPuzzlesRepo();
+    const service = new PuzzleBankService({ puzzles: puzzlesRepo });
 
     const { SudokuGenerator } = require('../utils/sudokuGenerator');
     jest.spyOn(SudokuGenerator.prototype, 'generateSolution').mockReturnValue(
@@ -551,7 +576,7 @@ describe('Security: Puzzle bank tenant isolation', () => {
       Array.from({ length: 9 }, () => Array(9).fill(1))
     );
 
-    const result = service.generatePuzzles({
+    const result = await service.generatePuzzles({
       roundType: 'ROUND1_NINE_ONE',
       count: 1,
       teamsCount: 1,
@@ -559,11 +584,7 @@ describe('Security: Puzzle bank tenant isolation', () => {
     });
 
     expect(result.generated).toBeGreaterThan(0);
-    expect(service._bank.puzzles.every((p) => p.organizationId === 'org-test')).toBe(true);
-
-    // Cleanup
-    const fs = require('fs');
-    if (fs.existsSync(service._bankPath)) fs.unlinkSync(service._bankPath);
+    expect(puzzlesRepo.store.every(p => p.organization_id === 'org-test')).toBe(true);
   });
 });
 

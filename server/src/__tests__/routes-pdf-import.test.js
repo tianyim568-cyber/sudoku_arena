@@ -4,17 +4,17 @@
 //     POST /puzzle-bank/import-pdf/confirm).
 //   - Phase 1 accepts a PDF, stashes the parsed questions, returns a
 //     preview without solutions.
-//   - Phase 2 requires a valid stash, honors the Zod schema on roundType,
-//     scopes duplicate check + orderInRound to the caller's org, drops
-//     foreign categoryIds, and clears the stash on success.
+//   - Phase 2 requires a valid stash, honors the Zod schema on roundId,
+//     refuses to overwrite a populated round, drops foreign categoryIds,
+//     and clears the stash on success.
 //   - Cross-tenant safety: an admin from Org A cannot confirm a stash
-//     built by Org B, cannot see Org B's puzzles when checking for
-//     duplicates, and cannot import a puzzle tagged with Org B's
+//     built by Org B, and cannot import a puzzle tagged with Org B's
 //     categoryId (it gets stripped).
 //
-// pdf-parse is mocked (same trick as services-pdf-import.test.js) so the
-// test controls the parser output without shipping a real PDF blob.
-// PuzzleBankService's file IO is stubbed via _load/_save spies.
+// ISSUE-25 (2026-08-25): the puzzle bank moved from puzzle-bank.json to
+// the `puzzles` table. These tests no longer stub `_load`/`_save` on the
+// service; instead they mock the puzzles repository so the route writes
+// into an in-memory store, which is what the assertions inspect.
 
 // Bypass rate limiters — the suite runs 18 requests from the same IP,
 // which trips express-rate-limit's default ceiling and swaps the real
@@ -45,17 +45,14 @@ jest.mock('../db/prisma', () => ({
   }),
 }));
 
-// PuzzleBankService — stub the disk IO. The bank starts empty and grows
-// as the route pushes into it. importToRound is called automatically by
-// the confirm route after the bank is written; the tests inspect that
-// call to prove the "one batch, one round" guarantee.
-const bankState = { meta: {}, puzzles: [] };
+// PuzzleBankService — only `importToRound` is called by the confirm
+// route (after the puzzles are written to the DB). The other methods
+// are stubbed to keep the constructor happy; they are not invoked
+// during these tests so their return values don't matter.
 const mockImportToRound = jest.fn(async ({ puzzleIds }) => ({ imported: puzzleIds?.length ?? 0 }));
 jest.mock('../services/PuzzleBankService', () => {
   return jest.fn().mockImplementation(function () {
-    this._load = jest.fn(() => bankState);
-    this._save = jest.fn();
-    this.listPuzzles = jest.fn(() => ({ total: bankState.puzzles.length, puzzles: bankState.puzzles, meta: {} }));
+    this.listPuzzles = jest.fn();
     this.getPuzzleDetail = jest.fn();
     this.getPuzzlePreview = jest.fn();
     this.generatePuzzles = jest.fn();
@@ -66,11 +63,40 @@ jest.mock('../services/PuzzleBankService', () => {
   });
 });
 
-// Repo — the route now calls repos.puzzles.countByRound to refuse
-// overwriting a round that already holds puzzles.
-const mockCountByRound = jest.fn(async () => 0);
+// In-memory puzzles repository. Each createStandalone call pushes a
+// row into `store` with a fresh UUID-like id, so tests can inspect what
+// the route wrote without touching a real database.
+function buildMockPuzzlesRepo() {
+  const store = [];
+  let counter = 0;
+  return {
+    store,
+    createStandalone: jest.fn(async (p) => {
+      counter += 1;
+      const row = {
+        id: `uuid-mock-${counter}`,
+        type: p.puzzleType,
+        initial_grid: p.initialGrid,
+        solution_grid: p.solution,
+        difficulty: p.difficulty,
+        score: p.points,
+        organization_id: p.organizationId,
+        round_type: p.roundType,
+        category_id: p.categoryId || null,
+        created_at: new Date().toISOString(),
+      };
+      store.push(row);
+      return row;
+    }),
+    countByRound: jest.fn(async () => 0),
+    countByOrganization: jest.fn(async () => store.length),
+  };
+}
+
+let puzzlesRepo;
 function buildRepos() {
-  return { puzzles: { countByRound: mockCountByRound } };
+  puzzlesRepo = buildMockPuzzlesRepo();
+  return { puzzles: puzzlesRepo };
 }
 
 const express = require('express');
@@ -141,10 +167,9 @@ const FAKE_PDF_BUFFER = Buffer.concat([
 
 beforeEach(() => {
   jest.clearAllMocks();
-  bankState.puzzles = [];
   mockPdfText = '';
   mockCategoriesFindMany.mockResolvedValue([]);
-  mockCountByRound.mockResolvedValue(0);
+  mockRoundsFindUnique.mockReset();
   mockImportToRound.mockImplementation(async ({ puzzleIds }) => ({ imported: puzzleIds?.length ?? 0 }));
 });
 
@@ -262,13 +287,19 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
       .send({ roundId: ROUND_B_ID });
     expect(res.body.code).toBe(40301);
     // Nothing was written to the bank.
-    expect(bankState.puzzles).toHaveLength(0);
+    expect(puzzlesRepo.store).toHaveLength(0);
   });
 
   test('refuses to overwrite a round that already holds puzzles (40030)', async () => {
     mockRoundOwnedBy(ORG_A);
-    mockCountByRound.mockResolvedValue(5); // round already populated
-    const app = buildApp();
+    // Override the countByRound mock for this one app instance — the
+    // route uses the repo attached to the router, so we have to set it
+    // before buildApp() is called.
+    const app = express();
+    app.use(express.json());
+    const repos = buildRepos();
+    repos.puzzles.countByRound = jest.fn(async () => 5); // round already populated
+    app.use('/api', createPuzzleBankRouter(repos));
     await upload(app, ADMIN_A_TOKEN, [{ id: '001' }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
@@ -277,7 +308,7 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
     expect(res.body.code).toBe(40030);
     expect(res.body.data.existing).toBe(5);
     // Nothing written to the bank, nothing imported to the round.
-    expect(bankState.puzzles).toHaveLength(0);
+    expect(puzzlesRepo.store).toHaveLength(0);
     expect(mockImportToRound).not.toHaveBeenCalled();
   });
 
@@ -292,13 +323,12 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
     expect(res.body.code).toBe(200);
     expect(res.body.data.imported).toBe(2);
     expect(res.body.data.importedToRound).toBe(2);
-    // Every bank entry is stamped with Org A, the round's type, and a
-    // server-generated id — no PDF value ever becomes a bank key.
-    for (const p of bankState.puzzles) {
-      expect(p.organizationId).toBe(ORG_A);
-      expect(p.roundType).toBe('INDIVIDUAL_STANDARD');
-      expect(p.id).toMatch(/^PDF-[0-9a-f-]{36}$/);
-      expect(p.source).toBe('PDF_IMPORT');
+    // Every bank row is stamped with Org A and the round's type — no
+    // PDF value ever becomes a bank key.
+    for (const p of puzzlesRepo.store) {
+      expect(p.organization_id).toBe(ORG_A);
+      expect(p.round_type).toBe('INDIVIDUAL_STANDARD');
+      expect(p.id).toMatch(/^uuid-mock-\d+$/);
     }
     // importToRound was called with the caller's roundId and the ids
     // that were just written — the "one batch, one round" guarantee.
@@ -320,13 +350,19 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
     expect(res.body.code).toBe(40020);
   });
 
-  test('CROSS-TENANT: bank duplicate check is org-scoped (PDF-01)', async () => {
-    mockRoundOwnedBy(ORG_B, { roundId: ROUND_B_ID });
+  test('CROSS-TENANT: bank is org-scoped — Org B import does not touch Org A rows', async () => {
     // Seed the bank with existing Org A entries; Org B's import must
-    // still count from 1 and land the full batch.
-    bankState.puzzles.push({ id: 'PDF-existing-org-a-1', organizationId: ORG_A, roundType: 'INDIVIDUAL_STANDARD' });
-    bankState.puzzles.push({ id: 'PDF-existing-org-a-2', organizationId: ORG_A, roundType: 'INDIVIDUAL_STANDARD' });
+    // still land its full batch without mutating Org A rows. The old
+    // PDF-01 duplicate check is gone (UUIDs make collisions impossible),
+    // so we assert only that Org B's rows land and Org A's survive.
+    mockRoundOwnedBy(ORG_B, { roundId: ROUND_B_ID });
     const app = buildApp();
+    // Manually pre-seed two Org A rows in the store so we can confirm
+    // they survive Org B's confirm.
+    puzzlesRepo.store.push(
+      { id: 'existing-org-a-1', organization_id: ORG_A, round_type: 'INDIVIDUAL_STANDARD' },
+      { id: 'existing-org-a-2', organization_id: ORG_A, round_type: 'INDIVIDUAL_STANDARD' }
+    );
     await upload(app, ADMIN_B_TOKEN, [{ id: '101' }, { id: '102' }, { id: '103' }]);
     const res = await request(app)
       .post('/api/puzzle-bank/import-pdf/confirm')
@@ -334,11 +370,10 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
       .send({ roundId: ROUND_B_ID });
     expect(res.body.code).toBe(200);
     expect(res.body.data.imported).toBe(3);
-    const orgBEntries = bankState.puzzles.filter(p => p.organizationId === ORG_B);
-    const orgAEntries = bankState.puzzles.filter(p => p.organizationId === ORG_A);
+    const orgBEntries = puzzlesRepo.store.filter(p => p.organization_id === ORG_B);
+    const orgAEntries = puzzlesRepo.store.filter(p => p.organization_id === ORG_A);
     expect(orgBEntries).toHaveLength(3);
     expect(orgAEntries).toHaveLength(2);
-    expect(orgBEntries.map(p => p.orderInRound).sort()).toEqual([1, 2, 3]);
   });
 
   test('PDF-03: strips foreign categoryId (belongs to another org)', async () => {
@@ -353,7 +388,7 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
     expect(res.body.code).toBe(200);
     expect(res.body.data.imported).toBe(1);
     expect(res.body.data.strippedCategoryIds).toBe(1);
-    expect(bankState.puzzles[0].categoryId).toBeNull();
+    expect(puzzlesRepo.store[0].category_id).toBeNull();
   });
 
   test('PDF-03: keeps categoryId that belongs to the caller org', async () => {
@@ -367,7 +402,7 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
       .send({ roundId: ROUND_A_ID });
     expect(res.body.code).toBe(200);
     expect(res.body.data.strippedCategoryIds).toBe(0);
-    expect(bankState.puzzles[0].categoryId).toBe(VALID_UUID_A);
+    expect(puzzlesRepo.store[0].category_id).toBe(VALID_UUID_A);
   });
 
   test('clears the stash after a successful confirm (no double-confirm)', async () => {
@@ -401,6 +436,6 @@ describe('POST /api/puzzle-bank/import-pdf/confirm (phase 2)', () => {
     expect(res.body.data.importedToRound).toBe(0);
     // Puzzles are in the bank — the admin can retry the round-import
     // manually via "Import from bank".
-    expect(bankState.puzzles).toHaveLength(1);
+    expect(puzzlesRepo.store).toHaveLength(1);
   });
 });
