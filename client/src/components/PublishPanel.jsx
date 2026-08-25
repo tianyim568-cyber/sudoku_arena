@@ -31,7 +31,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
-export default function PublishPanel({ competitionId, status, canStart, refreshKey }) {
+export default function PublishPanel({ competitionId, status, canStart, refreshKey, onStatusChange }) {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -85,6 +85,7 @@ export default function PublishPanel({ competitionId, status, canStart, refreshK
       // The parent learns about the status change by reloading; we refresh
       // the snapshot so the Start button lights up immediately.
       await load();
+      if (onStatusChange) onStatusChange();
       showMsg(t('publishPanel.published'), 'success');
     } else {
       // The server refused. Show the readable message — it lists every
@@ -113,6 +114,7 @@ export default function PublishPanel({ competitionId, status, canStart, refreshK
     setBusy(false);
     if (res.code === 200) {
       await load();
+      if (onStatusChange) onStatusChange();
       showMsg(t('publishPanel.cancelled'), 'success');
     } else {
       showMsg(res.message || t('publishPanel.cancelFailed'), 'error');
