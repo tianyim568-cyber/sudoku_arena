@@ -58,7 +58,7 @@ class PuzzleBankService {
       difficulty: puzzle.difficulty,
       letter: puzzle.letter,
       points: puzzle.points,
-      emptyCellCount: puzzle.initialGrid.flat().filter(v => v === 0).length,
+      emptyCellCount: Array.isArray(puzzle.initialGrid) ? puzzle.initialGrid.flat().filter(v => v === 0).length : 0,
       initialGrid: puzzle.initialGrid,
       solution: puzzle.solution,
     };

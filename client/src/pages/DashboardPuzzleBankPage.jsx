@@ -343,7 +343,7 @@ export default function DashboardPuzzleBankPage() {
                       {p.difficulty}
                     </span>
                   </td>
-                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{p.initialGrid.flat().filter(v=>v===0).length}</td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{Array.isArray(p.initialGrid) ? p.initialGrid.flat().filter(v=>v===0).length : 0}</td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm hidden md:table-cell">{p.puzzleType || '-'}</td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600">{p.points}</td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">

@@ -20,6 +20,7 @@ import TimerDisplay from '../components/TimerDisplay';
 import Round1View from './Round1View';
 import Round2View from './Round2View';
 import Round3View from './Round3View';
+import IndividualRoundView from './IndividualRoundView';
 import WaitingScreen from './WaitingScreen';
 import PreparationScreen from './PreparationScreen';
 import TransitionScreen from './TransitionScreen';
@@ -76,6 +77,8 @@ export default function PlayerGamePage() {
   const isRound1 = currentRound?.roundType === 'ROUND1_NINE_ONE';
   const isRound2 = currentRound?.roundType === 'ROUND2_RELAY';
   const isRound3 = currentRound?.roundType === 'ROUND3_COLLABORATE';
+  const isIndividual = ['INDIVIDUAL_STANDARD', 'INDIVIDUAL_SHAPED', 'INDIVIDUAL_MIXED']
+    .includes(currentRound?.roundType);
 
   const showMessage = useCallback((text, type = 'info') => {
     setMessage({ text, type });
@@ -312,10 +315,10 @@ export default function PlayerGamePage() {
     }
     if (currentRound.roundType === 'ROUND3_COLLABORATE') {
       submitCellFill(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col, value);
-    } else if (currentRound.roundType === 'ROUND1_NINE_ONE') {
+    } else if (currentRound.roundType === 'ROUND1_NINE_ONE' || isIndividual) {
       submitAnswer(competitionId, currentRound.roundId, activePuzzle.puzzleId, 'SINGLE_CELL', { row, col, value });
     }
-  }, [activePuzzle, currentRound, competitionId, showMessage, t]);
+  }, [activePuzzle, currentRound, competitionId, showMessage, t, isIndividual]);
 
   const handleFullGridSubmit = useCallback((grid) => {
     if (!activePuzzle || !currentRound) return;
@@ -485,6 +488,17 @@ export default function PlayerGamePage() {
                     onWithdrawProposal={handleR3WithdrawProposal}
                     onFullGridSubmit={handleFullGridSubmit}
                     onFocusUpdate={handleR3FocusUpdate}
+                  />
+                );
+              case 'INDIVIDUAL_VIEW':
+                return (
+                  <IndividualRoundView
+                    puzzles={puzzles}
+                    activePuzzle={activePuzzle}
+                    onSelectPuzzle={handleSelectPuzzle}
+                    onCellSubmit={handleCellSubmit}
+                    onFullGridSubmit={handleFullGridSubmit}
+                    roundType={currentRound.roundType}
                   />
                 );
               case 'ROUND_LOADING':

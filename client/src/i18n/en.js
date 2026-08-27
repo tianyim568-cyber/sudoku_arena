@@ -511,6 +511,20 @@ export default {
     noStages: 'No stage configured yet for this competition.',
   },
 
+  individual: {
+    puzzleList: 'Puzzles',
+    puzzleN: 'Puzzle {n}',
+    roundTitle: 'Individual Round',
+    roundDesc: 'Solve as many puzzles as you can within the time limit.',
+    selectPuzzle: 'Select a puzzle to start solving',
+    completedBadge: 'Completed',
+    progress: 'Progress',
+    solvedPuzzles: 'Solved',
+    completionRate: 'Completion',
+    tipsTitle: 'Tips',
+    tipsDesc: 'Click on a puzzle to select it. Submit your answer when you complete the grid.',
+  },
+
   roundLoading: {
     message: 'Loading round…',
   },
