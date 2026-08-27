@@ -60,7 +60,7 @@ const EN = {
   '该题目未分配给你': 'This puzzle is not assigned to you',
   '题目未分配给你': 'The puzzle is not assigned to you',
   '比赛状态不允许开始': "The competition's status does not allow starting",
-  '轮次配置不完整': 'Round configuration is incomplete',
+  '阶段缺少轮次配置': 'One or more stages have no rounds configured',
   '没有队伍': 'No teams',
   '轮次状态不允许开始': "The round's status does not allow starting",
   '比赛未在进行中': 'The competition is not in progress',

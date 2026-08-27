@@ -291,12 +291,41 @@ describe('GameOrchestrator.startCompetition — team requirement', () => {
       .rejects.toThrow('赛事缺少阶段配置');
   });
 
-  test('throws when competition has fewer than 3 rounds', async () => {
+  test('throws when any stage has zero rounds', async () => {
     mockCompetitionDRAFT();
-    mockStagesWithRounds(['INDIVIDUAL_STANDARD', 'INDIVIDUAL_SHAPED']); // only 2
+    // Single stage, no rounds — should be rejected by the per-stage rule.
+    prisma.competition_stages.findMany.mockResolvedValue([{
+      id: 'stage-uuid-001',
+      competition_id: COMP_ID,
+      type: 'INDIVIDUAL',
+      order_number: 1,
+      status: 'WAITING',
+      rounds: [],
+    }]);
 
     await expect(orchestrator.startCompetition(COMP_ID))
-      .rejects.toThrow('轮次配置不完整');
+      .rejects.toThrow('阶段缺少轮次配置');
+  });
+
+  test('starts when total rounds < 3 but each stage has ≥ 1 round', async () => {
+    // Louise decision 2026-08-27: the previous "≥ 3 total rounds" rule
+    // was relaxed to "≥ 1 round per stage". A 1-stage / 1-round competition
+    // must start successfully.
+    mockCompetitionDRAFT();
+    mockStagesWithRounds(['INDIVIDUAL_STANDARD']); // 1 stage, 1 round
+    mockTeams([]);
+    mockCompetitionUpdate();
+    prisma.competition_stages.findFirst.mockResolvedValue({
+      id: 'stage-uuid-001',
+      competition_id: COMP_ID,
+      type: 'INDIVIDUAL',
+      order_number: 1,
+      status: 'WAITING',
+    });
+
+    const result = await orchestrator.startCompetition(COMP_ID);
+
+    expect(result.result.status).toBe('RUNNING');
   });
 
   // ─── Emission payload shape ──────────────────────────────────

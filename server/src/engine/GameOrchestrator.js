@@ -256,7 +256,15 @@ class GameOrchestrator {
     if (allStages.length === 0) throw new CompetitionError('赛事缺少阶段配置');
 
     const allRounds = allStages.flatMap(s => s.rounds);
-    if (allRounds.length < 3) throw new CompetitionError('轮次配置不完整');
+
+    // Per-stage round requirement: every stage must have at least one
+    // round configured. The previous threshold was "≥ 3 rounds total
+    // across the competition", which blocked small competitions (1 stage,
+    // 1 round) from starting — see Louise decision 2026-08-27 with Sylvain.
+    // We still compute allRounds here because it is used below for the
+    // team-detection check and the COMPETITION_STARTED payload.
+    const emptyStage = allStages.find(s => !s.rounds || s.rounds.length === 0);
+    if (emptyStage) throw new CompetitionError('阶段缺少轮次配置');
 
     // Only require teams when the competition actually has team-type stages.
     // Individual-only competitions need registered players, not teams.
