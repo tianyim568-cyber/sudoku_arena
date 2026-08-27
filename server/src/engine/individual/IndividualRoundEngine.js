@@ -136,9 +136,9 @@ class IndividualRoundEngine extends RoundEngine {
     const round = await prisma.rounds.findUnique({
       where: { id: roundId },
     });
-    if (!round || round.status !== 'IN_PROGRESS') {
-      throw new Error('轮次未在进行中');
-    }
+    // For individual rounds, we ALWAYS persist the grid — even if the round
+    // has already finished. We just skip score emissions for late submissions.
+    const roundFinished = !round || round.status !== 'IN_PROGRESS';
 
     // Find player record
     const player = await prisma.players.findFirst({
@@ -164,7 +164,7 @@ class IndividualRoundEngine extends RoundEngine {
     let playerGrid = data.grid;
     if (!playerGrid) {
       // Look up actual session UUID
-      const session = await prisma.player_round_sessions.findUnique({
+      const lookupSession = await prisma.player_round_sessions.findUnique({
         where: {
           round_id_participant_id: {
             round_id: roundId,
@@ -172,18 +172,23 @@ class IndividualRoundEngine extends RoundEngine {
           },
         },
       });
-      if (!session) throw new Error('未找到答题会话');
-
-      const answer = await prisma.puzzle_answers.findFirst({
-        where: {
-          session_id: session.id,
-          puzzle_id: puzzleId,
-        },
-      });
-      if (!answer) throw new Error('未找到答题记录');
-      playerGrid = typeof answer.current_grid === 'string'
-        ? JSON.parse(answer.current_grid)
-        : answer.current_grid;
+      if (lookupSession) {
+        const answer = await prisma.puzzle_answers.findFirst({
+          where: {
+            session_id: lookupSession.id,
+            puzzle_id: puzzleId,
+          },
+        });
+        if (answer) {
+          playerGrid = typeof answer.current_grid === 'string'
+            ? JSON.parse(answer.current_grid)
+            : answer.current_grid;
+        }
+      }
+      // If we still have no grid, use the initial grid (nothing filled yet)
+      if (!playerGrid) {
+        playerGrid = initialGrid.map(r => [...r]);
+      }
     }
 
     // Calculate completion score
@@ -230,30 +235,32 @@ class IndividualRoundEngine extends RoundEngine {
       }
     }
 
-    // Emit score update
-    emissions.push(this._emitUser(userId, 'ANSWER_RESULT', {
-      roundId,
-      puzzleId,
-      isCorrect: completion.completionRatio >= 1.0,
-      pointsEarned: puzzleScore,
-      completionRatio: completion.completionRatio,
-      correctlyFilledCells: completion.correctlyFilledCells,
-      totalOriginallyEmptyCells: completion.totalOriginallyEmptyCells,
-    }));
-
-    // Emit score update to competition
-    emissions.push({
-      target: 'competition',
-      targetId: competitionId,
-      event: 'SCORE_UPDATE',
-      payload: {
+    // Emit score update (skip if round already finished)
+    if (!roundFinished) {
+      emissions.push(this._emitUser(userId, 'ANSWER_RESULT', {
         roundId,
-        playerId: userId,
-        playerName: player.users?.username || 'Unknown',
-        puzzleScore,
+        puzzleId,
+        isCorrect: completion.completionRatio >= 1.0,
+        pointsEarned: puzzleScore,
         completionRatio: completion.completionRatio,
-      },
-    });
+        correctlyFilledCells: completion.correctlyFilledCells,
+        totalOriginallyEmptyCells: completion.totalOriginallyEmptyCells,
+      }));
+
+      // Emit score update to competition
+      emissions.push({
+        target: 'competition',
+        targetId: competitionId,
+        event: 'SCORE_UPDATE',
+        payload: {
+          roundId,
+          playerId: userId,
+          playerName: player.users?.username || 'Unknown',
+          puzzleScore,
+          completionRatio: completion.completionRatio,
+        },
+      });
+    }
 
     return {
       result: {
@@ -328,11 +335,103 @@ class IndividualRoundEngine extends RoundEngine {
     };
   }
 
-  // ─── Cleanup ──────────────────────────────────────────────────
+  // ─── Cleanup (auto-submit on round end) ─────────────────────
 
   async cleanup(competitionId, roundId) {
-    // Individual rounds have no special state to clean up
-    // puzzle_answers and player_round_sessions persist for scoring
+    const prisma = this._prisma;
+    const state = this.state;
+
+    // Find all players in this competition
+    const players = await prisma.players.findMany({
+      where: { competition_id: competitionId },
+    });
+
+    // For each player, flush any unscored grids from state to puzzle_answers
+    for (const player of players) {
+      try {
+        // Get session
+        const session = await prisma.player_round_sessions.findUnique({
+          where: {
+            round_id_participant_id: {
+              round_id: roundId,
+              participant_id: player.id,
+            },
+          },
+        });
+        if (!session) continue;
+
+        // Get all in-memory grids for this player
+        const grids = await state.getIndividualGridsByPlayer(roundId, player.id);
+
+        // Score each grid and write to puzzle_answers
+        for (const [puzzleId, playerGrid] of Object.entries(grids)) {
+          try {
+            const puzzle = await prisma.puzzles.findUnique({
+              where: { id: puzzleId },
+            });
+            if (!puzzle) continue;
+
+            const solution = typeof puzzle.solution_grid === 'string'
+              ? JSON.parse(puzzle.solution_grid)
+              : puzzle.solution_grid;
+
+            const initialGrid = typeof puzzle.initial_grid === 'string'
+              ? JSON.parse(puzzle.initial_grid)
+              : puzzle.initial_grid;
+
+            // Calculate completion score
+            const completion = this.scoring.calculateCompletion(initialGrid, solution, playerGrid);
+            const maxPoints = puzzle.score || 100;
+            const puzzleScore = Math.round(maxPoints * completion.completionRatio);
+
+            // Write final score to puzzle_answers (upsert to handle both new and existing records)
+            await prisma.puzzle_answers.upsert({
+              where: {
+                session_id_puzzle_id: {
+                  session_id: session.id,
+                  puzzle_id: puzzleId,
+                },
+              },
+              create: {
+                session_id: session.id,
+                puzzle_id: puzzleId,
+                current_grid: playerGrid,
+                correct_cells: completion.correctlyFilledCells,
+                total_empty_cells: completion.totalOriginallyEmptyCells,
+                progress_percentage: completion.completionRatio * 100,
+              },
+              update: {
+                current_grid: playerGrid,
+                correct_cells: completion.correctlyFilledCells,
+                total_empty_cells: completion.totalOriginallyEmptyCells,
+                progress_percentage: completion.completionRatio * 100,
+              },
+            });
+          } catch (e) {
+            // Log but continue scoring other puzzles
+            console.error(`Failed to score puzzle ${puzzleId} for player ${player.id}:`, e.message);
+          }
+        }
+
+        // Update session status if all puzzles completed
+        const allAnswers = await prisma.puzzle_answers.findMany({
+          where: { session_id: session.id },
+        });
+        const allCompleted = allAnswers.length > 0 && allAnswers.every(a => a.progress_percentage >= 100);
+        if (allCompleted) {
+          await prisma.player_round_sessions.update({
+            where: { id: session.id },
+            data: { status: 'SUBMITTED' },
+          });
+        }
+      } catch (e) {
+        // Log but continue with other players
+        console.error(`Failed to cleanup player ${player.id}:`, e.message);
+      }
+    }
+
+    // Clear all in-memory grids for this round
+    await state.deleteIndividualPlayerGrids(roundId);
   }
 }
 

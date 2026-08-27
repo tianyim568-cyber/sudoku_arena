@@ -569,6 +569,11 @@ export function useGameSocket(competitionId) {
           break;
         }
 
+        case 'PLAYER_MOVE_ACK': {
+          callbacksRef.current.onPlayerMoveAck?.(event.payload);
+          break;
+        }
+
         default:
           break;
       }
@@ -585,6 +590,7 @@ export function useGameSocket(competitionId) {
   }, [user, competitionId]);
 
   const onLetterReveal = (cb) => { callbacksRef.current.onLetterReveal = cb; };
+  const onPlayerMoveAck = (cb) => { callbacksRef.current.onPlayerMoveAck = cb; };
 
   const updateCell = (roundId, puzzleId, row, col, value) => {
     socketCellUpdate(roundId, puzzleId, row, col, value);
@@ -657,7 +663,7 @@ export function useGameSocket(competitionId) {
     round1Progress, round2State, round3State, rotationWarning, activeTeammates,
     preparation, transition,
     stageFinished, competitionFinished,
-    onLetterReveal, updateCell,
+    onLetterReveal, onPlayerMoveAck, updateCell,
     proposeCell, acceptProposal, rejectProposal, withdrawProposal, focusUpdate,
     setRound2FromRest, setRound3FromRest, setTimerMetaFromRest
   };

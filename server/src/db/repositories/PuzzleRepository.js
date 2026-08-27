@@ -199,7 +199,14 @@ class PuzzleRepository {
       select: { id: true },
     });
     if (!row) return null;
-    await this.prisma.puzzles.delete({ where: { id: row.id } });
+
+    // FK constraints with onDelete: NoAction require manual cleanup
+    await this.prisma.$transaction([
+      this.prisma.puzzle_answers.deleteMany({ where: { puzzle_id: id } }),
+      this.prisma.round_puzzles.deleteMany({ where: { puzzle_id: id } }),
+      this.prisma.puzzles.delete({ where: { id: row.id } }),
+    ]);
+
     return row;
   }
 

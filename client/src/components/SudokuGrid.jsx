@@ -54,6 +54,10 @@ export default function SudokuGrid({
     if (collaborationMode && onProposeCell) {
       onProposeCell(row, col, num);
     }
+    // For Individual rounds: auto-save each move
+    if (['INDIVIDUAL_STANDARD', 'INDIVIDUAL_SHAPED', 'INDIVIDUAL_MIXED'].includes(roundType) && onCellChange) {
+      onCellChange(row, col, num);
+    }
   }, [selectedCell, grid, initialGrid, roundType, onCellSubmit, onCellChange, onProposeCell, collaborationMode, readOnly]);
 
   const handleSubmitFullGrid = () => {
@@ -71,6 +75,10 @@ export default function SudokuGrid({
 
     // For Round 2: emit cell clear
     if (roundType === 'ROUND2_RELAY' && onCellChange) {
+      onCellChange(row, col, 0);
+    }
+    // For Individual rounds: emit cell clear
+    if (['INDIVIDUAL_STANDARD', 'INDIVIDUAL_SHAPED', 'INDIVIDUAL_MIXED'].includes(roundType) && onCellChange) {
       onCellChange(row, col, 0);
     }
   };
@@ -198,7 +206,7 @@ export default function SudokuGrid({
               ))}
             </div>
           ) : (
-            // Round 1 FINAL / Round 2 / Round 3: fill + submit full grid
+            // Round 1 FINAL / Round 2 / Round 3 / Individual: fill + optional submit
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {Array.from({ length: 9 }, (_, i) => i + 1).map(num => (
@@ -217,12 +225,14 @@ export default function SudokuGrid({
                   X
                 </button>
               </div>
-              <button
-                onClick={handleSubmitFullGrid}
-                className="mt-3 px-4 py-2 sm:px-6 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm sm:text-base font-medium transition-colors"
-              >
-                {t('grid.submitFullGrid')}
-              </button>
+              {!['INDIVIDUAL_STANDARD', 'INDIVIDUAL_SHAPED', 'INDIVIDUAL_MIXED'].includes(roundType) && (
+                <button
+                  onClick={handleSubmitFullGrid}
+                  className="mt-3 px-4 py-2 sm:px-6 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm sm:text-base font-medium transition-colors"
+                >
+                  {t('grid.submitFullGrid')}
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -14,7 +14,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import { LocalErrorBoundary } from '../components/ErrorBoundary';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { useTimer } from '../hooks/useTimer';
-import { submitCellFill, submitAnswer } from '../api/socket';
+import { submitCellFill, submitAnswer, playerMove } from '../api/socket';
 import { api } from '../api';
 import TimerDisplay from '../components/TimerDisplay';
 import Round1View from './Round1View';
@@ -45,6 +45,9 @@ export default function PlayerGamePage() {
   // Team score (updated by socket events and REST fallback)
   const [teamScore, setTeamScore] = useState(0);
 
+  // Per-puzzle grid state for individual rounds (puzzleId → grid[][])
+  const puzzleGrids = useRef(new Map());
+
   // Socket events (puzzles/timer merged into local state)
   const {
     puzzles: socketPuzzles,
@@ -60,6 +63,7 @@ export default function PlayerGamePage() {
     stageFinished,
     competitionFinished,
     onLetterReveal,
+    onPlayerMoveAck,
     updateCell,
     proposeCell,
     acceptProposal,
@@ -196,6 +200,18 @@ export default function PlayerGamePage() {
     onLetterReveal(() => {});
   }, [onLetterReveal]);
 
+  // Wire PLAYER_MOVE_ACK to update puzzleGrids
+  useEffect(() => {
+    onPlayerMoveAck((payload) => {
+      if (payload.success && activePuzzle) {
+        const currentGrid = puzzleGrids.current.get(activePuzzle.puzzleId) || activePuzzle.initialGrid;
+        const newGrid = currentGrid.map(row => [...row]);
+        newGrid[payload.row][payload.col] = payload.value;
+        puzzleGrids.current.set(activePuzzle.puzzleId, newGrid);
+      }
+    });
+  }, [onPlayerMoveAck, activePuzzle]);
+
   // Handle socket events
   useEffect(() => {
     const latest = events[events.length - 1];
@@ -206,6 +222,7 @@ export default function PlayerGamePage() {
         setCurrentRound(latest.payload);
         setActivePuzzle(null);
         setTeamScore(0);
+        puzzleGrids.current.clear();
         showMessage(t('game.roundStarted', { n: latest.payload.roundNumber, name: latest.payload.roundName }), 'info');
         break;
       case 'ROUND_FINISHED':
@@ -329,6 +346,18 @@ export default function PlayerGamePage() {
     submitAnswer(competitionId, currentRound.roundId, activePuzzle.puzzleId, 'FULL_GRID', { grid });
   }, [activePuzzle, currentRound, competitionId, showMessage, t]);
 
+  // Individual rounds: auto-save each cell move via player_move event
+  const handleIndividualCellChange = useCallback((row, col, value) => {
+    if (!activePuzzle || !currentRound) return;
+    playerMove(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col, value);
+
+    // Update local grid state
+    const grid = puzzleGrids.current.get(activePuzzle.puzzleId) || activePuzzle.currentGrid || activePuzzle.initialGrid;
+    const newGrid = grid.map(r => [...r]);
+    newGrid[row][col] = value;
+    puzzleGrids.current.set(activePuzzle.puzzleId, newGrid);
+  }, [activePuzzle, currentRound, competitionId]);
+
   // Round 2: cell change handler (sends real-time updates for own puzzle)
   const handleR2CellChange = useCallback((row, col, value) => {
     if (!activePuzzle || !currentRound) return;
@@ -361,10 +390,17 @@ export default function PlayerGamePage() {
     withdrawProposal(competitionId, currentRound.roundId, activePuzzle.puzzleId, row, col);
   }, [activePuzzle, currentRound, competitionId, withdrawProposal]);
 
-  // Puzzle selection handler (Round 1 & 3)
+  // Puzzle selection handler (Round 1 & 3 & Individual)
   const handleSelectPuzzle = useCallback((puzzle) => {
-    if (!puzzle.isLocked) setActivePuzzle(puzzle);
-  }, []);
+    if (!puzzle.isLocked) {
+      // For individual rounds: inject saved grid state so SudokuGrid restores correctly
+      if (isIndividual && puzzleGrids.current.has(puzzle.puzzleId)) {
+        setActivePuzzle({ ...puzzle, currentGrid: puzzleGrids.current.get(puzzle.puzzleId) });
+      } else {
+        setActivePuzzle(puzzle);
+      }
+    }
+  }, [isIndividual]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -498,7 +534,9 @@ export default function PlayerGamePage() {
                     onSelectPuzzle={handleSelectPuzzle}
                     onCellSubmit={handleCellSubmit}
                     onFullGridSubmit={handleFullGridSubmit}
+                    onCellChange={handleIndividualCellChange}
                     roundType={currentRound.roundType}
+                    puzzleGrids={puzzleGrids.current}
                   />
                 );
               case 'ROUND_LOADING':

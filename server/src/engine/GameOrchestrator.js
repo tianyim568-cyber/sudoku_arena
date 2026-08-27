@@ -382,8 +382,18 @@ class GameOrchestrator {
     const emissions = [];
 
     // Activate round (transitions PREPARATION → ROUND_ACTIVE, updates DB)
-    const activateResult = await this.rounds.activateRound();
-    emissions.push(...activateResult.emissions);
+    try {
+      const activateResult = await this.rounds.activateRound();
+      emissions.push(...activateResult.emissions);
+    } catch (err) {
+      // Round may already be active (race condition or timer re-fire).
+      // Log and continue — the round is either active or already finished.
+      if (err.name === 'RoundError') {
+        logger.warn('[GameOrchestrator] activateRound skipped', { roundId, reason: err.message });
+        return { result: { roundId, status: 'ALREADY_ACTIVE' }, emissions };
+      }
+      throw err;
+    }
 
     // Get teams for engine setup
     const teams = await this._prisma.teams.findMany({
@@ -816,7 +826,12 @@ class GameOrchestrator {
     const lifecycle = this.rounds.getLifecycleState();
     if (lifecycle === 'PREPARATION') {
       // Round ended during preparation — skip to activate then finish
-      await this.rounds.activateRound();
+      try {
+        await this.rounds.activateRound();
+      } catch (err) {
+        // Already active or state changed — safe to ignore, finishRound will handle it
+        logger.warn('[GameOrchestrator] activateRound skipped during finish', { roundId, reason: err.message });
+      }
     }
 
     const finishResult = await this.rounds.finishRound();

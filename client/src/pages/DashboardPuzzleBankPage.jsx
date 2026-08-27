@@ -56,11 +56,15 @@ export default function DashboardPuzzleBankPage() {
   const handleDelete = async (id) => {
     if (!confirm(t('puzzleBank.confirmDeletePuzzle', { id }))) return;
     setDeleting(id);
-    const res = await api.deletePuzzleFromBank(id);
-    if (res.code === 200) {
-      load();
-    } else {
-      alert(t('puzzleBank.deleteFailed', { msg: res.message || t('common.unknownError') }));
+    try {
+      const res = await api.deletePuzzleFromBank(id);
+      if (res.code === 200) {
+        load();
+      } else {
+        alert(t('puzzleBank.deleteFailed', { msg: res.message || t('common.unknownError') }));
+      }
+    } catch (err) {
+      alert(t('puzzleBank.deleteFailed', { msg: err.message }));
     }
     setDeleting(null);
   };
@@ -69,12 +73,16 @@ export default function DashboardPuzzleBankPage() {
     if (!confirm(t('puzzleBank.confirmClearAll1'))) return;
     if (!confirm(t('puzzleBank.confirmClearAll2'))) return;
     setClearing(true);
-    const res = await api.clearPuzzleBank();
-    if (res.code === 200) {
-      alert(t('puzzleBank.cleared', { n: res.data.deleted }));
-      load();
-    } else {
-      alert(t('puzzleBank.clearFailed', { msg: res.message || t('common.unknownError') }));
+    try {
+      const res = await api.clearPuzzleBank();
+      if (res.code === 200) {
+        alert(t('puzzleBank.cleared', { n: res.data.deleted }));
+        load();
+      } else {
+        alert(t('puzzleBank.clearFailed', { msg: res.message || t('common.unknownError') }));
+      }
+    } catch (err) {
+      alert(t('puzzleBank.clearFailed', { msg: err.message }));
     }
     setClearing(false);
   };

@@ -91,7 +91,7 @@ class ScoreRepository {
       where: {
         team_id: { not: null },
         rounds: {
-          stage: { competition_id: competitionId },
+          competition_stages: { competition_id: competitionId },
         },
       },
       include: {
@@ -117,7 +117,7 @@ class ScoreRepository {
       where: {
         participant_id: { not: null },
         rounds: {
-          stage: { competition_id: competitionId },
+          competition_stages: { competition_id: competitionId },
         },
       },
       include: {
@@ -204,7 +204,7 @@ class ScoreRepository {
     await this.prisma.round_rankings.deleteMany({
       where: {
         rounds: {
-          stage: { competition_id: competitionId },
+          competition_stages: { competition_id: competitionId },
         },
       },
     });

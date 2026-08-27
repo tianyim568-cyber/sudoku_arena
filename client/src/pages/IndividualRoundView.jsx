@@ -14,7 +14,9 @@ export default function IndividualRoundView({
   onSelectPuzzle,
   onCellSubmit,
   onFullGridSubmit,
+  onCellChange,
   roundType,
+  puzzleGrids,
 }) {
   const { t } = useLanguage();
   const solvedCount = useMemo(() => puzzles.filter(p => p.isCompleted).length, [puzzles]);
@@ -83,11 +85,13 @@ export default function IndividualRoundView({
               </span>
             </div>
             <SudokuGrid
+              key={activePuzzle.puzzleId}
               initialGrid={activePuzzle.initialGrid}
-              currentGrid={activePuzzle.currentGrid || activePuzzle.initialGrid}
+              currentGrid={puzzleGrids?.get(activePuzzle.puzzleId) || activePuzzle.currentGrid || activePuzzle.initialGrid}
               roundType={roundType}
               onCellSubmit={onCellSubmit}
               onFullGridSubmit={onFullGridSubmit}
+              onCellChange={onCellChange}
             />
           </div>
         ) : (
