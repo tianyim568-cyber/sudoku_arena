@@ -119,6 +119,8 @@ model players {
   name                  String                  @db.VarChar(255)
   school                String?                 @db.VarChar(255)
   province              String?                 @db.VarChar(100)
+  city                  String?                 @db.VarChar(100)
+  district              String?                 @db.VarChar(100)
   age                   Int?
   created_at            DateTime                @default(now()) @db.Timestamptz(6)
   category_id           String?                 @db.Uuid

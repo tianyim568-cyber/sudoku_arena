@@ -7,6 +7,13 @@ export default function ParticipantImport({ competitionId, onImportComplete }) {
   const [phase, setPhase] = useState('upload'); // upload | preview | importing | done
   const [previewData, setPreviewData] = useState(null); // { valid: [], invalid: [], total }
   const [result, setResult] = useState(null);
+  // Credentials captured from /confirm response — plain-text passwords live
+  // only in this state. They are lost forever if the admin closes the panel
+  // without clicking Export. See option B (2026-08-26).
+  const [credentials, setCredentials] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const [exported, setExported] = useState(false);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -42,32 +49,37 @@ export default function ParticipantImport({ competitionId, onImportComplete }) {
       const res = await api.confirmParticipants(competitionId, previewData.valid);
       if (res.code === 200) {
         setResult(res.data);
+        // Capture the credentials array — the only place where the plain
+        // password is available. The export endpoint needs them in the body.
+        setCredentials(res.data.credentials || []);
         setPhase('done');
-        if (onImportComplete) onImportComplete();
-
-        // Auto-dismiss success message after 4 seconds
-        setTimeout(() => {
-          setPhase('upload');
-          setResult(null);
-          setPreviewData(null);
-          if (fileInputRef.current) fileInputRef.current.value = '';
-        }, 4000);
+        // Pass the credentials snapshot to the parent so the standalone
+        // Export button on the page (not just the one in this panel) works.
+        // The parent owns the state — the panel is unmounted on Done.
+        if (onImportComplete) onImportComplete(res.data.credentials || []);
       } else {
         // Show transaction failure message
         const failMsg = res.message || t('competitionDetail.importAllFailed');
         setError(failMsg);
         setPhase('preview');
-
-        // Auto-dismiss error after 4 seconds
-        setTimeout(() => setError(null), 4000);
       }
     } catch {
       const failMsg = t('competitionDetail.importAllFailed');
       setError(failMsg);
       setPhase('preview');
+    }
+  };
 
-      // Auto-dismiss error after 4 seconds
-      setTimeout(() => setError(null), 4000);
+  const handleExport = async () => {
+    if (!credentials?.length) return;
+    setExporting(true);
+    setExportError(null);
+    const res = await api.exportParticipants(competitionId, credentials);
+    setExporting(false);
+    if (res.success) {
+      setExported(true);
+    } else {
+      setExportError(res.message || t('competitionDetail.exportFailed'));
     }
   };
 
@@ -80,6 +92,9 @@ export default function ParticipantImport({ competitionId, onImportComplete }) {
 
   const handleDone = () => {
     setResult(null);
+    setCredentials(null);
+    setExported(false);
+    setExportError(null);
     setPhase('upload');
     setPreviewData(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -221,7 +236,7 @@ export default function ParticipantImport({ competitionId, onImportComplete }) {
         </div>
       )}
 
-      {/* Done Phase */}
+      {/* Done Phase — credentials captured, export before closing */}
       {phase === 'done' && result && (
         <div className="space-y-3">
           <div className="bg-green-50 border border-green-200 rounded p-3 sm:p-4">
@@ -231,17 +246,63 @@ export default function ParticipantImport({ competitionId, onImportComplete }) {
             <p className="text-xs sm:text-sm text-green-700">
               {t('competitionDetail.importedCount')}: {result.imported}
             </p>
-            <p className="text-xs text-gray-500 mt-2 italic">
-              Auto-closing in a few seconds...
-            </p>
           </div>
 
-          <button
-            onClick={handleDone}
-            className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-xs sm:text-sm"
-          >
-            {t('common.done')}
-          </button>
+          {/* Credentials panel — the only moment the admin can export. */}
+          {credentials?.length > 0 && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded p-3 sm:p-4 space-y-3">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-indigo-900">
+                  {t('competitionDetail.credentialsReady', { n: credentials.length })}
+                </p>
+                <p className="text-xs text-indigo-700 mt-1">
+                  {t('competitionDetail.credentialsReadyDesc')}
+                </p>
+              </div>
+
+              {/* Warning — closing without exporting loses the passwords */}
+              {!exported && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded p-2 sm:p-3">
+                  <p className="text-xs text-yellow-800">
+                    {t('competitionDetail.credentialsLostWarning')}
+                  </p>
+                </div>
+              )}
+
+              {/* Export result feedback */}
+              {exported && (
+                <div className="bg-green-100 border border-green-300 rounded p-2 sm:p-3">
+                  <p className="text-xs text-green-800">
+                    {t('competitionDetail.exportSuccess')}
+                  </p>
+                </div>
+              )}
+              {exportError && (
+                <div className="bg-red-50 border border-red-200 rounded p-2 sm:p-3">
+                  <p className="text-xs text-red-700">{exportError}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                <button
+                  onClick={handleExport}
+                  disabled={exporting || exported}
+                  className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-xs sm:text-sm font-medium"
+                >
+                  {exporting
+                    ? t('competitionDetail.exporting')
+                    : t('competitionDetail.exportCredentialsBtn')}
+                </button>
+                <button
+                  onClick={handleDone}
+                  disabled={exporting}
+                  className="w-full sm:w-auto px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 text-xs sm:text-sm"
+                >
+                  {t('common.done')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

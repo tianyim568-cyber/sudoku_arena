@@ -8,6 +8,7 @@ import ParticipantImport from '../components/ParticipantImport';
 import AccessLinkSection from '../components/AccessLinkSection';
 import PublishPanel from '../components/PublishPanel';
 import RoundPdfImport from '../components/RoundPdfImport';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function CompetitionDetailPage() {
   const { id } = useParams();
@@ -19,6 +20,13 @@ export default function CompetitionDetailPage() {
   const [statusMsg, setStatusMsg] = useState(null);
   const [showParticipantImport, setShowParticipantImport] = useState(false);
   const [participants, setParticipants] = useState([]);
+  // Credentials captured from the /confirm response — plain-text passwords
+  // live only in memory. The admin can click "Export credentials" on the
+  // page (not just inside the import panel) as long as they haven't
+  // navigated away. Lost on page change or browser refresh — by design,
+  // since the DB never stores plain-text passwords. See option B (2026-08-26).
+  const [credentials, setCredentials] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const msg = useCallback((text, type = 'info') => {
     setStatusMsg({ text, type });
@@ -31,6 +39,17 @@ export default function CompetitionDetailPage() {
   const [roundTypes, setRoundTypes] = useState({});
   const [roundTypesError, setRoundTypesError] = useState(null);
   const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, preparationSeconds: 10, pdf: null });
+  // CRUD-Rounds (2026-08-26): inline edit mode for a single round. Null when
+  // no round is being edited; a round id when the edit form replaces the
+  // read-only row. editForm holds the live values of the form.
+  const [editingRoundId, setEditingRoundId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', durationSeconds: 600, preparationSeconds: 10 });
+  // Louise UX 2026-08-26: replace window.confirm() with a styled modal.
+  // One state object serves all three confirmations (delete round, delete
+  // stage, delete participants) — the dialog is presentational, the parent
+  // swaps the props. `action` is a function reference run on confirm, so the
+  // dialog stays generic.
+  const [confirm, setConfirm] = useState(null);
   // BUG-01 fix: the admin must pick which judge to assign, not always take
   // the first one from users.find(...). The dropdown is populated from users
   // filtered against competition.judges so an already-assigned judge cannot
@@ -132,6 +151,68 @@ export default function CompetitionDetailPage() {
     }
   };
 
+  // CRUD-Rounds (2026-08-26): delete a round. The server cascades
+  // round_puzzles and round_rankings automatically (schema-level onDelete:
+  // Cascade). player_round_sessions has onDelete: NoAction, so the route
+  // refuses to delete a round that has already started (status !== WAITING).
+  // We double-confirm client-side when the round holds puzzles, so the admin
+  // sees the blast radius before the irreversible call.
+  const handleDeleteRound = async (stage, round) => {
+    const puzzleCount = round.puzzles?.length || 0;
+    const confirmMsg = puzzleCount > 0
+      ? t('competitionDetail.deleteRoundConfirmWithPuzzles', { n: puzzleCount })
+      : t('competitionDetail.deleteRoundConfirm');
+    setConfirm({
+      title: t('competitionDetail.deleteRoundTitle'),
+      message: confirmMsg,
+      confirmLabel: t('competitionDetail.deleteRoundBtn'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      action: async () => {
+        const res = await api.deleteStageRound(id, stage.id, round.id);
+        if (res.code === 200) {
+          loadStages();
+          msg(t('competitionDetail.roundDeleted'));
+        } else if (res.code === 40030) {
+          msg(t('competitionDetail.roundStartedNoDelete'), 'error');
+        } else {
+          msg(t('competitionDetail.roundDeleteFailed', { msg: res.message || res.code }), 'error');
+        }
+      },
+    });
+  };
+
+  // Enter edit mode: copy the round's current values into editForm so the
+  // form is pre-populated, and mark this round as the one being edited.
+  const startEditRound = (round) => {
+    setEditForm({
+      name: round.name || '',
+      durationSeconds: round.duration_seconds || 600,
+      preparationSeconds: round.preparation_seconds ?? 10,
+    });
+    setEditingRoundId(round.id);
+  };
+
+  // Save the edited round. Only name, duration, and preparation are sent —
+  // the server refuses to change roundType (would break the engine). On
+  // success, exit edit mode and reload so the new values show everywhere.
+  const handleSaveRound = async (stage, round) => {
+    const res = await api.updateStageRound(id, stage.id, round.id, {
+      name: editForm.name,
+      durationSeconds: editForm.durationSeconds,
+      preparationSeconds: editForm.preparationSeconds,
+    });
+    if (res.code === 200) {
+      setEditingRoundId(null);
+      loadStages();
+      msg(t('competitionDetail.roundUpdated'));
+    } else if (res.code === 40030) {
+      msg(t('competitionDetail.roundStartedNoDelete'), 'error');
+    } else {
+      msg(t('competitionDetail.roundUpdateFailed', { msg: res.message || res.code }), 'error');
+    }
+  };
+
   // Stages can only be changed while the competition is being prepared. The
   // server enforces the same rule (GameOrchestrator.configureStages refuses
   // RUNNING and FINISHED); this only decides whether the controls are shown.
@@ -177,16 +258,23 @@ export default function CompetitionDetailPage() {
     // The server refuses an empty list ("at least one stage"), which would
     // surface as a puzzling error. Say it plainly instead.
     if (stages.length <= 1) return msg(t('competitionDetail.lastStageKept'), 'error');
-    if (!window.confirm(t('competitionDetail.confirmRemoveStage'))) return;
-    const res = await submitStages(stages.filter(s => s.id !== stageId));
-    if (res.code === 200) {
-      setStages(res.data || []);
-      msg(t('competitionDetail.stageRemoved'));
-      // BUG-02 fix: removing a stage changes publishability too.
-      bumpPublishRefresh();
-    } else {
-      msg(t('competitionDetail.stageRemoveFailed', { msg: res.message || res.code }), 'error');
-    }
+    setConfirm({
+      title: t('competitionDetail.removeStageTitle'),
+      message: t('competitionDetail.confirmRemoveStage'),
+      confirmLabel: t('competitionDetail.removeStage'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      action: async () => {
+        const res = await submitStages(stages.filter(s => s.id !== stageId));
+        if (res.code === 200) {
+          setStages(res.data || []);
+          msg(t('competitionDetail.stageRemoved'));
+          bumpPublishRefresh();
+        } else {
+          msg(t('competitionDetail.stageRemoveFailed', { msg: res.message || res.code }), 'error');
+        }
+      },
+    });
   };
 
   const handleAssignJudge = async () => {
@@ -237,26 +325,41 @@ export default function CompetitionDetailPage() {
     !(competition?.judges || []).some(j => j.id === u.id || j.userId === u.id));
 
   const handleDeleteParticipants = async () => {
-    if (!window.confirm(t('competitionDetail.confirmDeleteParticipants'))) return;
-    const res = await api.deleteParticipants(id);
-    if (res.code === 200) {
-      msg(t('competitionDetail.deleteSuccess') + ': ' + t('competitionDetail.deletedCount') + ' ' + (res.data?.deleted || 0));
-      loadParticipants();
-    } else {
-      msg(res.message || 'Delete failed', 'error');
-    }
+    setConfirm({
+      title: t('competitionDetail.deleteParticipantsTitle'),
+      message: t('competitionDetail.confirmDeleteParticipants'),
+      confirmLabel: t('competitionDetail.deleteBtn'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      action: async () => {
+        const res = await api.deleteParticipants(id);
+        if (res.code === 200) {
+          msg(t('competitionDetail.deleteSuccess') + ': ' + t('competitionDetail.deletedCount') + ' ' + (res.data?.deleted || 0));
+          loadParticipants();
+        } else {
+          msg(res.message || 'Delete failed', 'error');
+        }
+      },
+    });
   };
 
-  const handleExportParticipants = async () => {
-    try {
-      const result = await api.exportParticipants(id);
-      if (result.success) {
-        msg(t('competitionDetail.exportSuccess'));
-      } else {
-        msg(result.message || t('competitionDetail.exportFailed'), 'error');
-      }
-    } catch (err) {
-      msg(err.message || t('competitionDetail.exportFailed'), 'error');
+  // Export credentials from the in-memory snapshot captured during the last
+  // /confirm call. If the admin navigated away or refreshed, the snapshot is
+  // null — surface a clear message instead of failing silently. The server
+  // cannot regenerate plain-text passwords (they are hashed), so the only
+  // recovery is to re-import and capture a fresh snapshot.
+  const handleExportCredentials = async () => {
+    if (!credentials?.length) {
+      msg(t('competitionDetail.noCredentialsToExport'), 'error');
+      return;
+    }
+    setExporting(true);
+    const res = await api.exportParticipants(id, credentials);
+    setExporting(false);
+    if (res.success) {
+      msg(t('competitionDetail.exportSuccess'), 'success');
+    } else {
+      msg(res.message || t('competitionDetail.exportFailed'), 'error');
     }
   };
 
@@ -413,29 +516,140 @@ export default function CompetitionDetailPage() {
                           <ol className="space-y-2">
                             {stage.rounds.map(r => (
                               <li key={r.id} className="bg-gray-50 rounded p-2">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                  <span className="text-xs sm:text-sm">
-                                    <span className="text-gray-500">{t('competitionDetail.roundNumber', { n: r.order_number })}</span>
-                                    {' '}<span className="font-medium">{r.name}</span>
-                                  </span>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs text-gray-400">
-                                      {/* BUG-03: translate the raw roundType enum via common.roundName.* */}
-                                      {t('competitionDetail.roundMeta', {
-                                        type: t(`common.roundName.${r.type}`) || r.type,
-                                        dur: r.duration_seconds,
-                                        count: r.puzzles?.length || 0,
-                                      })}
-                                    </span>
-                                    {/* Per-round PDF import (2026-08-24). Only for
-                                        an admin on an editable competition, and
-                                        only when the round is still empty — the
-                                        server refuses to overwrite. */}
+                                {/* CRUD-Rounds (2026-08-26): two render modes
+                                    for the same round. Read mode shows the
+                                    name, a configured/not-configured badge,
+                                    the meta line, and (for an admin on an
+                                    editable competition) Edit/Delete
+                                    buttons. Edit mode replaces the whole
+                                    row with an inline form bound to
+                                    editForm; saving calls handleSaveRound,
+                                    cancel reverts to read mode. The PDF
+                                    import lives ONLY in edit mode — Louise
+                                    UX decision 2026-08-26: the read-only
+                                    line must stay clean, configuration
+                                    actions happen in the edit form. */}
+                                {editingRoundId === r.id ? (
+                                  <div className="space-y-2">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                      <input
+                                        type="text"
+                                        value={editForm.name}
+                                        onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                        placeholder={t('competitionDetail.roundName')}
+                                        className="px-2 py-1 border rounded text-xs sm:text-sm"
+                                        aria-label={t('competitionDetail.roundName')}
+                                      />
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={editForm.durationSeconds}
+                                        onChange={(e) => setEditForm(f => ({ ...f, durationSeconds: parseInt(e.target.value) || 600 }))}
+                                        placeholder={t('competitionDetail.roundDuration')}
+                                        className="px-2 py-1 border rounded text-xs sm:text-sm"
+                                        aria-label={t('competitionDetail.roundDuration')}
+                                      />
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="300"
+                                        value={editForm.preparationSeconds}
+                                        onChange={(e) => setEditForm(f => ({ ...f, preparationSeconds: parseInt(e.target.value) || 0 }))}
+                                        placeholder={t('competitionDetail.roundPreparation')}
+                                        className="px-2 py-1 border rounded text-xs sm:text-sm"
+                                        aria-label={t('competitionDetail.roundPreparation')}
+                                      />
+                                    </div>
+                                    {/* PDF import lives in the edit form, not
+                                        on the read-only line. Only shown when
+                                        the round is still empty — the server
+                                        refuses to overwrite a round that
+                                        already has puzzles (40030). */}
                                     {isAdmin && isEditable && (r.puzzles?.length || 0) === 0 && (
-                                      <RoundPdfImport round={r} onImported={loadStages} />
+                                      <RoundPdfImport
+                                        round={r}
+                                        onImported={loadStages}
+                                        onSuccess={(summary) => msg(summary)}
+                                      />
                                     )}
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveRound(stage, r)}
+                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-medium"
+                                      >
+                                        {t('competitionDetail.saveRoundBtn')}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingRoundId(null)}
+                                        className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded text-xs font-medium"
+                                      >
+                                        {t('competitionDetail.cancelEditRoundBtn')}
+                                      </button>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                    <span className="text-xs sm:text-sm flex items-center gap-2">
+                                      <span className="text-gray-500">{t('competitionDetail.roundNumber', { n: r.order_number })}</span>
+                                      {' '}<span className="font-medium">{r.name}</span>
+                                      {/* Configured badge: green if the round
+                                          has at least one puzzle, yellow if
+                                          it's still empty. Purely UI, no API
+                                          call — reads r.puzzles.length which
+                                          is already in the list payload. */}
+                                      <span className={`px-1.5 py-0.5 rounded-full text-[0.65rem] font-medium ${
+                                        (r.puzzles?.length || 0) > 0
+                                          ? 'bg-green-100 text-green-700'
+                                          : 'bg-yellow-100 text-yellow-700'
+                                      }`}>
+                                        {(r.puzzles?.length || 0) > 0
+                                          ? t('competitionDetail.roundConfigured')
+                                          : t('competitionDetail.roundNotConfigured')}
+                                      </span>
+                                    </span>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs text-gray-400">
+                                        {/* BUG-03: translate the raw roundType enum via common.roundName.* */}
+                                        {t('competitionDetail.roundMeta', {
+                                          type: t(`common.roundName.${r.type}`) || r.type,
+                                          dur: r.duration_seconds,
+                                          count: r.puzzles?.length || 0,
+                                        })}
+                                      </span>
+                                      {/* CRUD-Rounds (2026-08-26): Edit and
+                                          Delete. Only shown to an admin while
+                                          the competition is still editable.
+                                          The server re-checks the WAITING
+                                          status guard, so even if the button
+                                          is shown for a round that started
+                                          between the last reload and the
+                                          click, the call returns 40030 and
+                                          the handler surfaces the message.
+                                          PDF import is NOT on this read-only
+                                          line — it lives in edit mode. */}
+                                      {isAdmin && isEditable && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => startEditRound(r)}
+                                            className="px-2 py-1 text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50 rounded text-xs"
+                                          >
+                                            {t('competitionDetail.editRoundBtn')}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteRound(stage, r)}
+                                            className="px-2 py-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded text-xs"
+                                          >
+                                            {t('competitionDetail.deleteRoundBtn')}
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </li>
                             ))}
                           </ol>
@@ -525,14 +739,17 @@ export default function CompetitionDetailPage() {
                 >
                   {t('competitionDetail.participantImport')}
                 </button>
+                {credentials?.length > 0 && (
+                  <button
+                    onClick={handleExportCredentials}
+                    disabled={exporting}
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {exporting ? t('competitionDetail.exporting') : t('competitionDetail.exportCredentialsBtn')}
+                  </button>
+                )}
                 {participants.length > 0 && (
                   <>
-                    <button
-                      onClick={handleExportParticipants}
-                      className="px-3 py-1.5 bg-green-600 text-white rounded text-xs sm:text-sm hover:bg-green-500"
-                    >
-                      {t('competitionDetail.exportCredentials')}
-                    </button>
                     <button
                       onClick={handleDeleteParticipants}
                       className="px-3 py-1.5 bg-red-600 text-white rounded text-xs sm:text-sm hover:bg-red-500"
@@ -548,8 +765,12 @@ export default function CompetitionDetailPage() {
               <div className="mb-4">
                 <ParticipantImport
                   competitionId={id}
-                  onImportComplete={() => {
+                  onImportComplete={(creds) => {
                     setShowParticipantImport(false);
+                    // Capture the credentials snapshot at the page level so
+                    // the standalone "Export credentials" button on the page
+                    // works — not just the one inside the import panel.
+                    setCredentials(creds || null);
                     loadParticipants();
                   }}
                 />
@@ -720,6 +941,31 @@ export default function CompetitionDetailPage() {
             canGenerate={!!competition && competition.status !== 'DRAFT'}
           />
         )}
+
+        {/* Louise UX 2026-08-26: styled replacement for window.confirm().
+            One instance serves all three confirmations (delete round, delete
+            stage, delete participants). The parent swaps the props each time
+            setConfirm is called. */}
+        <ConfirmDialog
+          open={!!confirm}
+          title={confirm?.title || ''}
+          message={confirm?.message || ''}
+          confirmLabel={confirm?.confirmLabel || 'OK'}
+          cancelLabel={confirm?.cancelLabel || 'Cancel'}
+          danger={confirm?.danger || false}
+          onCancel={() => setConfirm(null)}
+          onConfirm={async () => {
+            const action = confirm?.action;
+            setConfirm(null);
+            if (typeof action === 'function') {
+              try {
+                await action();
+              } catch (err) {
+                msg(err.message || 'Error', 'error');
+              }
+            }
+          }}
+        />
       </main>
     </div>
   );

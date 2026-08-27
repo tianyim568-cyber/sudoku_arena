@@ -170,6 +170,31 @@ export default {
     noRoundsInStage: 'No round in this stage yet.',
     roundAdded: 'Round added',
     roundAddFailed: 'Could not add the round: {msg}',
+    // CRUD-Rounds (2026-08-26): delete, edit, and the configured/not-configured
+    // badge. The badge is purely client-side — it reads r.puzzles.length, no
+    // API call. The two delete confirms differ when puzzles are attached so
+    // the admin sees the blast radius before confirming.
+    deleteRoundBtn: 'Delete',
+    editRoundBtn: 'Edit',
+    roundConfigured: 'Configured',
+    roundNotConfigured: 'To configure',
+    deleteRoundConfirm: 'Delete this round?',
+    deleteRoundConfirmWithPuzzles: 'Delete this round and its {n} puzzle(s)? This cannot be undone.',
+    roundDeleted: 'Round deleted',
+    roundDeleteFailed: 'Could not delete the round: {msg}',
+    saveRoundBtn: 'Save',
+    cancelEditRoundBtn: 'Cancel',
+    roundUpdated: 'Round updated',
+    roundUpdateFailed: 'Could not update the round: {msg}',
+    roundStartedNoDelete: 'A round that has already started cannot be deleted or edited.',
+    // Louise UX 2026-08-26: titles for the styled ConfirmDialog that
+    // replaces window.confirm(). The dialog has a title bar, a message
+    // body, and two buttons — the labels live with the existing keys
+    // (deleteRoundBtn / removeStage / deleteBtn) so only the titles are new.
+    deleteRoundTitle: 'Delete round',
+    removeStageTitle: 'Remove stage',
+    deleteParticipantsTitle: 'Delete participants',
+    deleteBtn: 'Delete',
     noRoundTypeForStage: 'No round type is available for this kind of stage yet.',
     roundTypesUnavailable: 'Could not load the round types: {msg}. Restart the server if it was started before this feature was added.',
     back: 'Back',
@@ -242,6 +267,16 @@ export default {
     exportSuccess: 'Export successful',
     exportFailed: 'Export failed',
     noExportData: 'No participant data to export',
+    // 2026-08-26 — option B: the export now happens from the post-import
+    // panel, not from a standalone button. These keys describe that panel.
+    exportCredentialsBtn: 'Export credentials',
+    // Shown when the admin clicks the standalone Export button but the
+    // in-memory credentials snapshot is gone (page refresh, navigation).
+    // The DB only stores hashes, so the only recovery is to re-import.
+    noCredentialsToExport: 'No credentials in memory. Re-import the participant file to capture fresh credentials — the database only stores password hashes, so the plain text cannot be recovered.',
+    credentialsReady: '{n} credentials ready to export',
+    credentialsReadyDesc: 'Click Export to download the Excel with usernames and passwords. This is the only moment they are available in plain text.',
+    credentialsLostWarning: 'Warning: if you close this panel without exporting, the passwords will be permanently lost. They cannot be recovered from the database (only the hash is stored).',
     account: 'Account',
     passwordCol: 'Password',
     newJudgeNamePlaceholder: 'Enter judge\'s name…',

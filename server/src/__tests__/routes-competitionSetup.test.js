@@ -78,6 +78,13 @@ function buildRepos(overrides = {}) {
       findStageById: async (stageId) => ({ id: stageId, competition_id: '1', type: 'TEAM', order_number: 1 }),
       findWithPuzzles: async () => [],
       findById: async (roundId) => ({ id: roundId, competition_id: 'comp-1' }),
+      // CRUD-Rounds (2026-08-26): methods used by the new DELETE/PUT routes.
+      // findByIdAndStage returns a WAITING round by default so the "started
+      // round" guard doesn't trip on the happy path. Individual tests override
+      // to return a RUNNING round or null to exercise the guards.
+      findByIdAndStage: async (roundId) => ({ id: roundId, stage_id: 'stage-1', status: 'WAITING', name: 'R1', type: 'ROUND1_NINE_ONE', duration_seconds: 600, preparation_seconds: 10 }),
+      update: async (id, fields) => ({ id, ...({ name: 'R1', type: 'ROUND1_NINE_ONE', duration_seconds: 600, preparation_seconds: 10, ...fields }) }),
+      delete: async (id) => ({ id }),
     },
     teams: {
       create: async ({ competitionId, name }) => ({ id: 20, competition_id: competitionId, name }),
@@ -278,6 +285,119 @@ describe('POST /api/competitions/:id/stages/:stageId/rounds', () => {
       .send({ name: 'R', roundType: 'ROUND1_NINE_ONE', durationSeconds: 600 });
     expect(res.status).toBe(403);
     expect(res.body.code).toBe(40301);
+  });
+});
+
+// ===== CRUD-Rounds (2026-08-26): DELETE and PUT on a single round =====
+//
+// The mock repo's default findByIdAndStage returns a WAITING round so the
+// "started round" guard (status !== 'WAITING') doesn't trip on the happy
+// path. Tests that need to exercise the guard override the repo to return a
+// RUNNING round instead, or null for the not-found tests.
+const ROUND_URL = '/api/competitions/1/stages/stage-1/rounds/round-10';
+
+describe('DELETE /api/competitions/:id/stages/:stageId/rounds/:roundId', () => {
+  test('ADMIN deletes a WAITING round -> 200', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .delete(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.body.code).toBe(200);
+    expect(res.body.data.id).toBe('round-10');
+  });
+
+  test('unknown roundId -> 40400', async () => {
+    const app = buildApp(buildRepos({
+      rounds: { findByIdAndStage: async () => null },
+    }));
+    const res = await request(app)
+      .delete(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.body.code).toBe(40400);
+  });
+
+  test('a RUNNING round is refused (40030)', async () => {
+    const app = buildApp(buildRepos({
+      rounds: { findByIdAndStage: async (id) => ({ id, stage_id: 'stage-1', status: 'RUNNING' }) },
+    }));
+    const res = await request(app)
+      .delete(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
+    expect(res.body.code).toBe(40030);
+  });
+
+  test('PLAYER is forbidden (403)', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .delete(ROUND_URL)
+      .set('Authorization', `Bearer ${PLAYER_TOKEN}`);
+    expect(res.status).toBe(403);
+  });
+
+  test('missing Authorization -> 401', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app).delete(ROUND_URL);
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('PUT /api/competitions/:id/stages/:stageId/rounds/:roundId', () => {
+  test('ADMIN updates the round name -> 200', async () => {
+    let receivedFields = null;
+    const app = buildApp(buildRepos({
+      rounds: {
+        findByIdAndStage: async (id) => ({ id, stage_id: 'stage-1', status: 'WAITING' }),
+        update: async (id, fields) => { receivedFields = fields; return { id, ...fields }; },
+      },
+    }));
+    const res = await request(app)
+      .put(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'Renamed Round' });
+    expect(res.body.code).toBe(200);
+    expect(receivedFields.name).toBe('Renamed Round');
+    // Only the keys sent are forwarded — no durationSeconds leak.
+    expect(receivedFields.durationSeconds).toBeUndefined();
+  });
+
+  test('name too long is rejected by Zod (40001)', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .put(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'x'.repeat(101) });
+    expect(res.body.code).toBe(40001);
+  });
+
+  test('a RUNNING round is refused (40030)', async () => {
+    const app = buildApp(buildRepos({
+      rounds: { findByIdAndStage: async (id) => ({ id, stage_id: 'stage-1', status: 'FINISHED' }) },
+    }));
+    const res = await request(app)
+      .put(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'too late' });
+    expect(res.body.code).toBe(40030);
+  });
+
+  test('unknown roundId -> 40400', async () => {
+    const app = buildApp(buildRepos({
+      rounds: { findByIdAndStage: async () => null },
+    }));
+    const res = await request(app)
+      .put(ROUND_URL)
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ name: 'ghost' });
+    expect(res.body.code).toBe(40400);
+  });
+
+  test('PLAYER is forbidden (403)', async () => {
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .put(ROUND_URL)
+      .set('Authorization', `Bearer ${PLAYER_TOKEN}`)
+      .send({ name: 'no' });
+    expect(res.status).toBe(403);
   });
 });
 

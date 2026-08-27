@@ -164,6 +164,24 @@ export default {
     noRoundsInStage: '本阶段暂无轮次。',
     roundAdded: '轮次已添加',
     roundAddFailed: '添加轮次失败：{msg}',
+    // CRUD-Rounds (2026-08-26): 删除、编辑、配置状态徽章
+    deleteRoundBtn: '删除',
+    editRoundBtn: '编辑',
+    roundConfigured: '已配置',
+    roundNotConfigured: '待配置',
+    deleteRoundConfirm: '删除此轮次？',
+    deleteRoundConfirmWithPuzzles: '删除此轮次及其 {n} 道题目？此操作不可撤销。',
+    roundDeleted: '轮次已删除',
+    roundDeleteFailed: '删除轮次失败：{msg}',
+    saveRoundBtn: '保存',
+    cancelEditRoundBtn: '取消',
+    roundUpdated: '轮次已更新',
+    roundUpdateFailed: '更新轮次失败：{msg}',
+    roundStartedNoDelete: '已启动的轮次无法删除或编辑。',
+    deleteRoundTitle: '删除轮次',
+    removeStageTitle: '移除阶段',
+    deleteParticipantsTitle: '删除选手',
+    deleteBtn: '删除',
     noRoundTypeForStage: '此类阶段暂无可用的轮次类型。',
     roundTypesUnavailable: '无法加载轮次类型：{msg}。如果服务器在此功能添加之前启动，请重启服务器。',
     back: '返回',
@@ -236,6 +254,16 @@ export default {
     exportSuccess: '导出成功',
     exportFailed: '导出失败',
     noExportData: '没有可导出的选手数据',
+    // 2026-08-26 — option B : l'export se fait maintenant depuis le panneau
+    // post-import, pas depuis un bouton isolé. Clés pour ce panneau.
+    exportCredentialsBtn: '导出账号密码',
+    // Affiché si l'admin clique sur le bouton Export autonome mais que le
+    // snapshot en mémoire a disparu (rafraîchissement, navigation). La DB
+    // ne stocke que des hashes, la seule récupération est de réimporter.
+    noCredentialsToExport: '内存中没有账号密码。请重新导入选手文件以获取新的账号密码 — 数据库只存储密码哈希，无法恢复明文。',
+    credentialsReady: '{n} 条账号密码已就绪，可导出',
+    credentialsReadyDesc: '点击导出按钮下载包含用户名和密码的 Excel。这是密码以明文形式可用的唯一时刻。',
+    credentialsLostWarning: '警告：如果未导出就关闭此面板，密码将永久丢失。数据库只存储哈希值，无法恢复原始密码。',
     account: '账号',
     passwordCol: '密码',
     newJudgeNamePlaceholder: '输入裁判姓名…',

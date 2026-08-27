@@ -108,24 +108,59 @@ class ParticipantRepository {
    * @returns {Promise<object>} The player record.
    */
   async findOrCreateParticipant(
-    { name, age, category, schoolId, userId, school, province, competitionId },
+    { name, age, category, schoolId, userId, school, province, city, district, competitionId },
     tx
   ) {
     const client = tx || this.prisma;
 
     if (userId) {
-      const existing = await client.players.findFirst({ where: { user_id: userId } });
+      // Scope by competition_id — a player row is per-competition. Two
+      // players from different competitions can share the same user_id
+      // (same person playing in two events), and we want the one for THIS
+      // competition. Without the filter, re-imports could silently reuse
+      // a player row from another competition. See export bug 2026-08-27.
+      const existing = await client.players.findFirst({
+        where: { user_id: userId, competition_id: competitionId },
+      });
       if (existing) return existing;
     }
 
     if (school) {
+      // Look for an existing player in THIS competition by name+school.
+      // Without the competition_id filter, a re-import for competition B
+      // could silently reuse the player row from competition A — leaving
+      // the new user_id (and thus the exported credential) disconnected
+      // from the actual player row the admin sees. See export bug 2026-08-27.
       const existingByName = await client.players.findFirst({
-        where: { name, school },
+        where: { name, school, competition_id: competitionId },
       });
-      if (existingByName) return existingByName;
+      if (existingByName) {
+        // Re-link the player to the freshly created user row. bulkImport
+        // generates a new username on every import (suffix increments), so
+        // without this update the player keeps pointing at the previous
+        // user — and the credentials returned to the admin would not
+        // match any player of this competition (export guard rejects).
+        if (userId && existingByName.user_id !== userId) {
+          return client.players.update({
+            where: { id: existingByName.id },
+            data: { user_id: userId },
+          });
+        }
+        return existingByName;
+      }
     } else {
-      const existingByName = await client.players.findFirst({ where: { name } });
-      if (existingByName) return existingByName;
+      const existingByName = await client.players.findFirst({
+        where: { name, competition_id: competitionId },
+      });
+      if (existingByName) {
+        if (userId && existingByName.user_id !== userId) {
+          return client.players.update({
+            where: { id: existingByName.id },
+            data: { user_id: userId },
+          });
+        }
+        return existingByName;
+      }
     }
 
     // Resolve legacy free-text category to a category UUID (best-effort).
@@ -141,6 +176,8 @@ class ParticipantRepository {
         age: age || null,
         school: school || null,
         province: province || null,
+        city: city || null,
+        district: district || null,
         user_id: userId || null,
         competition_id: competitionId,
         category_id: categoryId,
@@ -210,8 +247,13 @@ class ParticipantRepository {
       );
       return {
         ...p,
-        account: null, // account column removed
-        password: null, // password column removed (use users.password_hash)
+        // Expose the username under the legacy `account` key so the admin
+        // list keeps showing it. The password is never stored in plain text
+        // (bcrypt hash only), so it cannot be shown here — only via export
+        // immediately after bulkImport, while the plain text is still in
+        // memory. See option B (2026-08-26).
+        account: p.users?.username ?? null,
+        password: null,
         school_name: p.school,
         // category kept as a plain string for backward-compat with
         // existing consumers; the full object is under `categoryObj`.
@@ -223,34 +265,6 @@ class ParticipantRepository {
         totalScore,
       };
     });
-  }
-
-  /**
-   * Get participant data for export.
-   *
-   * The new schema no longer stores plain-text `account`/`password` on
-   * players (security improvement). This method returns name + school + username
-   * only; downstream exporters should be updated to stop expecting credentials.
-   * @param {string} competitionId
-   * @returns {Promise<object[]>}
-   */
-  async getExportData(competitionId) {
-    const players = await this.prisma.players.findMany({
-      where: { competition_id: competitionId },
-      include: {
-        users: { select: { username: true } },
-        categories: { select: { name: true } },
-      },
-      orderBy: { created_at: 'asc' },
-    });
-    return players.map((p) => ({
-      id: p.id,
-      account: p.users?.username ?? null, // closest equivalent
-      password: null, // no longer stored in plain text
-      name: p.name,
-      category: p.categories?.name ?? null,
-      school_name: p.school,
-    }));
   }
 
   /**
@@ -287,10 +301,20 @@ class ParticipantRepository {
    * is idempotent: existing teams are found by name, existing memberships are
    * skipped — nothing is duplicated.
    *
+   * Credentials capture (2026-08-26, Louise option B): the plain-text password
+   * is generated in memory, hashed, and stored on users.password_hash. The
+   * hash is one-way — the plain text cannot be recovered later. So the export
+   * needs the plain text at the moment it is generated. This method captures
+   * each generated { name, school, username, password } in the returned
+   * `credentials` array. The caller (route handler) passes them to the client,
+   * which keeps them in memory until the admin clicks "Export credentials".
+   * The export route then receives them in the body and generates the Excel.
+   * Nothing plain-text is ever persisted.
+   *
    * @param {string} competitionId - Competition UUID.
    * @param {object[]} rows - each: { province, city, district, school, name, age, category, teamName }
    * @param {string} [year] - Ignored in new schema (was used for account string).
-   * @returns {Promise<{imported: number, teamsCreated: number, membersLinked: number}>}
+   * @returns {Promise<{imported: number, teamsCreated: number, membersLinked: number, credentials: Array<{name: string, school: string|null, username: string, password: string}>}>}
    */
   async bulkImport(competitionId, rows, year = null) {
     return this.prisma.$transaction(async (tx) => {
@@ -316,6 +340,9 @@ class ParticipantRepository {
       let imported = 0;
       let teamsCreated = 0;
       let membersLinked = 0;
+      // Capture each generated credential so the caller can export them
+      // before the plain-text password is lost. See method JSDoc.
+      const credentials = [];
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
@@ -341,7 +368,9 @@ class ParticipantRepository {
             age: row.age ? parseInt(row.age) : null,
             category: row.category || null,
             school: school.name,
-            province: school.province,
+            province: row.province || school.province,
+            city: row.city || null,
+            district: row.district || null,
             userId: user.id,
             competitionId: competitionId,
           },
@@ -386,10 +415,23 @@ class ParticipantRepository {
           }
         }
 
+        // Capture the plain-text credential for this row. Only newly-created
+        // users get a fresh password; findOrCreateUser returns the existing
+        // row when the username already existed, in which case the password
+        // we just generated has overwritten the old hash (see findOrCreateUser).
+        // Either way, the password variable holds the valid plain text for
+        // this row — that's what the admin needs to distribute.
+        credentials.push({
+          name: row.name,
+          school: school.name || null,
+          username,
+          password,
+        });
+
         imported++;
       }
 
-      return { imported, teamsCreated, membersLinked };
+      return { imported, teamsCreated, membersLinked, credentials };
     });
   }
 

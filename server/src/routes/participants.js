@@ -13,7 +13,7 @@ const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateFileType } = require('../middleware/fileType');
 const { expensiveLimiter } = require('../middleware/rateLimiters');
 const { validateBody } = require('../middleware/validate');
-const { confirmImportSchema } = require('../validations/participants');
+const { confirmImportSchema, exportCredentialsSchema } = require('../validations/participants');
 const ParticipantImportService = require('../services/ParticipantImportService');
 const ParticipantExportService = require('../services/ParticipantExportService');
 const logger = require('../utils/logger');
@@ -307,16 +307,29 @@ function createParticipantRouter(repos) {
     }
   );
 
-  // GET /api/competitions/:id/participants/export
-  // Export participants with credentials as Excel file
-  router.get(
+  // POST /api/competitions/:id/participants/export
+  // Export credentials as Excel file.
+  //
+  // Design (2026-08-26, Louise option B): the plain-text password is only
+  // alive in memory between /confirm and /export. The client captures the
+  // credentials array from the /confirm response and sends it back here in
+  // the body. The server never persists plain-text passwords — it only
+  // generates the Excel buffer from what the client sends.
+  //
+  // The tenant guard still applies: the :id must belong to the caller's
+  // org. The credentials themselves are cross-checked against the players
+  // actually registered for that competition, so an admin cannot use this
+  // route to exfiltrate credentials from another org by crafting the body.
+  router.post(
     '/competitions/:id/participants/export',
     authMiddleware,
     tenantGuard('competitions'),
     roleMiddleware(...ADMIN_ROLES),
+    validateBody(exportCredentialsSchema),
     async (req, res) => {
       try {
         const competitionId = req.params.id;
+        const { credentials } = req.body;
 
         // Check competition exists
         const competition = await repos.competitions.findById(competitionId);
@@ -324,20 +337,57 @@ function createParticipantRouter(repos) {
           return res.json({ code: 40404, message: '比赛不存在', data: null });
         }
 
-        // Get export data
-        const rows = await repos.participants.getExportData(competitionId);
-
-        if (rows.length === 0) {
-          return res.json({ code: 40004, message: '没有可导出的选手数据', data: null });
+        // Tenant guard on the credentials themselves: each username in the
+        // body must belong to a player registered for THIS competition.
+        // Without this check, an admin from org A could send credentials
+        // from org B (if they had captured them somehow) and generate an
+        // Excel from this route. The check is O(N) usernames against the
+        // players table, which is fine for the 1000-row cap.
+        const usernames = credentials.map((c) => c.username);
+        const { getPrisma } = require('../db/prisma');
+        const prisma = getPrisma();
+        const knownPlayers = await prisma.players.findMany({
+          where: {
+            competition_id: competitionId,
+            users: { username: { in: usernames } },
+          },
+          select: { users: { select: { username: true } } },
+        });
+        const knownUsernames = new Set(knownPlayers.map((p) => p.users?.username).filter(Boolean));
+        const foreignCount = usernames.filter((u) => !knownUsernames.has(u)).length;
+        if (foreignCount > 0) {
+          logger.warn('Export refused: foreign credentials in body', {
+            competitionId,
+            foreignCount,
+            requester: req.user?.id,
+          });
+          return res.json({
+            code: 40030,
+            message: '认证失败：部分账号不属于此比赛',
+            data: null,
+          });
         }
 
         // Generate Excel buffer
+        const rows = credentials.map((c) => ({
+          id: '-',
+          school_name: c.school || '-',
+          name: c.name,
+          category: '-',
+          account: c.username,
+          password: c.password,
+        }));
         const buffer = exportService.generateExportBuffer(rows);
 
         // Set download headers
         const filename = encodeURIComponent(`${competition.name}_选手账号密码.xlsx`);
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`);
+        logger.info('Export credentials generated', {
+          competitionId,
+          count: credentials.length,
+          requester: req.user?.id,
+        });
         res.send(buffer);
       } catch (err) {
         logger.error('Export participants failed', { error: err.message });

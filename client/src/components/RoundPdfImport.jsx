@@ -59,7 +59,7 @@ function MiniGrid({ grid }) {
   );
 }
 
-export default function RoundPdfImport({ round, onImported }) {
+export default function RoundPdfImport({ round, onImported, onSuccess }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState(null);
@@ -105,7 +105,11 @@ export default function RoundPdfImport({ round, onImported }) {
             stripped: res.data.strippedCategoryIds,
           })
         : t('roundPdfImport.imported', { n: res.data.importedToRound });
-      alert(summary);
+      // Louise UX 2026-08-26: replaced alert() with an optional onSuccess
+      // callback. The parent page already owns a msg() helper that shows
+      // a styled toast — we delegate to it so the native browser dialog
+      // never surfaces.
+      if (typeof onSuccess === 'function') onSuccess(summary);
       reset();
       setOpen(false);
       if (typeof onImported === 'function') onImported();

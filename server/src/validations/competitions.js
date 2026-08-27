@@ -29,6 +29,18 @@ const createRoundSchema = z.object({
   preparationSeconds: z.coerce.number().int().min(0).max(300).optional(),
 });
 
+// Zod schema for PUT /api/competitions/:id/stages/:stageId/rounds/:roundId
+// (update round — partial). All fields optional, like updateCompetitionSchema.
+// roundType is INTENTIONALLY absent: changing the type after puzzles are
+// imported would break the engine (rankings are computed per stage category,
+// and the round's puzzles were picked for the original type). An admin who
+// picked the wrong type must delete and recreate the round.
+const updateRoundSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  durationSeconds: z.coerce.number().int().positive().optional(),
+  preparationSeconds: z.coerce.number().int().min(0).max(300).optional(),
+});
+
 // Zod schema for PUT /api/competitions/:id (update competition — partial)
 const updateCompetitionSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -66,6 +78,7 @@ const updateDisplayModeSchema = z.object({
 module.exports = {
   createCompetitionSchema,
   createRoundSchema,
+  updateRoundSchema,
   updateCompetitionSchema,
   createTeamSchema,
   addTeamMemberSchema,

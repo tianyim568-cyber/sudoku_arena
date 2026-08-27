@@ -5,12 +5,14 @@ const { tenantGuard } = require('../middleware/tenantGuard');
 const { validateBody } = require('../middleware/validate');
 const {
   createRoundSchema,
+  updateRoundSchema,
   createTeamSchema,
   addTeamMemberSchema,
   assignJudgeSchema,
   createAndAssignJudgeSchema,
 } = require('../validations/competitions');
 const { generateUsername, generatePassword } = require('../utils/credentials');
+const logger = require('../utils/logger');
 const {
   TeamRoundType,
   IndividualRoundType,
@@ -85,6 +87,90 @@ function createCompetitionSetupRouter(repos, prisma) {
 
       const round = await repos.rounds.create({ stageId, name, roundType, durationSeconds, preparationSeconds });
       res.json({ code: 200, message: 'success', data: round });
+    }
+  );
+
+  // Delete a round INSIDE a stage.
+  //
+  // Ownership chain: competition → stage → round. tenantGuard covers the
+  // competition hop; the stage-exists-and-belongs-to-competition check covers
+  // the second; findByIdAndStage covers the third. No cross-org leak.
+  //
+  // Safety guard: a round that has already started (status !== 'WAITING')
+  // cannot be deleted. player_round_sessions has onDelete: NoAction, so a
+  // running round would leave dangling sessions and corrupt rankings. The
+  // caller must wait for the round to finish, or clear the competition.
+  router.delete(
+    '/competitions/:id/stages/:stageId/rounds/:roundId',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      const { id: competitionId, stageId, roundId } = req.params;
+      try {
+        const stage = await repos.rounds.findStageById(stageId);
+        if (!stage || stage.competition_id !== competitionId) {
+          return res.json({ code: 40400, message: '阶段不属于该赛事', data: null });
+        }
+
+        const round = await repos.rounds.findByIdAndStage(roundId, stageId);
+        if (!round) {
+          return res.json({ code: 40400, message: '轮次不存在', data: null });
+        }
+
+        if (round.status && round.status !== 'WAITING') {
+          return res.json({ code: 40030, message: '已启动的轮次无法删除', data: null });
+        }
+
+        await repos.rounds.delete(roundId);
+        logger.info(`Round ${roundId} deleted by user ${req.user.id} (org ${req.user.organizationId})`);
+        res.json({ code: 200, message: 'success', data: { id: roundId } });
+      } catch (err) {
+        logger.error({ err, roundId, stageId, competitionId }, 'Failed to delete round');
+        res.json({ code: 50001, message: '删除轮次失败', data: null });
+      }
+    }
+  );
+
+  // Update a round's editable fields (name, duration, preparation).
+  //
+  // Partial update — only the keys present in the body are written. The
+  // round's type is NOT editable: changing it after puzzles are imported
+  // would break the engine (rankings are per stage category, and puzzles
+  // were picked for the original type). The Zod schema enforces this by
+  // simply not having a `roundType` field.
+  //
+  // Same status guard as delete: a started round is immutable.
+  router.put(
+    '/competitions/:id/stages/:stageId/rounds/:roundId',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    validateBody(updateRoundSchema),
+    async (req, res) => {
+      const { id: competitionId, stageId, roundId } = req.params;
+      try {
+        const stage = await repos.rounds.findStageById(stageId);
+        if (!stage || stage.competition_id !== competitionId) {
+          return res.json({ code: 40400, message: '阶段不属于该赛事', data: null });
+        }
+
+        const round = await repos.rounds.findByIdAndStage(roundId, stageId);
+        if (!round) {
+          return res.json({ code: 40400, message: '轮次不存在', data: null });
+        }
+
+        if (round.status && round.status !== 'WAITING') {
+          return res.json({ code: 40030, message: '已启动的轮次无法修改', data: null });
+        }
+
+        const updated = await repos.rounds.update(roundId, req.body);
+        logger.info(`Round ${roundId} updated by user ${req.user.id} (org ${req.user.organizationId})`);
+        res.json({ code: 200, message: 'success', data: updated });
+      } catch (err) {
+        logger.error({ err, roundId, stageId, competitionId }, 'Failed to update round');
+        res.json({ code: 50001, message: '修改轮次失败', data: null });
+      }
     }
   );
 

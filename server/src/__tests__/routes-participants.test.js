@@ -106,10 +106,9 @@ function buildRepos() {
       findById: jest.fn(async (id) => ({ id, name: 'Cup', created_at: new Date('2025-01-01') })),
     },
     participants: {
-      bulkImport: jest.fn(async () => ({ imported: 1 })),
+      bulkImport: jest.fn(async () => ({ imported: 1, teamsCreated: 0, membersLinked: 0, credentials: [{ name: 'Alice', school: 'School A', username: 'alice', password: 'Abc123' }] })),
       findByCompetition: jest.fn(async () => []),
       deleteByCompetition: jest.fn(async () => 1),
-      getExportData: jest.fn(async () => [{ id: 'p1', name: 'Alice', account: 'alice', password: null }]),
     },
   };
 }
@@ -176,14 +175,77 @@ describe('participant router — Phase 9 (reactivated)', () => {
     expect(res.status).toBe(403);
   });
 
-  test('GET /api/competitions/:id/participants/export returns XLSX buffer for ORG_ADMIN', async () => {
+  test('POST /api/competitions/:id/participants/confirm returns credentials in response body', async () => {
+    const repos = buildRepos();
+    const app = buildApp(repos);
+    const res = await request(app)
+      .post('/api/competitions/comp-1/participants/confirm')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({ rows: [{ name: 'Alice', school: 'School A' }] });
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(200);
+    // The credentials array is what the client needs to export later.
+    // The password is plain text here — it exists only in memory.
+    expect(res.body.data.credentials).toEqual([
+      { name: 'Alice', school: 'School A', username: 'alice', password: 'Abc123' },
+    ]);
+  });
+
+  test('POST /api/competitions/:id/participants/export returns XLSX buffer with credentials in body', async () => {
+    // The mock prisma returns all usernames as "known" so the tenant guard
+    // passes. The export service is mocked to return a fixed buffer.
+    mockPlayersFindMany.mockResolvedValueOnce([
+      { users: { username: 'alice' } },
+      { users: { username: 'bob' } },
+    ]);
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .post('/api/competitions/comp-1/participants/export')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({
+        credentials: [
+          { name: 'Alice', school: 'School A', username: 'alice', password: 'Abc123' },
+          { name: 'Bob', school: 'School B', username: 'bob', password: 'Def456' },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('spreadsheetml');
+    expect(mockExportService.generateExportBuffer).toHaveBeenCalled();
+    // The export service received the credentials mapped to the row shape
+    // it expects (id, school_name, name, category, account, password).
+    const rowsArg = mockExportService.generateExportBuffer.mock.calls[0][0];
+    expect(rowsArg).toHaveLength(2);
+    expect(rowsArg[0]).toMatchObject({ account: 'alice', password: 'Abc123', name: 'Alice' });
+  });
+
+  test('POST /api/competitions/:id/participants/export refuses foreign credentials (40030)', async () => {
+    // Simulate: none of the usernames in the body belong to this competition.
+    // An admin from org A should not be able to export credentials from org B
+    // even if they crafted them in the body.
+    mockPlayersFindMany.mockResolvedValueOnce([]); // no known players
+    const app = buildApp(buildRepos());
+    const res = await request(app)
+      .post('/api/competitions/comp-1/participants/export')
+      .set('Authorization', `Bearer ${ADMIN_TOKEN}`)
+      .send({
+        credentials: [
+          { name: 'Spy', school: 'Evil Corp', username: 'stolen_user', password: 'h4ck3d' },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe(40030);
+    expect(mockExportService.generateExportBuffer).not.toHaveBeenCalled();
+  });
+
+  test('GET /api/competitions/:id/participants/export (legacy) → 404 (route removed)', async () => {
+    // The old GET route is gone. An admin who bookmarks the old URL gets a
+    // 404, not a silent empty export. This prevents confusion and guides
+    // them back to the new POST flow via the UI.
     const app = buildApp(buildRepos());
     const res = await request(app)
       .get('/api/competitions/comp-1/participants/export')
       .set('Authorization', `Bearer ${ADMIN_TOKEN}`);
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toContain('spreadsheetml');
-    expect(mockExportService.generateExportBuffer).toHaveBeenCalled();
+    expect(res.status).toBe(404);
   });
 });
 

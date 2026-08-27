@@ -263,6 +263,55 @@ class RoundRepository {
   }
 
   /**
+   * Find a round by ID, but only if it belongs to the given stage. Used by
+   * the delete and update routes to guarantee the round in the URL is
+   * actually a child of the stage in the URL — tenantGuard checks the
+   * competition, this checks the next hop down. Returns null if the
+   * round doesn't exist or is attached to a different stage.
+   * @param {string} id - Round UUID.
+   * @param {string} stageId - Stage UUID the round must belong to.
+   * @returns {Promise<object|null>}
+   */
+  async findByIdAndStage(id, stageId) {
+    return this.prisma.rounds.findFirst({
+      where: { id, stage_id: stageId },
+    });
+  }
+
+  /**
+   * Partial update of a round's editable fields. Only name, duration, and
+   * preparation time — `type`, `order_number`, `status`, and timing stamps
+   * are not exposed (changing them after a round has run would corrupt
+   * rankings/sessions). Caller must have already checked the round is
+   * still WAITING.
+   * @param {string} id - Round UUID.
+   * @param {Object} fields - Only the keys present are written.
+   * @param {string} [fields.name]
+   * @param {number} [fields.durationSeconds]
+   * @param {number} [fields.preparationSeconds]
+   * @returns {Promise<object>} The updated round.
+   */
+  async update(id, { name, durationSeconds, preparationSeconds } = {}) {
+    const data = {};
+    if (name !== undefined) data.name = name;
+    if (durationSeconds !== undefined) data.duration_seconds = durationSeconds;
+    if (preparationSeconds !== undefined) data.preparation_seconds = preparationSeconds;
+    return this.prisma.rounds.update({ where: { id }, data });
+  }
+
+  /**
+   * Delete a round. Cascade is configured at the schema level:
+   * round_puzzles and round_rankings go with it automatically (onDelete:
+   * Cascade). player_round_sessions has onDelete: NoAction — the caller
+   * MUST verify the round is still WAITING (no sessions yet) before
+   * calling this, otherwise Prisma throws a foreign-key constraint error.
+   * @param {string} id - Round UUID.
+   */
+  async delete(id) {
+    return this.prisma.rounds.delete({ where: { id } });
+  }
+
+  /**
    * Find all rounds for a competition with their puzzles (via round_puzzles).
    * (Legacy name: findWithPuzzles — kept for backward compat.)
    * @param {string} competitionId

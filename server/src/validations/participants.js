@@ -29,7 +29,28 @@ const confirmImportSchema = z.object({
   rows: z.array(participantRowSchema).min(1).max(1000),
 });
 
+// Shape of a single credential row for the export endpoint.
+// The client captures these from the bulkImport response and sends them
+// back here to generate the Excel. We re-validate the shape server-side
+// because the body is user-controlled: an attacker could craft a payload
+// with missing fields or huge strings.
+const credentialRowSchema = z.object({
+  name: z.string().min(1).max(100),
+  school: z.string().max(200).nullable(),
+  username: z.string().min(1).max(100),
+  password: z.string().min(1).max(100),
+});
+
+// POST /api/competitions/:id/participants/export
+// Body: { credentials: credentialRow[] }
+// The array cap matches the confirm cap — an org cannot have more
+// participants than that in a single import.
+const exportCredentialsSchema = z.object({
+  credentials: z.array(credentialRowSchema).min(1).max(1000),
+});
+
 module.exports = {
   confirmImportSchema,
+  exportCredentialsSchema,
   participantRowSchema,
 };

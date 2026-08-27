@@ -122,6 +122,16 @@ export const api = {
   createStageRound: (competitionId, stageId, data) =>
     request('POST', `/competitions/${competitionId}/stages/${stageId}/rounds`, data),
 
+  // CRUD-Rounds (2026-08-26): delete and update a single round. Same path
+  // hierarchy as create — the round belongs to a stage that belongs to a
+  // competition. The server refuses to touch a round that has already
+  // started (status !== 'WAITING') so the UI must hide these buttons once
+  // the competition is running.
+  deleteStageRound: (competitionId, stageId, roundId) =>
+    request('DELETE', `/competitions/${competitionId}/stages/${stageId}/rounds/${roundId}`),
+  updateStageRound: (competitionId, stageId, roundId, data) =>
+    request('PUT', `/competitions/${competitionId}/stages/${stageId}/rounds/${roundId}`, data),
+
   // Rounds — the path now speaks `/competitions`, but the JS parameter keeps
   // the historical name `competitionId` for now. Renaming it would ripple into
   // every caller page and is out of scope for Phase 6. See JOURNAL_MODIFICATIONS.
@@ -216,18 +226,27 @@ export const api = {
     return request('GET', `/participants${qs ? '?' + qs : ''}`);
   },
 
-  // Export participants with credentials. This endpoint returns a binary XLSX
-  // blob, not JSON, so it cannot go through request() — but we still wrap the
-  // fetch so a network failure (server down, DNS) returns an envelope
-  // { success: false, message } instead of throwing an unhandled rejection.
-  exportParticipants: async (competitionId) => {
-    const headers = {};
+  // Export participants with credentials.
+  //
+  // Design (2026-08-26, Louise option B): the plain-text password only
+  // exists in memory between /confirm and /export. The caller captured the
+  // credentials array from the /confirm response and passes it here. The
+  // server generates the Excel buffer from the body — it never reads
+  // credentials from the DB (they are not stored in plain text).
+  //
+  // The endpoint returns a binary XLSX blob, not JSON, so it cannot go
+  // through request() — but we still wrap the fetch so a network failure
+  // (server down, DNS) returns an envelope { success: false, message }
+  // instead of throwing an unhandled rejection.
+  exportParticipants: async (competitionId, credentials) => {
+    const headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     let res;
     try {
       res = await fetch(`${API_BASE}/competitions/${competitionId}/participants/export`, {
-        method: 'GET',
+        method: 'POST',
         headers,
+        body: JSON.stringify({ credentials }),
       });
     } catch (e) {
       return { success: false, message: `Network error: ${e.message}` };
@@ -235,6 +254,14 @@ export const api = {
 
     if (!res.ok) {
       const json = await res.json().catch(() => null);
+      return { success: false, message: json?.message || 'Export failed' };
+    }
+
+    // A 200 with an error envelope means the server refused the body
+    // (e.g. foreign credentials — tenant guard). Surface the message.
+    const contentType = res.headers.get('Content-Type') || '';
+    if (contentType.includes('application/json')) {
+      const json = await res.json();
       return { success: false, message: json?.message || 'Export failed' };
     }
 
