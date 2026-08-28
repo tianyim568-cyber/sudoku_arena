@@ -71,6 +71,10 @@ export function round2CellUpdate(roundId, puzzleId, row, col, value) {
   socket?.emit('round2_cell_update', { roundId, puzzleId, row, col, value });
 }
 
+export function playerMove(competitionId, roundId, puzzleId, row, col, value) {
+  socket?.emit('player_move', { competitionId, roundId, puzzleId, row, col, value });
+}
+
 // ─── Round 3 collaboration events ────────────────────────────
 
 export function round3ProposeCell(competitionId, roundId, puzzleId, row, col, value) {

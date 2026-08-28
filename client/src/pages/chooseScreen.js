@@ -98,8 +98,15 @@
  * @param {Object|null} state.round3State
  * @param {Object|null} state.stageFinished
  * @param {boolean}     state.competitionFinished
- * @returns {'TRANSITION'|'PREPARATION'|'ROUND1_VIEW'|'ROUND2_VIEW'|'ROUND3_VIEW'|'ROUND_LOADING'|'STAGE_FINISHED'|'COMPETITION_FINISHED'|'WAITING'}
+ * @returns {'TRANSITION'|'PREPARATION'|'ROUND1_VIEW'|'ROUND2_VIEW'|'ROUND3_VIEW'|'INDIVIDUAL_VIEW'|'ROUND_LOADING'|'STAGE_FINISHED'|'COMPETITION_FINISHED'|'WAITING'}
  */
+
+const INDIVIDUAL_ROUND_TYPES = new Set([
+  'INDIVIDUAL_STANDARD',
+  'INDIVIDUAL_SHAPED',
+  'INDIVIDUAL_MIXED',
+]);
+
 export function chooseScreen({ transition, preparation, currentRound, puzzles, round2State, round3State, stageFinished, competitionFinished }) {
   // 1. Transition — countdown must show over everything.
   if (transition) return 'TRANSITION';
@@ -113,6 +120,7 @@ export function chooseScreen({ transition, preparation, currentRound, puzzles, r
     if (roundType === 'ROUND1_NINE_ONE' && puzzles.length > 0) return 'ROUND1_VIEW';
     if (roundType === 'ROUND2_RELAY' && round2State) return 'ROUND2_VIEW';
     if (roundType === 'ROUND3_COLLABORATE' && round3State) return 'ROUND3_VIEW';
+    if (INDIVIDUAL_ROUND_TYPES.has(roundType) && puzzles.length > 0) return 'INDIVIDUAL_VIEW';
 
     // 4. Round loading — active round, data not here yet.
     //    Falls through to this if currentRound is set but the round-specific

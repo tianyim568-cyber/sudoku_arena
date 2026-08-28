@@ -498,6 +498,20 @@ export default {
     noStages: '本赛事尚未配置任何阶段。',
   },
 
+  individual: {
+    puzzleList: '题目列表',
+    puzzleN: '第 {n} 题',
+    roundTitle: '个人赛轮次',
+    roundDesc: '在规定时间内尽可能多地完成题目。',
+    selectPuzzle: '选择一道题目开始解答',
+    completedBadge: '已完成',
+    progress: '进度',
+    solvedPuzzles: '已完成',
+    completionRate: '完成率',
+    tipsTitle: '提示',
+    tipsDesc: '点击选择题目，完成格子后提交答案。',
+  },
+
   roundLoading: {
     message: '正在加载本轮…',
   },

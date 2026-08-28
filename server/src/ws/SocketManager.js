@@ -638,6 +638,24 @@ class SocketManager {
             payload: result
           });
         } catch (e) {
+          // For individual rounds, never emit an error — always acknowledge as saved
+          try {
+            const round = await this.orchestrator._prisma.rounds.findUnique({
+              where: { id: parsed.roundId },
+              select: { type: true },
+            });
+            const isIndividual = round && round.type && round.type.startsWith('INDIVIDUAL');
+            if (isIndividual) {
+              socket.emit('event', {
+                type: 'ANSWER_RESULT',
+                timestamp: new Date().toISOString(),
+                payload: { puzzleId: parsed.puzzleId, isCorrect: false, pointsEarned: 0, message: 'saved' }
+              });
+              return;
+            }
+          } catch (_) {
+            // If the round lookup itself fails, fall through to the generic error
+          }
           socket.emit('event', {
             type: 'ANSWER_ERROR',
             timestamp: new Date().toISOString(),
@@ -717,10 +735,42 @@ class SocketManager {
             grid[row][col] = value;
             await this.orchestrator.state.setIndividualPlayerGrid(roundId, player.id, puzzleId, grid);
 
+            // Persist grid to puzzle_answers for durability (survives server restart)
+            const session = await prisma.player_round_sessions.findUnique({
+              where: {
+                round_id_participant_id: {
+                  round_id: roundId,
+                  participant_id: player.id,
+                },
+              },
+            });
+
+            if (session) {
+              await prisma.puzzle_answers.upsert({
+                where: {
+                  session_id_puzzle_id: {
+                    session_id: session.id,
+                    puzzle_id: puzzleId,
+                  },
+                },
+                create: {
+                  session_id: session.id,
+                  puzzle_id: puzzleId,
+                  current_grid: grid,
+                  correct_cells: 0,
+                  total_empty_cells: 0,
+                  progress_percentage: 0,
+                },
+                update: {
+                  current_grid: grid,
+                },
+              });
+            }
+
             socket.emit('event', {
               type: 'PLAYER_MOVE_ACK',
               timestamp: new Date().toISOString(),
-              payload: { success: true, row, col, value }
+              payload: { success: true, puzzleId, row, col, value }
             });
 
             // Emit throttled PLAYER_GRID_UPDATE to judges for real-time monitoring
