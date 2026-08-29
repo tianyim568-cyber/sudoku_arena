@@ -228,16 +228,16 @@ class StageManager {
       throw new StageError(`Cannot finish stage: current status is ${this._context.stageStatus}`);
     }
 
-    // Validate all rounds are finished
+    // Validate all rounds are finished (or cancelled for manual endStage)
     const unfinishedRounds = await this._prisma.rounds.findMany({
       where: {
         stage_id: this._context.stageId,
-        status: { not: 'FINISHED' },
+        status: { notIn: ['FINISHED', 'CANCELLED'] },
       },
     });
 
     if (unfinishedRounds.length > 0) {
-      throw new StageError(`Cannot finish stage: ${unfinishedRounds.length} rounds are not finished`);
+      throw new StageError(`Cannot finish stage: ${unfinishedRounds.length} rounds are not finished or cancelled`);
     }
 
     // Atomic DB status transition: RUNNING → FINISHED (prevents double-finish)
@@ -369,6 +369,19 @@ class StageManager {
       include: {
         rounds: {
           orderBy: { order_number: 'asc' },
+          include: {
+            round_puzzles: {
+              select: {
+                id: true,
+                order_number: true,
+                score: true,
+                puzzles: {
+                  select: { id: true, type: true, difficulty: true, score: true },
+                },
+              },
+              orderBy: { order_number: 'asc' },
+            },
+          },
         },
       },
       orderBy: { order_number: 'asc' },

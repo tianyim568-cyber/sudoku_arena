@@ -33,6 +33,8 @@ export default function JudgeControlPage() {
   const [stages, setStages] = useState([]);
   const [roomStatus, setRoomStatus] = useState(null);
   const [message, setMessage] = useState('');
+  // Track which stages have their round list expanded
+  const [expandedStages, setExpandedStages] = useState(new Set());
 
   const load = useCallback(async () => {
     const res = await api.getCompetition(competitionId);
@@ -55,10 +57,22 @@ export default function JudgeControlPage() {
   useEffect(() => {
     if (competition?.status === 'RUNNING' || competition?.status === 'PAUSED') {
       loadRoomStatus();
-      const iv = setInterval(loadRoomStatus, 5000);
+      const iv = setInterval(() => {
+        loadRoomStatus();
+        loadStages(); // Refresh stage/round status during active competition
+      }, 5000);
       return () => clearInterval(iv);
     }
-  }, [competition?.status, loadRoomStatus]);
+  }, [competition?.status, loadRoomStatus, loadStages]);
+
+  const toggleExpand = (stageId) => {
+    setExpandedStages(prev => {
+      const next = new Set(prev);
+      if (next.has(stageId)) next.delete(stageId);
+      else next.add(stageId);
+      return next;
+    });
+  };
 
   const handleAction = async (action, ...args) => {
     try {
@@ -69,6 +83,7 @@ export default function JudgeControlPage() {
         case 'resume': res = await api.resumeCompetition(competitionId); break;
         case 'end': res = await api.endCompetition(competitionId); break;
         case 'startStage': res = await api.startStage(competitionId, args[0]); break;
+        case 'endStage': res = await api.endStage(competitionId, args[0]); break;
         case 'nextStage': res = await api.startNextStage(competitionId); break;
         case 'startRound': res = await api.startRound(competitionId, args[0]); break;
         case 'endRound': res = await api.endRound(competitionId, args[0]); break;
@@ -78,6 +93,10 @@ export default function JudgeControlPage() {
         load();
         loadStages();
         loadRoomStatus();
+        // Auto-expand stage when starting it so the judge sees its rounds
+        if (action === 'startStage') {
+          setExpandedStages(prev => new Set([...prev, args[0]]));
+        }
       } else {
         setMessage(t('judge.actionError', { msg: res.message }));
       }
@@ -92,6 +111,12 @@ export default function JudgeControlPage() {
     const s = seconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+
+  // Compute derived flags used across stages
+  const isCompetitionRunning = competition?.status === 'RUNNING';
+  const hasRunningStage = stages.some(s => s.status === STAGE_RUNNING);
+  const hasFinishedStage = stages.some(s => s.status === STAGE_FINISHED);
+  const hasWaitingStage = stages.some(s => s.status === STAGE_WAITING);
 
   if (!competition) return <div className="flex items-center justify-center h-screen p-4 text-center text-sm sm:text-base">{t('common.loading')}</div>;
 
@@ -153,60 +178,143 @@ export default function JudgeControlPage() {
           </div>
         </section>
 
-        {/* Stage Controls.
-            A round cannot be started on its own: the engine reads the stage
-            context and refuses without it. So the judge opens a stage first,
-            runs its rounds, then moves on. Without these two buttons the
-            console could start a competition and nothing else — which is the
-            state this page was in until now.
-
-            Only one stage runs at a time, so "Start" is offered on waiting
-            stages only while none is running. "Next stage" appears once one
-            has finished and another is still waiting; the server refuses it
-            without a loaded stage context, so we do not offer it earlier. */}
+        {/* Stages & Rounds — nested hierarchy.
+            Each stage card shows its name, type, status, and action buttons.
+            When expanded, it reveals its rounds with their own start/stop controls.
+            Rounds belong to stages, so they are displayed inside their parent stage. */}
         {stages.length > 0 && (
           <section className="bg-white rounded-xl shadow p-4 sm:p-6">
             <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.stageControl')}</h2>
 
-            {competition.status !== 'RUNNING' && (
+            {!isCompetitionRunning && (
               <p className="text-gray-500 text-xs sm:text-sm mb-3">{t('judge.stagesNeedRunning')}</p>
             )}
 
-            <div className="space-y-2 sm:space-y-3">
-              {stages.map((s, i) => (
-                <div key={s.id} className="border rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex-1">
-                    <h3 className="font-medium text-sm sm:text-base">
-                      {t('judge.stageTitle', { n: s.order_number ?? i + 1 })}
-                      <span className="ml-2 text-gray-500 font-normal">{s.type}</span>
-                    </h3>
-                    <p className="text-xs sm:text-sm text-gray-500">
-                      {t('competitionDetail.stageRoundCount', { count: s.rounds?.length || 0 })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      s.status === STAGE_RUNNING ? 'bg-green-100 text-green-700' :
-                      s.status === STAGE_FINISHED ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>{t(`common.status.${s.status}`)}</span>
-                    {competition.status === 'RUNNING'
-                      && s.status === STAGE_WAITING
-                      && !stages.some(other => other.status === STAGE_RUNNING) && (
-                      <button onClick={() => handleAction('startStage', s.id)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs sm:text-sm">
-                        {t('judge.startStage')}
-                      </button>
+            <div className="space-y-3 sm:space-y-4">
+              {stages.map((s, i) => {
+                const stageRounds = s.rounds || [];
+                const hasActiveRound = stageRounds.some(r => r.status === 'IN_PROGRESS');
+                const hasWaitingRound = stageRounds.some(r => r.status === ROUND_NOT_STARTED);
+                const isExpanded = expandedStages.has(s.id);
+                const showExpandToggle = s.status !== STAGE_WAITING || stageRounds.length > 0;
+                // Stage can start: WAITING + no other stage RUNNING + competition RUNNING
+                const canStartStage = isCompetitionRunning && s.status === STAGE_WAITING && !hasRunningStage;
+                // Stage can end: RUNNING + no IN_PROGRESS rounds + competition RUNNING
+                const canEndStage = isCompetitionRunning && s.status === STAGE_RUNNING && !hasActiveRound;
+
+                return (
+                  <div key={s.id} className={`border rounded-lg overflow-hidden ${
+                    s.status === STAGE_RUNNING ? 'border-green-300 ring-1 ring-green-200' : 'border-gray-200'
+                  }`}>
+                    {/* Stage header */}
+                    <div className="p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gray-50">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-sm sm:text-base">
+                          {t('judge.stageTitle', { n: s.order_number ?? i + 1 })}
+                          <span className="ml-2 text-gray-500 font-normal">{s.type}</span>
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-500">
+                          {t('competitionDetail.stageRoundCount', { count: stageRounds.length })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          s.status === STAGE_RUNNING ? 'bg-green-100 text-green-700' :
+                          s.status === STAGE_FINISHED ? 'bg-blue-100 text-blue-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>{t(`common.status.${s.status}`)}</span>
+
+                        {canStartStage && (
+                          <button onClick={() => handleAction('startStage', s.id)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs sm:text-sm">
+                            {t('judge.startStage')}
+                          </button>
+                        )}
+
+                        {canEndStage && (
+                          <button onClick={() => handleAction('endStage', s.id)}
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs sm:text-sm">
+                            {t('judge.endStage')}
+                          </button>
+                        )}
+
+                        {showExpandToggle && (
+                          <button onClick={() => toggleExpand(s.id)}
+                            className="px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-xs sm:text-sm">
+                            {isExpanded ? t('judge.collapseRounds') : t('judge.expandRounds')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Round list (nested, shown when expanded) */}
+                    {isExpanded && stageRounds.length > 0 && (
+                      <div className="border-t border-gray-200 bg-white">
+                        {stageRounds.map((r, ri) => {
+                          const canStartRound = isCompetitionRunning
+                            && s.status === STAGE_RUNNING
+                            && r.status === ROUND_NOT_STARTED
+                            && !hasActiveRound;
+                          const canEndRound = isCompetitionRunning && r.status === 'IN_PROGRESS';
+
+                          return (
+                            <div key={r.id} className={`p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                              ri < stageRounds.length - 1 ? 'border-b border-gray-100' : ''
+                            }`}>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-sm text-gray-800">
+                                  {t('judge.roundTitle', { n: r.order_number, name: r.name })}
+                                </h4>
+                                <p className="text-xs text-gray-500">
+                                  {t('judge.roundMeta', { type: r.type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}
+                                </p>
+                                {r.remaining_seconds != null && r.status === 'IN_PROGRESS' && (
+                                  <p className="text-sm font-mono mt-1 text-blue-600">{formatTime(r.remaining_seconds)}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                  r.status === ROUND_NOT_STARTED ? 'bg-gray-100 text-gray-600' :
+                                  r.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' :
+                                  r.status === 'CANCELLED' ? 'bg-red-100 text-red-600' :
+                                  r.status === 'PAUSED' ? 'bg-orange-100 text-orange-700' :
+                                  'bg-blue-100 text-blue-700'
+                                }`}>{t(`common.status.${r.status}`)}</span>
+                                {canStartRound && (
+                                  <button onClick={() => handleAction('startRound', r.id)}
+                                    className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs">
+                                    {t('judge.startRound')}
+                                  </button>
+                                )}
+                                {canEndRound && (
+                                  <button onClick={() => handleAction('endRound', r.id)}
+                                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded text-xs">
+                                    {t('judge.stopRound')}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Empty rounds message */}
+                    {isExpanded && stageRounds.length === 0 && (
+                      <div className="border-t border-gray-200 bg-white p-3 sm:p-4">
+                        <p className="text-xs text-gray-400">{t('judge.noRoundsInStage')}</p>
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {competition.status === 'RUNNING'
-              && stages.some(s => s.status === STAGE_FINISHED)
-              && stages.some(s => s.status === STAGE_WAITING)
-              && !stages.some(s => s.status === STAGE_RUNNING) && (
+            {/* Next Stage button — when one has finished and another is waiting */}
+            {isCompetitionRunning
+              && hasFinishedStage
+              && hasWaitingStage
+              && !hasRunningStage && (
               <button onClick={() => handleAction('nextStage')}
                 className="mt-4 px-4 sm:px-6 py-2 sm:py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium text-sm sm:text-base">
                 {t('judge.nextStage')}
@@ -214,44 +322,6 @@ export default function JudgeControlPage() {
             )}
           </section>
         )}
-
-        {/* Round Controls */}
-        <section className="bg-white rounded-xl shadow p-4 sm:p-6">
-          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">{t('judge.roundControl')}</h2>
-          <div className="space-y-2 sm:space-y-3">
-            {competition.rounds?.map((r) => (
-              <div key={r.id} className="border rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex-1">
-                  <h3 className="font-medium text-sm sm:text-base">{t('judge.roundTitle', { n: r.order_number, name: r.name })}</h3>
-                  <p className="text-xs sm:text-sm text-gray-500">{t('judge.roundMeta', { type: r.type, dur: r.duration_seconds, count: r.puzzles?.length || 0 })}</p>
-                  {r.remaining_seconds != null && r.status === 'IN_PROGRESS' && (
-                    <p className="text-base sm:text-lg font-mono mt-1 text-blue-600">{formatTime(r.remaining_seconds)}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                    r.status === ROUND_NOT_STARTED ? 'bg-gray-100 text-gray-600' :
-                    r.status === 'IN_PROGRESS' ? 'bg-green-100 text-green-700' :
-                    r.status === 'PAUSED' ? 'bg-orange-100 text-orange-700' :
-                    'bg-blue-100 text-blue-700'
-                  }`}>{t(`common.status.${r.status}`)}</span>
-                  {competition.status === 'RUNNING' && r.status === ROUND_NOT_STARTED && (
-                    <button onClick={() => handleAction('startRound', r.id)}
-                      className="px-3 sm:px-4 py-1.5 sm:py-2 bg-green-600 hover:bg-green-500 text-white rounded text-xs sm:text-sm">
-                      {t('judge.startRound')}
-                    </button>
-                  )}
-                  {r.status === 'IN_PROGRESS' && (
-                    <button onClick={() => handleAction('endRound', r.id)}
-                      className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-500 text-white rounded text-xs sm:text-sm">
-                      {t('judge.endRound')}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
 
         {/* Participant monitoring — live presence + per-player detail +
             one-click projection to the big screen. The panel subscribes

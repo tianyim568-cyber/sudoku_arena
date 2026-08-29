@@ -225,14 +225,12 @@ export default function SudokuGrid({
                   X
                 </button>
               </div>
-              {!['INDIVIDUAL_STANDARD', 'INDIVIDUAL_SHAPED', 'INDIVIDUAL_MIXED'].includes(roundType) && (
-                <button
-                  onClick={handleSubmitFullGrid}
-                  className="mt-3 px-4 py-2 sm:px-6 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm sm:text-base font-medium transition-colors"
-                >
-                  {t('grid.submitFullGrid')}
-                </button>
-              )}
+              <button
+                onClick={handleSubmitFullGrid}
+                className="mt-3 px-4 py-2 sm:px-6 sm:py-3 bg-green-600 hover:bg-green-500 text-white rounded-lg text-sm sm:text-base font-medium transition-colors"
+              >
+                {t('grid.submitFullGrid')}
+              </button>
             </div>
           )}
         </div>

@@ -324,6 +324,16 @@ class GameOrchestrator {
       throw new CompetitionError('比赛必须先开始才能启动阶段');
     }
 
+    // Lifecycle guard: no other stage may be RUNNING concurrently
+    const runningStage = await this._prisma.competition_stages.findFirst({
+      where: { competition_id: competitionId, status: 'RUNNING' },
+    });
+    if (runningStage && runningStage.id !== stageId) {
+      throw new StageError(
+        `Cannot start stage: another stage (${runningStage.name || runningStage.id}) is already running. End it first.`,
+      );
+    }
+
     // Start the stage via StageManager
     const stageResult = await this.stages.startStage(competitionId, stageId);
     const emissions = [...stageResult.emissions];
@@ -354,6 +364,16 @@ class GameOrchestrator {
     const stageId = this.stages.getContext()?.stageId;
     if (!stageId) {
       throw new RoundError('未加载阶段上下文');
+    }
+
+    // Lifecycle guard: no other round may be IN_PROGRESS in the same stage
+    const activeRound = await this._prisma.rounds.findFirst({
+      where: { stage_id: stageId, status: 'IN_PROGRESS' },
+    });
+    if (activeRound && activeRound.id !== roundId) {
+      throw new RoundError(
+        `Cannot start round: another round (${activeRound.name || activeRound.id}) is already in progress. End it first.`,
+      );
     }
 
     // Prepare round via RoundManager (loads round data, sets lifecycle to PREPARATION)
@@ -436,6 +456,58 @@ class GameOrchestrator {
   async _handleRotation(competitionId, roundId, teamId) {
     const { emissions } = await this.round2.rotatePuzzles(competitionId, roundId, teamId);
     this.bus.emitAll(emissions);
+  }
+
+  // ─── End Stage ────────────────────────────────────────────────
+
+  /**
+   * End a stage early.
+   * Validates no rounds are IN_PROGRESS, marks all unfinished rounds as CANCELLED,
+   * then finishes the stage.
+   *
+   * @param {string} competitionId
+   * @param {string} stageId
+   * @returns {Promise<{result: Object, emissions: Array}>}
+   * @throws {AppError} if stage cannot be ended
+   */
+  async endStage(competitionId, stageId) {
+    await this._loadCompetition(competitionId);
+    if (this._competition.status !== 'RUNNING') {
+      throw new CompetitionError('比赛未运行中');
+    }
+
+    // Check no round is IN_PROGRESS in this stage
+    const activeRounds = await this._prisma.rounds.findMany({
+      where: { stage_id: stageId, status: 'IN_PROGRESS' },
+    });
+
+    if (activeRounds.length > 0) {
+      throw new CompetitionError(
+        `无法结束阶段：${activeRounds.length} 个轮次仍在进行中，请先结束所有活动轮次。`,
+      );
+    }
+
+    // Mark all non-finished rounds as CANCELLED
+    await this._prisma.rounds.updateMany({
+      where: {
+        stage_id: stageId,
+        status: { notIn: ['FINISHED', 'CANCELLED'] },
+      },
+      data: { status: 'CANCELLED' },
+    });
+
+    // Load stage context so finishStage() can validate and transition status
+    await this.stages.loadStageContext(competitionId, stageId);
+
+    // Use StageManager to finish the stage
+    const result = await this.stages.finishStage();
+
+    logger.info(
+      { competitionId, stageId },
+      'Stage ended manually by judge',
+    );
+
+    return result;
   }
 
   // ─── Pause / Resume ──────────────────────────────────────────
@@ -923,7 +995,34 @@ class GameOrchestrator {
    * @returns {Promise<Array>} stages array
    */
   async listStages(competitionId) {
-    return this.stages.loadAllStages(competitionId);
+    const stages = await this.stages.loadAllStages(competitionId);
+    return this._reshapeStagesWithPuzzles(stages);
+  }
+
+  /**
+   * Reshape stages so each round exposes `puzzles` (the flat summary the
+   * frontend expects) instead of the raw `round_puzzles` junction. The
+   * frontend reads `r.puzzles?.length` and `puzzle.difficulty` — neither
+   * exists on the junction row. This mapper bridges that gap so both
+   * listStages and configureStages return the same shape.
+   * @private
+   */
+  _reshapeStagesWithPuzzles(stages) {
+    return stages.map(s => ({
+      ...s,
+      rounds: s.rounds.map(r => {
+        const puzzles = (r.round_puzzles || []).map(rp => ({
+          id: rp.puzzles.id,
+          puzzle_type: rp.puzzles.type,
+          difficulty: rp.puzzles.difficulty,
+          order_in_round: rp.order_number,
+          points: rp.score,
+        }));
+        // Drop the raw junction data so the payload doesn't double up
+        const { round_puzzles, ...rest } = r;
+        return { ...rest, puzzles };
+      }),
+    }));
   }
 
   /**
@@ -1016,17 +1115,32 @@ class GameOrchestrator {
         }
       }
 
-      // Return all stages with rounds
+      // Return all stages with rounds and puzzle data
       return tx.competition_stages.findMany({
         where: { competition_id: competitionId },
         include: {
-          rounds: { orderBy: { order_number: 'asc' } },
+          rounds: {
+            orderBy: { order_number: 'asc' },
+            include: {
+              round_puzzles: {
+                select: {
+                  id: true,
+                  order_number: true,
+                  score: true,
+                  puzzles: {
+                    select: { id: true, type: true, difficulty: true, score: true },
+                  },
+                },
+                orderBy: { order_number: 'asc' },
+              },
+            },
+          },
         },
         orderBy: { order_number: 'asc' },
       });
     });
 
-    return result;
+    return this._reshapeStagesWithPuzzles(result);
   }
 
   // ─── Manual stage finish (judge-triggered) ──────────────────────

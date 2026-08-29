@@ -383,6 +383,11 @@ export default {
     roundMeta: '{type} | {dur}秒 | 题目：{count}道',
     startRound: '开始轮次',
     endRound: '结束轮次',
+    endStage: '结束阶段',
+    stopRound: '停止轮次',
+    expandRounds: '显示轮次',
+    collapseRounds: '隐藏轮次',
+    noRoundsInStage: '本阶段暂无轮次。',
     roomStatus: '房间状态',
     currentRound: '当前轮次：',
     remaining: '剩余：{time}',
@@ -407,6 +412,7 @@ export default {
     allSolvedBonus: '全部解答完成！完成奖励：+{bonus} 分',
     puzzleLocked: '这道题已锁定！',
     puzzleCompleted: '这道题已经完成了！',
+    puzzleAlreadySubmitted: '这道题已经提交过了。',
   },
 
   round1: {

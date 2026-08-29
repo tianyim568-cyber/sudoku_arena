@@ -93,6 +93,17 @@ function createGameRouter(repos, orchestrator) {
     }
   });
 
+  // End stage (manual stop by judge — requires no IN_PROGRESS rounds)
+  router.post('/competitions/:competitionId/stages/:stageId/end', authMiddleware, tenantGuard('competitions', { param: 'competitionId' }), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
+    try {
+      const result = handleOrchestratorResult(await orchestrator.endStage(req.params.competitionId, req.params.stageId));
+      res.json({ code: 200, message: 'success', data: result });
+    } catch (e) {
+      const err = sanitizeError(e);
+      res.json({ code: err.code, message: err.message, data: null });
+    }
+  });
+
   // Start round
   router.post('/competitions/:id/rounds/:roundId/start', authMiddleware, tenantGuard('competitions'), roleMiddleware('JUDGE', ...ADMIN_ROLES), async (req, res) => {
     try {

@@ -163,6 +163,7 @@ export const api = {
   // stage first. `startStage` opens a named one; `startNextStage` advances after
   // the current one has finished, and refuses if no stage context is loaded.
   startStage: (competitionId, stageId) => request('POST', `/competitions/${competitionId}/stages/${stageId}/start`),
+  endStage: (competitionId, stageId) => request('POST', `/competitions/${competitionId}/stages/${stageId}/end`),
   startNextStage: (competitionId) => request('POST', `/competitions/${competitionId}/stages/next`),
   startRound: (competitionId, roundId) => request('POST', `/competitions/${competitionId}/rounds/${roundId}/start`),
   endRound: (competitionId, roundId) => request('POST', `/competitions/${competitionId}/rounds/${roundId}/end`),
