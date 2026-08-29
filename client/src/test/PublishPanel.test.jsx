@@ -105,11 +105,15 @@ describe('PublishPanel — DRAFT (not yet published)', () => {
     await waitFor(() => expect(api.publishCompetition).toHaveBeenCalledWith('comp-1'));
   });
 
-  it('shows the server refusal message when publish is refused', async () => {
+  it('builds a translated message from missing codes when publish is refused (ISSUE-037)', async () => {
     // The client snapshot says publishable (the admin clicked Publish just
     // before a stage was removed, or the GET is stale). The server re-checks
-    // from the real state and refuses. The message must reach the admin —
-    // "Impossible to publish" alone is useless.
+    // from the real state and refuses with code 40010 + structured missing
+    // codes. The client must build a translated message from those codes,
+    // not display the server's Chinese-only concatenated string.
+    //
+    // Force English so we can assert on the translated (not Chinese) output.
+    localStorage.setItem('sa_lang', 'en');
     api.getPublishability.mockResolvedValue({
       code: 200,
       data: { status: 'DRAFT', publishable: true, missing: [] },
@@ -122,7 +126,11 @@ describe('PublishPanel — DRAFT (not yet published)', () => {
     renderPanel();
     const publish = await screen.findByRole('button', { name: /^publish$|^发布$/i });
     fireEvent.click(publish);
-    expect(await screen.findByText(/存在没有轮次的阶段/)).toBeInTheDocument();
+    expect(await screen.findByText(/Cannot publish:/)).toBeInTheDocument();
+    // The same translated text also appears in the checklist (✗ marker), so
+    // we use getAllByText — at least one match is the toast, another the row.
+    expect(screen.getAllByText(/Every stage has at least one round/).length).toBeGreaterThanOrEqual(1);
+    localStorage.removeItem('sa_lang');
   });
 });
 

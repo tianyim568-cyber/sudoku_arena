@@ -40,6 +40,8 @@ export default {
       INDIVIDUAL_SHAPED: 'Shaped',
       INDIVIDUAL_MIXED: 'Mixed',
     },
+    // BCP 47 locale tag used by Intl / toLocaleDateString throughout the app.
+    locale: 'en-US',
   },
 
   competition: {
@@ -65,7 +67,8 @@ export default {
     inProgress: 'In progress',
     upcoming: 'Upcoming',
     finished: 'Finished',
-    noCompetitions: 'No competitions yet',
+   noCompetitions: 'No competitions yet',
+    noFilteredCompetitions: 'No competitions match this filter',
     loadFailed: 'Could not load the overview.',
     loading: 'Loading overview...',
     nav: {
@@ -203,6 +206,13 @@ export default {
     judgeConsole: 'Judge console',
     enterGame: 'Enter game',
     startCompetition: 'Start competition',
+    pauseCompetition: 'Pause',
+    resumeCompetition: 'Resume',
+    endCompetition: 'End competition',
+    endConfirmTitle: 'End this competition?',
+    endConfirmBody: 'This will permanently stop the competition. Players will see the "finished" screen. This cannot be undone.',
+    controlSuccess: 'Action completed successfully.',
+    controlFailed: 'Action failed: {msg}',
     roundNumber: 'Round {n}',
     roundMeta: 'Type: {type} | Duration: {dur}s | Puzzles: {count}',
     importing: 'Importing...',
@@ -598,6 +608,7 @@ export default {
     someMissingHint: 'Publishing is blocked until every criterion above is met.',
     publish: 'Publish',
     published: 'Competition published.',
+    publishCannot: 'Cannot publish:',
     publishFailed: 'Could not publish.',
     // "On ne dépublie pas. Mais on peut annuler." Cancelling is a DESTRUCTIVE
     // action: the access link is destroyed (anyone who received the URL can

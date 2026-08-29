@@ -36,6 +36,8 @@ export default {
       INDIVIDUAL_SHAPED: '异形',
       INDIVIDUAL_MIXED: '混合',
     },
+    // BCP 47 locale tag used by Intl / toLocaleDateString throughout the app.
+    locale: 'zh-CN',
   },
 
   competition: {
@@ -62,6 +64,7 @@ export default {
     upcoming: '未开始',
     finished: '已结束',
     noCompetitions: '暂无赛事',
+    noFilteredCompetitions: '没有符合条件的赛事',
     loadFailed: '无法加载概览。',
     loading: '加载中...',
     nav: {
@@ -190,6 +193,13 @@ export default {
     judgeConsole: '裁判控制台',
     enterGame: '进入游戏',
     startCompetition: '开始赛事',
+    pauseCompetition: '暂停',
+    resumeCompetition: '继续',
+    endCompetition: '结束比赛',
+    endConfirmTitle: '结束此比赛？',
+    endConfirmBody: '这将永久停止比赛，选手将看到"已结束"界面，此操作不可撤销。',
+    controlSuccess: '操作已成功完成。',
+    controlFailed: '操作失败：{msg}',
     roundNumber: '第 {n} 轮',
     roundMeta: '类型：{type} | 时长：{dur}秒 | 题目：{count}道',
     importing: '导入中...',
@@ -578,6 +588,7 @@ export default {
     someMissingHint: '上述条件全部满足前无法发布。',
     publish: '发布',
     published: '赛事已发布。',
+    publishCannot: '无法发布：',
     publishFailed: '无法发布。',
     // 「On ne dépublie pas. Mais on peut annuler.」取消发布是破坏性操作：
     // 访问链接会被销毁（之前收到链接的选手、裁判、大屏都无法再进入），
