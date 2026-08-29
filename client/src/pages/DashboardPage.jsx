@@ -1,22 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
 
-// Dashboard overview page — simple stats summary of competitions.
-// Data comes from listCompetitions() (renamed in Phase 6 from
-// listCompetitions); we just count by status. No advanced features here — just
-// a snapshot of the organization's competitions.
+// Dashboard overview page — stats summary with clickable filters.
+// Cards act as filters: click to show only matching competitions, click again
+// (or click "total") to reset. List is sorted by creation date (newest first).
 export default function DashboardPage() {
   const { t } = useLanguage();
   const [competitions, setCompetitions] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Error state: without it, a failed listCompetitions call leaves
-  // `competitions` as [] and the page renders the "no competitions" empty
-  // state — which is a lie. The admin thinks their org has zero
-  // competitions when really the server just failed. Distinguishing the
-  // two is the whole point of the audit.
   const [error, setError] = useState(null);
+  const [activeFilter, setActiveFilter] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -32,78 +27,214 @@ export default function DashboardPage() {
     load();
   }, [t]);
 
-  if (loading) {
-    return <div className="text-gray-500 p-4">{t('dashboard.loading')}</div>;
-  }
+  // Count competitions by status. The backend uses: DRAFT, PUBLISHED, RUNNING,
+  // PAUSED, FINISHED. Group them logically for the dashboard cards:
+  // - "in progress" = RUNNING or PAUSED (actively being played)
+  // - "upcoming" = DRAFT or PUBLISHED (not yet started)
+  // - "finished" = FINISHED (completed)
+  const counts = useMemo(() => ({
+    total: competitions.length,
+    inProgress: competitions.filter(c => c.status === 'RUNNING' || c.status === 'PAUSED').length,
+    upcoming: competitions.filter(c => c.status === 'DRAFT' || c.status === 'PUBLISHED').length,
+    finished: competitions.filter(c => c.status === 'FINISHED').length,
+  }), [competitions]);
 
-  if (error) {
+  // Filter and sort competitions based on active card.
+  const filteredCompetitions = useMemo(() => {
+    let filtered = competitions;
+    if (activeFilter === 'inProgress') {
+      filtered = competitions.filter(c => c.status === 'RUNNING' || c.status === 'PAUSED');
+    } else if (activeFilter === 'upcoming') {
+      filtered = competitions.filter(c => c.status === 'DRAFT' || c.status === 'PUBLISHED');
+    } else if (activeFilter === 'finished') {
+      filtered = competitions.filter(c => c.status === 'FINISHED');
+    }
+    // Sort by creation date (newest first). created_at may be null for old data.
+    return filtered.sort((a, b) => {
+      if (!a.created_at) return 1;
+      if (!b.created_at) return -1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+  }, [competitions, activeFilter]);
+
+  // Toggle filter: click same card to reset, different card to switch.
+  const handleCardClick = (key) => {
+    setActiveFilter(prev => prev === key ? null : key);
+  };
+
+  // Status badge styling — color-coded by status for quick visual scanning.
+  const statusBadge = (status) => {
+    const baseClass = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium";
+    const colorMap = {
+      DRAFT: "bg-gray-100 text-gray-700",
+      PUBLISHED: "bg-blue-100 text-blue-700",
+      RUNNING: "bg-green-100 text-green-700",
+      PAUSED: "bg-orange-100 text-orange-700",
+      FINISHED: "bg-purple-100 text-purple-700",
+    };
+    return `${baseClass} ${colorMap[status] || "bg-gray-100 text-gray-700"}`;
+  };
+
+  // Card styling — active card gets stronger border and shadow.
+  const cardStyle = (key, baseColor, activeColor) => {
+    const isActive = activeFilter === key;
+    return `transition-all duration-200 rounded-xl border-2 p-4 sm:p-5 cursor-pointer select-none ${
+      isActive
+        ? `${activeColor} shadow-md scale-[1.02]`
+        : `${baseColor} hover:shadow-sm hover:scale-[1.01]`
+    }`;
+  };
+
+  const cards = [
+    {
+      key: 'total',
+      value: counts.total,
+      baseColor: 'bg-white border-gray-200 hover:border-gray-300',
+      activeColor: 'bg-gray-50 border-gray-500',
+      textColor: 'text-gray-900',
+    },
+    {
+      key: 'inProgress',
+      value: counts.inProgress,
+      baseColor: 'bg-green-50 border-green-200 hover:border-green-300',
+      activeColor: 'bg-green-100 border-green-600',
+      textColor: 'text-green-700',
+    },
+    {
+      key: 'upcoming',
+      value: counts.upcoming,
+      baseColor: 'bg-amber-50 border-amber-200 hover:border-amber-300',
+      activeColor: 'bg-amber-100 border-amber-600',
+      textColor: 'text-amber-700',
+    },
+    {
+      key: 'finished',
+      value: counts.finished,
+      baseColor: 'bg-purple-50 border-purple-200 hover:border-purple-300',
+      activeColor: 'bg-purple-100 border-purple-600',
+      textColor: 'text-purple-700',
+    },
+  ];
+
+  if (loading) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-4 sm:p-6 text-center">
-        <p className="text-red-700 text-sm sm:text-base">{t('dashboard.loadFailed')}</p>
-        <p className="text-red-500 text-xs mt-1">{error}</p>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500 text-sm">{t('dashboard.loading')}</div>
       </div>
     );
   }
 
-  // Count competitions by status. PENDING = upcoming, IN_PROGRESS/PAUSED = in progress, FINISHED = finished.
-  const counts = {
-    total: competitions.length,
-    inProgress: competitions.filter(c => c.status === 'IN_PROGRESS' || c.status === 'PAUSED').length,
-    upcoming: competitions.filter(c => c.status === 'PENDING').length,
-    finished: competitions.filter(c => c.status === 'FINISHED').length,
-  };
-
-  // Stat cards: { key, value, color }.
-  const cards = [
-    { key: 'totalCompetitions', value: counts.total, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-    { key: 'inProgress', value: counts.inProgress, color: 'bg-green-50 text-green-700 border-green-200' },
-    { key: 'upcoming', value: counts.upcoming, color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-    { key: 'finished', value: counts.finished, color: 'bg-gray-50 text-gray-700 border-gray-200' },
-  ];
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+        <p className="text-red-800 text-sm font-medium">{t('dashboard.loadFailed')}</p>
+        <p className="text-red-600 text-xs mt-2">{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-lg sm:text-xl font-semibold text-gray-800">{t('dashboard.overviewTitle')}</h2>
-        <p className="text-gray-500 text-xs sm:text-sm mt-1">{t('dashboard.overviewSubtitle')}</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+          {t('dashboard.overviewTitle')}
+        </h2>
+        <p className="text-gray-600 text-sm mt-1">{t('dashboard.overviewSubtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stat cards — clickable filters */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map(card => (
-          <div key={card.key} className={`rounded-xl border p-4 sm:p-5 ${card.color}`}>
-            <p className="text-2xl sm:text-3xl font-bold">{card.value}</p>
-            <p className="text-xs sm:text-sm mt-1">{t(`dashboard.${card.key}`)}</p>
-          </div>
+          <button
+            key={card.key}
+            onClick={() => handleCardClick(card.key)}
+            className={cardStyle(card.key, card.baseColor, card.activeColor)}
+            type="button"
+          >
+            <p className={`text-3xl sm:text-4xl font-bold ${card.textColor} tabular-nums`}>
+              {card.value}
+            </p>
+            <p className={`text-sm font-medium mt-2 ${card.textColor} opacity-80`}>
+              {t(`dashboard.${card.key === 'total' ? 'totalCompetitions' : card.key}`)}
+            </p>
+          </button>
         ))}
       </div>
 
-      {competitions.length === 0 ? (
-        <div className="bg-white rounded-xl shadow p-6 sm:p-8 text-center text-gray-400">
-          <p className="text-sm sm:text-base">{t('dashboard.noCompetitions')}</p>
-          <Link to="/dashboard/competitions" className="inline-block mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs sm:text-sm hover:bg-indigo-500 transition-colors">
-            {t('competitionList.newCompetition')}
-          </Link>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow p-4 sm:p-6">
-          <h3 className="text-sm sm:text-base font-semibold text-gray-700 mb-3">{t('competitionList.listTitle')}</h3>
-          <ul className="divide-y divide-gray-100">
-            {competitions.slice(0, 5).map(competition => (
-              <li key={competition.id}>
-                <Link to={`/competitions/${competition.id}`} className="flex items-center justify-between py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded transition-colors">
-                  <span className="text-sm text-gray-700 truncate">{competition.name}</span>
-                  <span className="text-xs text-gray-400 ml-3">{t(`common.status.${competition.status}`)}</span>
+      {/* Competition list */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {filteredCompetitions.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-gray-500 text-sm">
+              {competitions.length === 0
+                ? t('dashboard.noCompetitions')
+                : t('dashboard.noFilteredCompetitions')}
+            </p>
+            {competitions.length === 0 && (
+              <Link
+                to="/dashboard/competitions"
+                className="inline-block mt-4 px-5 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                {t('competitionList.newCompetition')}
+              </Link>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* List header */}
+            <div className="px-5 py-3 border-b border-gray-200 bg-gray-50">
+              <h3 className="text-sm font-semibold text-gray-700">
+                {activeFilter
+                  ? t(`dashboard.${activeFilter}`)
+                  : t('competitionList.listTitle')}
+                <span className="ml-2 text-gray-500 font-normal">
+                  ({filteredCompetitions.length})
+                </span>
+              </h3>
+            </div>
+            {/* List items */}
+            <ul className="divide-y divide-gray-100">
+              {filteredCompetitions.map(competition => (
+                <li key={competition.id}>
+                  <Link
+                    to={`/competitions/${competition.id}`}
+                    className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate group-hover:text-indigo-600 transition-colors">
+                        {competition.name}
+                      </p>
+                      {competition.created_at && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {new Date(competition.created_at).toLocaleDateString(
+                            t('common.locale') || 'zh-CN',
+                            { year: 'numeric', month: 'short', day: 'numeric' }
+                          )}
+                        </p>
+                      )}
+                    </div>
+                    <span className={statusBadge(competition.status)}>
+                      {t(`common.status.${competition.status}`)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {/* Footer link when more than 10 items */}
+            {filteredCompetitions.length > 10 && (
+              <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 text-center">
+                <Link
+                  to="/dashboard/competitions"
+                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  {t('dashboard.nav.competitions')} →
                 </Link>
-              </li>
-            ))}
-          </ul>
-          {competitions.length > 5 && (
-            <Link to="/dashboard/competitions" className="block text-center text-xs text-indigo-600 hover:text-indigo-500 mt-3">
-              {t('dashboard.nav.competitions')} →
-            </Link>
-          )}
-        </div>
-      )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
