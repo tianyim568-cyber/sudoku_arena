@@ -728,6 +728,14 @@ export default {
     loadListFailed: 'Could not load the competitions list.',
     unknownPlayer: 'Unknown player',
     stageLabel: 'Stage {n}',
+    compareMode: 'Compare',
+    exitCompare: 'Exit compare',
+    selectToCompare: 'Select competitions to compare',
+    selectAtLeastTwo: 'Select 2-3 competitions to compare',
+    exportCsv: 'Export CSV',
+    print: 'Print',
+    topScores: 'Top scores',
+    loading: 'Loading...',
   },
 
   displayMode: {
@@ -1011,6 +1019,7 @@ export default {
     emptyFiltered: 'No participants match these filters.',
     loading: 'Loading participants…',
     loadFailed: 'Could not load the participants list.',
+    exportCsv: 'Export CSV',
   },
 
   // Error pages (404 / 403 / 500) and the ErrorBoundary fallback UI. The

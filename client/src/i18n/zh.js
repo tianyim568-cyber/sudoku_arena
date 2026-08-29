@@ -94,6 +94,13 @@ export default {
     judge: '裁判',
     player1: '选手1',
     linkToRegister: '还没有账号？立即注册',
+    search: {
+      placeholder: '搜索队伍、选手、赛事...',
+      participants: '选手',
+      teams: '队伍',
+      competitions: '赛事',
+      noResults: '未找到结果',
+    },
   },
 
   register: {
@@ -700,6 +707,14 @@ export default {
     loadListFailed: '无法加载赛事列表。',
     unknownPlayer: '未知选手',
     stageLabel: '阶段 {n}',
+    compareMode: '对比模式',
+    exitCompare: '退出对比',
+    selectToCompare: '选择要对比的比赛',
+    selectAtLeastTwo: '选择 2-3 个比赛进行对比',
+    exportCsv: '导出 CSV',
+    print: '打印',
+    topScores: '最高分',
+    loading: '加载中...',
   },
 
   displayMode: {
@@ -968,6 +983,7 @@ export default {
     emptyFiltered: '没有符合筛选条件的选手。',
     loading: '加载中…',
     loadFailed: '无法加载选手列表。',
+    exportCsv: '导出 CSV',
   },
 
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的

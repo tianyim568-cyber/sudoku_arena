@@ -143,6 +143,7 @@ export const api = {
 
   // Teams
   listTeams: (competitionId) => request('GET', `/competitions/${competitionId}/teams`),
+  getCompetitionCategories: (competitionId) => request('GET', `/competitions/${competitionId}/categories`),
   createTeam: (competitionId, name) => request('POST', `/competitions/${competitionId}/teams`, { name }),
   addTeamMember: (teamId, playerId, position) => request('POST', '/teams/' + teamId + '/members', { playerId, position }),
   removeTeamMember: (teamId, participantId) => request('DELETE', `/teams/${teamId}/members/${participantId}`),
@@ -241,6 +242,16 @@ export const api = {
     if (filters.search) params.set('search', filters.search);
     const qs = params.toString();
     return request('GET', `/teams${qs ? '?' + qs : ''}`);
+  },
+
+  // Global search across participants, teams, competitions.
+  // Returns grouped results (max 10 per type). Used by dashboard search bar.
+  search: (q) => {
+    if (!q || q.trim().length < 2) {
+      return Promise.resolve({ code: 200, data: { participants: [], teams: [], competitions: [] } });
+    }
+    const params = new URLSearchParams({ q: q.trim() });
+    return request('GET', `/search?${params}`);
   },
 
   // Export participants with credentials.

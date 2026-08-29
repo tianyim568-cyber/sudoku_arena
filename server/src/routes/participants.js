@@ -434,6 +434,106 @@ function createParticipantRouter(repos) {
     }
   );
 
+  // GET /api/search — global search across participants, teams, competitions.
+  // Returns grouped results (max 10 per type) with tenant isolation.
+  //
+  // SECURITY: Same pattern as /participants and /teams — the WHERE clause
+  // filters by organization_id, so ORG_ADMIN only sees their own org's data.
+  // SUPER_ADMIN sees everything (orgId = null → skip org filter).
+  //
+  // Query params:
+  //   q — search term (case-insensitive substring match)
+  router.get(
+    '/search',
+    authMiddleware,
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      try {
+        const { q } = req.query;
+        if (!q || typeof q !== 'string' || q.trim().length < 2) {
+          return res.json({ code: 40001, message: '搜索词至少2个字符', data: null });
+        }
+
+        const term = q.trim();
+        const orgId = req.user.role === 'SUPER_ADMIN' ? null : req.user.organizationId;
+
+        // Parallel search across three tables
+        const [participants, teams, competitions] = await Promise.all([
+          // Participants: search by name (real_name) or username
+          repos.prisma.participants.findMany({
+            where: {
+              ...(orgId ? { competitions: { organization_id: orgId } } : {}),
+              OR: [
+                { real_name: { contains: term, mode: 'insensitive' } },
+                { username: { contains: term, mode: 'insensitive' } },
+              ],
+            },
+            include: {
+              competitions: { select: { id: true, name: true } },
+            },
+            take: 10,
+          }),
+          // Teams: search by name
+          repos.prisma.teams.findMany({
+            where: {
+              ...(orgId ? { competitions: { organization_id: orgId } } : {}),
+              name: { contains: term, mode: 'insensitive' },
+            },
+            include: {
+              competitions: { select: { id: true, name: true } },
+              _count: { select: { team_members: true } },
+            },
+            take: 10,
+          }),
+          // Competitions: search by name
+          repos.prisma.competitions.findMany({
+            where: {
+              ...(orgId ? { organization_id: orgId } : {}),
+              name: { contains: term, mode: 'insensitive' },
+            },
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              start_date: true,
+            },
+            take: 10,
+          }),
+        ]);
+
+        res.json({
+          code: 200,
+          message: 'success',
+          data: {
+            participants: participants.map(p => ({
+              id: p.id,
+              name: p.real_name || p.username,
+              username: p.username,
+              competitionId: p.competitions?.id,
+              competitionName: p.competitions?.name,
+            })),
+            teams: teams.map(t => ({
+              id: t.id,
+              name: t.name,
+              competitionId: t.competitions?.id,
+              competitionName: t.competitions?.name,
+              memberCount: t._count?.team_members || 0,
+            })),
+            competitions: competitions.map(c => ({
+              id: c.id,
+              name: c.name,
+              status: c.status,
+              startDate: c.start_date,
+            })),
+          },
+        });
+      } catch (err) {
+        logger.error('Global search failed', { error: err.message });
+        res.json({ code: 50000, message: '搜索失败', data: null });
+      }
+    }
+  );
+
   return router;
 }
 

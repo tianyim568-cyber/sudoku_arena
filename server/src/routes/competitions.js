@@ -762,6 +762,71 @@ function createCompetitionRouter(repos, displayManager) {
    */
   router.post('/by-code/:identifier/login', competitionLogin(repos));
 
+  /**
+   * GET /:id/categories — Liste des catégories liées à une compétition.
+   *
+   * Retourne uniquement les catégories qui ont au moins un participant dans
+   * cette compétition (via la table players). Pas de catégories globales —
+   * seulement celles qui sont réellement utilisées.
+   *
+   * Utilisé par les filtres de catégorie dans DashboardResultsPage et
+   * DashboardParticipantsPage pour peupler les <select>.
+   *
+   * Auth: Bearer token (org-scoped) + ADMIN_ROLES
+   * Tenant: la compétition doit appartenir à l'organisation du caller
+   *
+   * Response:
+   *   200 { code: 200, data: [{ id, name }] }
+   *   404 { code: 40400 } — compétition inexistante
+   */
+  router.get(
+    '/:id/categories',
+    authMiddleware,
+    tenantGuard('competitions'),
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      const { id } = req.params;
+      const prisma = getPrisma();
+
+      try {
+        // Vérifier que la compétition existe (tenantGuard a déjà vérifié
+        // qu'elle appartient à l'org du caller)
+        const competition = await prisma.competitions.findUnique({
+          where: { id },
+          select: { id: true },
+        });
+        if (!competition) {
+          return res.json({ code: 40400, message: '比赛不存在', data: null });
+        }
+
+        // Trouver les catégories qui ont au moins un joueur dans cette
+        // compétition. La relation players → categories dans le schéma Prisma
+        // permet de filtrer directement sans jointure explicite.
+        const categories = await prisma.categories.findMany({
+          where: {
+            players: {
+              some: {
+                competition_id: id,
+              },
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+          orderBy: {
+            name: 'asc',
+          },
+        });
+
+        res.json({ code: 200, message: 'success', data: categories });
+      } catch (e) {
+        logger.error('Get competition categories failed', { competitionId: id, error: e.message });
+        res.json({ code: 50000, message: '获取类别失败', data: null });
+      }
+    }
+  );
+
   return router;
 }
 

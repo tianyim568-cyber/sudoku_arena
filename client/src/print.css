@@ -1,0 +1,16 @@
+/* Print styles — hide sidebar and action buttons when printing */
+@media print {
+  aside,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .max-w-7xl {
+    max-width: 100% !important;
+  }
+}
