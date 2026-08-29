@@ -34,10 +34,10 @@ export function ToastProvider({ children }) {
         <div
           className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium max-w-sm transition-opacity ${
             toast.type === 'success'
-              ? 'bg-green-800 text-green-100 border border-green-600'
+              ? 'bg-green-50 text-green-700 border border-green-200'
               : toast.type === 'error'
-              ? 'bg-red-800 text-red-100 border border-red-600'
-              : 'bg-gray-700 text-gray-100 border border-gray-600'
+              ? 'bg-red-50 text-red-700 border border-red-200'
+              : 'bg-gray-100 text-gray-700 border border-gray-200'
           }`}
           role="alert"
         >
