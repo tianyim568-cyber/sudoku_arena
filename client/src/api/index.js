@@ -324,6 +324,28 @@ export const api = {
   // Read-only; the server enforces SUPER_ADMIN role.
   getAdminOverview: () => request('GET', '/admin/overview'),
 
+  // Super Admin — organization details with users and competitions.
+  getAdminOrganization: (orgId) => request('GET', `/admin/organizations/${orgId}`),
+
+  // Super Admin — list all users with optional filters (role, orgId, search).
+  listAdminUsers: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.role) query.append('role', params.role);
+    if (params.orgId) query.append('orgId', params.orgId);
+    if (params.q) query.append('q', params.q);
+    const qs = query.toString();
+    return request('GET', `/admin/users${qs ? '?' + qs : ''}`);
+  },
+
+  // Super Admin — toggle organization status (ACTIVE ↔ DISABLED)
+  updateAdminOrganization: (orgId, data) => request('PATCH', `/admin/organizations/${orgId}`, data),
+
+  // Super Admin — update user role or status
+  updateAdminUser: (userId, data) => request('PATCH', `/admin/users/${userId}`, data),
+
+  // Super Admin — reset user password, returns the new plain password
+  resetAdminUserPassword: (userId) => request('POST', `/admin/users/${userId}/reset-password`),
+
   // Display token management (ORG_ADMIN)
   generateDisplayToken: (competitionId) => request('POST', `/competitions/${competitionId}/display-token`),
   revokeDisplayToken: (competitionId) => request('DELETE', `/competitions/${competitionId}/display-token`),
