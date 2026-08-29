@@ -8,6 +8,7 @@ import ParticipantImport from '../components/ParticipantImport';
 import AccessLinkSection from '../components/AccessLinkSection';
 import PublishPanel from '../components/PublishPanel';
 import RoundPdfImport from '../components/RoundPdfImport';
+import RoundBankImport from '../components/RoundBankImport';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function CompetitionDetailPage() {
@@ -679,11 +680,18 @@ export default function CompetitionDetailPage() {
                                         refuses to overwrite a round that
                                         already has puzzles (40030). */}
                                     {isAdmin && isEditable && (r.puzzles?.length || 0) === 0 && (
-                                      <RoundPdfImport
-                                        round={r}
-                                        onImported={loadStages}
-                                        onSuccess={(summary) => msg(summary)}
-                                      />
+                                      <div className="flex flex-wrap gap-2">
+                                        <RoundPdfImport
+                                          round={r}
+                                          onImported={loadStages}
+                                          onSuccess={(summary) => msg(summary)}
+                                        />
+                                        <RoundBankImport
+                                          round={r}
+                                          onImported={loadStages}
+                                          onSuccess={(summary) => msg(summary)}
+                                        />
+                                      </div>
                                     )}
                                     <div className="flex gap-2">
                                       <button

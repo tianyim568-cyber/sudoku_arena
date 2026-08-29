@@ -186,7 +186,11 @@ export const api = {
   // undefined and JSON.stringify drops it.
   generatePuzzles: (roundType, teamsCount, count) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount, count }),
   generatePuzzlesBulk: (teamsCount) => request('POST', '/puzzle-bank/generate-bulk', { teamsCount }),
-  importPuzzlesToRound: (roundId, teamsCount) => request('POST', '/puzzle-bank/import-to-round', { roundId, teamsCount }),
+  listPuzzlesByType: (roundType, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request('GET', `/puzzle-bank/by-type/${roundType}${qs ? `?${qs}` : ''}`);
+  },
+  importPuzzlesToRound: (roundId, teamsCount, puzzleIds) => request('POST', '/puzzle-bank/import-to-round', { roundId, teamsCount, puzzleIds }),
   deletePuzzleFromBank: (id) => request('DELETE', `/puzzle-bank/${id}`),
   clearPuzzleBank: () => request('DELETE', '/puzzle-bank'),
 

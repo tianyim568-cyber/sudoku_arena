@@ -51,6 +51,7 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
   const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
+  const [difficultyFilter, setDifficultyFilter] = useState('');
 
   const PAGE_SIZE = 50;
   const roundType = round.type;
@@ -61,6 +62,7 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
     setError(null);
     setTotal(0);
     setOffset(0);
+    setDifficultyFilter('');
   };
 
   const handleClose = () => {
@@ -72,16 +74,15 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
     if (open && roundType) {
       loadPuzzles(0);
     }
-  }, [open, roundType]);
+  }, [open, roundType, difficultyFilter]);
 
   const loadPuzzles = async (appendOffset = 0) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.listPuzzlesByType(roundType, {
-        limit: PAGE_SIZE,
-        offset: appendOffset
-      });
+      const params = { limit: PAGE_SIZE, offset: appendOffset };
+      if (difficultyFilter) params.difficulty = difficultyFilter;
+      const res = await api.listPuzzlesByType(roundType, params);
       if (res.code === 200) {
         if (appendOffset === 0) {
           setPuzzles(res.data.puzzles);
@@ -172,6 +173,29 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
         >
           ×
         </button>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs">
+        <label className="text-gray-600 font-medium">{t('roundBankImport.filterDifficulty')}:</label>
+        <select
+          value={difficultyFilter}
+          onChange={(e) => setDifficultyFilter(e.target.value)}
+          className="px-2 py-1 border border-indigo-200 rounded text-xs bg-white"
+        >
+          <option value="">{t('roundBankImport.allDifficulties')}</option>
+          <option value="EASY">{t('common.difficulty.EASY')}</option>
+          <option value="MEDIUM">{t('common.difficulty.MEDIUM')}</option>
+          <option value="HARD">{t('common.difficulty.HARD')}</option>
+        </select>
+        {difficultyFilter && (
+          <button
+            type="button"
+            onClick={() => setDifficultyFilter('')}
+            className="text-indigo-600 hover:text-indigo-800"
+          >
+            {t('roundBankImport.clearFilter')}
+          </button>
+        )}
       </div>
 
       {loading && (
