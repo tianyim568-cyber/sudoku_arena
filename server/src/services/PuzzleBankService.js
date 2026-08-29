@@ -223,10 +223,15 @@ class PuzzleBankService {
     // each row is independent and partial failures should not roll
     // back the successful ones — better to import 8 of 10 than 0.
     const created = [];
+    let skipped = 0;
     for (const p of newPuzzles) {
       try {
         const row = await this.repos.puzzles.createStandalone(p);
-        created.push(row);
+        if (row.isDuplicate) {
+          skipped++;
+        } else {
+          created.push(row);
+        }
       } catch (e) {
         logger.error('PuzzleBankService.generatePuzzles: createStandalone failed', {
           organizationId, roundType, error: e.message,
@@ -240,6 +245,7 @@ class PuzzleBankService {
 
     return {
       generated: created.length,
+      skipped,
       totalInBank,
       newPuzzleIds: created.map(p => p.id),
     };

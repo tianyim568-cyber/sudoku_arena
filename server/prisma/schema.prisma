@@ -157,6 +157,7 @@ model puzzles {
   solution_grid  Json
   difficulty     String?          @db.VarChar(50)
   score          Int              @default(100)
+  grid_hash      String?          @db.VarChar(64)
   created_at     DateTime         @default(now()) @db.Timestamptz(6)
   category_id    String?          @db.Uuid
   organization_id String?         @db.Uuid
@@ -168,6 +169,7 @@ model puzzles {
 
   @@index([category_id], map: "puzzles_category_id_index")
   @@index([organization_id], map: "puzzles_organization_id_index")
+  @@index([organization_id, grid_hash], map: "puzzles_org_grid_hash_idx")
   @@index([round_type], map: "puzzles_round_type_index")
 }
 
