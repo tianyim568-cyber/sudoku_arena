@@ -62,7 +62,7 @@ class Round3Engine extends RoundEngine {
         // Build the full puzzle list for the team
         const puzzleList = teamPuzzles.map(p => ({
           puzzleId: p.id, puzzleType: p.puzzle_type, orderInRound: p.order_in_round,
-          initialGrid: JSON.parse(p.initial_grid), points: p.points,
+          initialGrid: JSON.parse(p.initial_grid || '[]'), points: p.points,
           difficulty: p.difficulty || 'EASY', letter: p.letter || null
         }));
 

@@ -86,7 +86,7 @@ class Round2Engine extends RoundEngine {
 
         const puzzleBoard = teamPuzzles.map(p => ({
           puzzleId: p.id, puzzleType: p.puzzle_type, orderInRound: p.order_in_round,
-          initialGrid: JSON.parse(p.initial_grid),
+          initialGrid: JSON.parse(p.initial_grid || '[]'),
           points: p.points, difficulty: p.difficulty || 'MEDIUM',
           isCompleted: false
         }));
