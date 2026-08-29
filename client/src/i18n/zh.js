@@ -878,6 +878,26 @@ export default {
     loadFailed: '无法加载用户列表。',
   },
 
+  // 队伍总览页 —— 只读的跨赛事视图（与选手总览页同级）。管理员在此查看
+  // 本机构所有赛事中的队伍。创建 / 删除 / 成员管理仍在赛事详情页操作。
+  dashboardTeams: {
+    title: '队伍总览',
+    subtitle: '查看所有赛事中的队伍。仅供查看 —— 创建与管理请前往对应赛事详情页。',
+    filterByCompetition: '赛事',
+    filterAllCompetitions: '全部赛事',
+    searchLabel: '搜索',
+    searchPlaceholder: '按队伍名称搜索…',
+    count: '共 {n} 支队伍',
+    colName: '队伍名称',
+    colCompetition: '赛事',
+    colMembers: '成员数',
+    colCreated: '创建时间',
+    emptyOrg: '暂无队伍。请前往某个赛事的详情页创建。',
+    emptyFiltered: '没有符合筛选条件的队伍。',
+    loading: '加载中…',
+    loadFailed: '无法加载队伍列表。',
+  },
+
   // 选手总览页 —— 只读的跨赛事视图（F32）。每个赛事详情页里保留的
   // 导入 / 删除 / 导出凭证仍然是唯一的写入路径，本页不做任何修改操作。
   // 服务端在 WHERE 子句中强制机构隔离，客户端无法绕过。

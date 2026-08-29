@@ -31,6 +31,60 @@ class TeamRepository {
   }
 
   /**
+   * Find all teams across every competition of the caller's organization.
+   * Mirrors ParticipantRepository.findByOrganization — the tenant filter
+   * lives in the WHERE clause (competitions.organization_id), not in a
+   * separate guard, so any change to that clause is a tenant-isolation
+   * change and needs Louise's review.
+   *
+   * @param {string} organizationId
+   * @param {Object} [filters]
+   * @param {string} [filters.competitionId] — restrict to one competition
+   * @param {string} [filters.search]        — case-insensitive substring on name
+   * @returns {Promise<object[]>} teams with competition name and member count
+   */
+  async findByOrganization(organizationId, filters = {}) {
+    // If organizationId is null/undefined (SUPER_ADMIN), skip the org filter
+    // entirely — the caller sees every team across every org.
+    const where = organizationId
+      ? { competitions: { organization_id: organizationId } }
+      : {};
+
+    if (filters.competitionId && typeof filters.competitionId === 'string') {
+      where.competition_id = filters.competitionId;
+    }
+    if (filters.search && typeof filters.search === 'string' && filters.search.trim()) {
+      const term = filters.search.trim();
+      where.name = { contains: term, mode: 'insensitive' };
+    }
+
+    const teams = await this.prisma.teams.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        competition_id: true,
+        created_at: true,
+        competitions: { select: { name: true } },
+        _count: { select: { team_members: true } },
+      },
+      orderBy: [
+        { competitions: { created_at: 'desc' } },
+        { name: 'asc' },
+      ],
+    });
+
+    return teams.map(t => ({
+      id: t.id,
+      name: t.name,
+      competitionId: t.competition_id,
+      competitionName: t.competitions.name,
+      memberCount: t._count?.team_members ?? 0,
+      createdAt: t.created_at,
+    }));
+  }
+
+  /**
    * Find all teams for a competition.
    * (Legacy name: findByCompetition — kept for backward compat.)
    * @param {string} competitionId

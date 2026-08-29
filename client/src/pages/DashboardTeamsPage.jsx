@@ -1,346 +1,167 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
-import Modal from '../components/Modal';
-import { useToast } from '../components/ToastContext';
 
-// Dashboard "Teams" page — CRUD for teams and their members within a
-// selected competition. Uses the light dashboard theme (bg-gray-50 base,
-// bg-white cards, dark text) to match DashboardCompetitionsPage and the
-// surrounding layout.
+// Dashboard "Teams" page — global read-only view across every competition
+// of the caller's organization.
 //
-// Data flow:
-//   api.listCompetitions()          → competition picker
-//   api.listTeams(competitionId)    → team cards with members
-//   api.listAllParticipants({competitionId}) → available participants
-//   api.createTeam / addTeamMember / removeTeamMember → mutations
+// Why a global view: per-competition team management (create, add/remove
+// members) already exists inside CompetitionDetailPage. What was missing is
+// a transversal answer to "which teams exist across all my competitions?"
+// This page provides that view without duplicating the per-competition actions.
 //
-// The team_members table has no "position" column, so the add-member modal
-// only asks for a participant — no role/position selector.
+// Data flow: api.listAllTeams({competitionId?, search?}) hits GET /api/teams;
+// the server filters by competitions.organization_id in the WHERE clause.
+// The client cannot bypass the tenant boundary.
+//
+// The search input is debounced (300ms) to avoid a refetch per keystroke.
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default function DashboardTeamsPage() {
   const { t } = useLanguage();
-  const { showToast } = useToast();
-
+  const [rows, setRows] = useState([]);
   const [competitions, setCompetitions] = useState([]);
-  const [selectedCompetitionId, setSelectedCompetitionId] = useState('');
-  const [teams, setTeams] = useState([]);
-  const [participants, setParticipants] = useState([]);
+  const [selectedCompetitionId, setSelectedCompetitionId] = useState(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchApplied, setSearchApplied] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  // hasEverLoaded distinguishes "empty org" from "filter matched nothing".
+  const hasAnyRow = useRef(false);
 
-  // Create team modal
-  const [showCreateTeam, setShowCreateTeam] = useState(false);
-  const [newTeamName, setNewTeamName] = useState('');
-  const [creating, setCreating] = useState(false);
-
-  // Add member modal
-  const [addMemberForTeam, setAddMemberForTeam] = useState(null);
-  const [selectedParticipantId, setSelectedParticipantId] = useState('');
-  const [addingMember, setAddingMember] = useState(false);
-
-  // Load competitions on mount
+  // Debounce the search input into searchApplied.
   useEffect(() => {
-    loadCompetitions();
-  }, []);
+    const handle = setTimeout(() => setSearchApplied(searchInput), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
 
-  // Load teams and participants when competition changes
+  // Load the competitions list once to populate the picker.
   useEffect(() => {
-    if (selectedCompetitionId) {
-      loadTeams();
-      loadParticipants();
-    }
-  }, [selectedCompetitionId]);
-
-  const loadCompetitions = async () => {
-    try {
+    (async () => {
       const res = await api.listCompetitions();
       if (res.code === 200) {
         setCompetitions(res.data || []);
       }
-    } catch (err) {
-      showToast(t('teams.loadFailed'), 'error');
-    } finally {
+    })();
+  }, []);
+
+  // Refetch teams on any filter change.
+  useEffect(() => {
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      const filters = {};
+      if (selectedCompetitionId) filters.competitionId = selectedCompetitionId;
+      if (searchApplied.trim()) filters.search = searchApplied.trim();
+      const res = await api.listAllTeams(filters);
+      if (res.code === 200) {
+        const data = res.data || [];
+        setRows(data);
+        if (data.length > 0) hasAnyRow.current = true;
+      } else {
+        setLoadError(res.message || t('dashboardTeams.loadFailed'));
+      }
       setLoading(false);
-    }
-  };
+    })();
+  }, [selectedCompetitionId, searchApplied, t]);
 
-  const loadTeams = async () => {
-    try {
-      const res = await api.listTeams(selectedCompetitionId);
-      if (res.code === 200) {
-        setTeams(res.data || []);
-      }
-    } catch (err) {
-      showToast(t('teams.loadFailed'), 'error');
-    }
-  };
-
-  const loadParticipants = async () => {
-    try {
-      const res = await api.listAllParticipants({ competitionId: selectedCompetitionId });
-      if (res.code === 200) {
-        setParticipants(res.data || []);
-      }
-    } catch (err) {
-      console.error('Failed to load participants:', err);
-    }
-  };
-
-  const handleCreateTeam = async () => {
-    if (!newTeamName.trim()) return;
-
-    setCreating(true);
-    try {
-      const res = await api.createTeam(selectedCompetitionId, newTeamName.trim());
-      if (res.code === 200) {
-        showToast(t('teams.createSuccess'), 'success');
-        setShowCreateTeam(false);
-        setNewTeamName('');
-        loadTeams();
-      } else {
-        showToast(res.message || t('teams.createFailed'), 'error');
-      }
-    } catch (err) {
-      showToast(t('teams.createFailed'), 'error');
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleAddMember = async () => {
-    if (!selectedParticipantId) return;
-
-    setAddingMember(true);
-    try {
-      const res = await api.addTeamMember(addMemberForTeam.id, selectedParticipantId);
-      if (res.code === 200) {
-        showToast(t('teams.addMemberSuccess'), 'success');
-        setAddMemberForTeam(null);
-        setSelectedParticipantId('');
-        loadTeams();
-      } else {
-        showToast(res.message || t('teams.addMemberFailed'), 'error');
-      }
-    } catch (err) {
-      showToast(t('teams.addMemberFailed'), 'error');
-    } finally {
-      setAddingMember(false);
-    }
-  };
-
-  const handleRemoveMember = async (teamId, participantId) => {
-    if (!confirm(t('teams.removeMemberConfirm'))) return;
-
-    try {
-      const res = await api.removeTeamMember(teamId, participantId);
-      if (res.code === 200) {
-        showToast(t('teams.removeMemberSuccess'), 'success');
-        loadTeams();
-      } else {
-        showToast(res.message || t('teams.removeMemberFailed'), 'error');
-      }
-    } catch (err) {
-      showToast(t('teams.removeMemberFailed'), 'error');
-    }
-  };
-
-  // Get available participants (not already in this team)
-  const getAvailableParticipants = (team) => {
-    const memberIds = new Set((team.members || []).map(m => m.participant_id));
-    return participants.filter(p => !memberIds.has(p.id));
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-gray-500">{t('common.loading')}</div>
-      </div>
-    );
-  }
+  const anyFilterActive = selectedCompetitionId || searchApplied.trim();
+  const showEmptyOrg = !loading && !loadError && rows.length === 0 && !anyFilterActive && !hasAnyRow.current;
+  const showEmptyFiltered = !loading && !loadError && rows.length === 0 && (anyFilterActive || hasAnyRow.current);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('teams.title')}</h1>
-        <p className="text-sm text-gray-500 mt-1">{t('teams.subtitle')}</p>
+        <h2 className="text-xl font-bold text-gray-900">{t('dashboardTeams.title')}</h2>
+        <p className="text-sm text-gray-500 mt-1">{t('dashboardTeams.subtitle')}</p>
       </div>
 
-      {/* Competition selector */}
+      {/* Filters — two inputs on one row on desktop, stacked on mobile. */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t('dashboardTeams.filterByCompetition')}
+          </label>
+          <select
+            value={selectedCompetitionId || ''}
+            onChange={(e) => setSelectedCompetitionId(e.target.value || null)}
+            className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+          >
+            <option value="">{t('dashboardTeams.filterAllCompetitions')}</option>
+            {competitions.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="teams-search" className="block text-sm font-medium text-gray-700 mb-1">
+            {t('dashboardTeams.searchLabel')}
+          </label>
+          <input
+            id="teams-search"
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder={t('dashboardTeams.searchPlaceholder')}
+            className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+          />
+        </div>
+      </div>
+
+      {/* Count + table */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('teams.selectCompetition')}
-        </label>
-        <select
-          value={selectedCompetitionId}
-          onChange={(e) => setSelectedCompetitionId(e.target.value)}
-          className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-        >
-          <option value="">{t('teams.selectCompetitionPlaceholder')}</option>
-          {competitions.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Teams section */}
-      {selectedCompetitionId && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {t('teams.teamsList')} ({teams.length})
-            </h2>
-            <button
-              onClick={() => setShowCreateTeam(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white text-sm font-medium transition-colors"
-            >
-              {t('teams.createTeam')}
-            </button>
-          </div>
-
-          {teams.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              {t('teams.noTeams')}
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {teams.map(team => (
-                <div key={team.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">{team.name}</h3>
-
-                  {/* Members list */}
-                  <div className="space-y-2 mb-4">
-                    {(team.members || []).length === 0 ? (
-                      <p className="text-sm text-gray-400 italic">{t('teams.noMembers')}</p>
-                    ) : (
-                      team.members.map(member => (
-                        <div key={member.participant_id} className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-3 py-2">
-                          <div className="flex-1">
-                            <div className="text-sm text-gray-800 font-medium">{member.display_name}</div>
-                            <div className="text-xs text-gray-500">
-                              {member.school || ''}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveMember(team.id, member.participant_id)}
-                            className="text-red-500 hover:text-red-600 text-xs font-medium transition-colors"
-                          >
-                            {t('teams.removeMember')}
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Add member button */}
-                  <button
-                    onClick={() => setAddMemberForTeam(team)}
-                    className="w-full px-3 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-sm text-gray-700 font-medium transition-colors"
-                  >
-                    {t('teams.addMember')}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {!selectedCompetitionId && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center text-gray-400">
-          {t('teams.selectCompetitionFirst')}
-        </div>
-      )}
-
-      {/* Create team modal */}
-      {showCreateTeam && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowCreateTeam(false); }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('teams.createTeamTitle')}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('teams.teamNameLabel')}
-                </label>
-                <input
-                  type="text"
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder={t('teams.teamNamePlaceholder')}
-                  className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  autoFocus
-                />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowCreateTeam(false)}
-                  className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-sm text-gray-700 font-medium transition-colors"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  onClick={handleCreateTeam}
-                  disabled={!newTeamName.trim() || creating}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-sm text-white font-medium transition-colors"
-                >
-                  {creating ? t('common.loading') : t('teams.create')}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add member modal */}
-      {addMemberForTeam && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setAddMemberForTeam(null); }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('teams.addMemberTitle')}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('teams.selectParticipant')}
-                </label>
-                <select
-                  value={selectedParticipantId}
-                  onChange={(e) => setSelectedParticipantId(e.target.value)}
-                  className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="">{t('teams.selectParticipantPlaceholder')}</option>
-                  {getAvailableParticipants(addMemberForTeam).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} - {p.school}</option>
+        {loading ? (
+          <p className="text-gray-400 text-sm text-center py-8">{t('dashboardTeams.loading')}</p>
+        ) : loadError ? (
+          <p className="text-red-600 text-sm text-center py-8">{loadError}</p>
+        ) : showEmptyOrg ? (
+          <p className="text-gray-400 text-sm text-center py-8">{t('dashboardTeams.emptyOrg')}</p>
+        ) : showEmptyFiltered ? (
+          <p className="text-gray-400 text-sm text-center py-8">{t('dashboardTeams.emptyFiltered')}</p>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500 mb-3">
+              {t('dashboardTeams.count', { n: rows.length })}
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 px-3">{t('dashboardTeams.colName')}</th>
+                    <th className="py-2 px-3">{t('dashboardTeams.colCompetition')}</th>
+                    <th className="py-2 px-3 hidden sm:table-cell">{t('dashboardTeams.colMembers')}</th>
+                    <th className="py-2 px-3 hidden lg:table-cell">{t('dashboardTeams.colCreated')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(row => (
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 px-3 text-gray-900">{row.name}</td>
+                      <td className="py-2 px-3">
+                        <Link
+                          to={`/competitions/${row.competitionId}`}
+                          className="text-indigo-600 hover:text-indigo-500 underline"
+                        >
+                          {row.competitionName}
+                        </Link>
+                      </td>
+                      <td className="py-2 px-3 text-gray-500 hidden sm:table-cell">
+                        {row.memberCount ?? '—'}
+                      </td>
+                      <td className="py-2 px-3 text-gray-400 text-xs hidden lg:table-cell">
+                        {row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                    </tr>
                   ))}
-                </select>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setAddMemberForTeam(null)}
-                  className="px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg text-sm text-gray-700 font-medium transition-colors"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  onClick={handleAddMember}
-                  disabled={!selectedParticipantId || addingMember}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-sm text-white font-medium transition-colors"
-                >
-                  {addingMember ? t('common.loading') : t('teams.add')}
-                </button>
-              </div>
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

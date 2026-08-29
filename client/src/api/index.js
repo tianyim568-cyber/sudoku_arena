@@ -227,6 +227,17 @@ export const api = {
     return request('GET', `/participants${qs ? '?' + qs : ''}`);
   },
 
+  // Global teams listing across every competition of the caller's
+  // organization. Read-only. Mirrors listAllParticipants — the server
+  // enforces the tenant filter, the client cannot bypass it.
+  listAllTeams: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.competitionId) params.set('competitionId', filters.competitionId);
+    if (filters.search) params.set('search', filters.search);
+    const qs = params.toString();
+    return request('GET', `/teams${qs ? '?' + qs : ''}`);
+  },
+
   // Export participants with credentials.
   //
   // Design (2026-08-26, Louise option B): the plain-text password only
