@@ -49,3 +49,12 @@ body {
 .animate-slide-in {
   animation: slide-in 0.3s ease-out both;
 }
+
+/* Golden flash when a ranking row enters the podium */
+@keyframes rank-highlight {
+  0%   { background-color: rgb(234 179 8 / 0.25); }
+  100% { background-color: transparent; }
+}
+.animate-rank-highlight {
+  animation: rank-highlight 1.2s ease-out both;
+}
