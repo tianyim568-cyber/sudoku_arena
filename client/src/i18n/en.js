@@ -173,6 +173,14 @@ export default {
     noRoundsInStage: 'No round in this stage yet.',
     roundAdded: 'Round added',
     roundAddFailed: 'Could not add the round: {msg}',
+    // Cancel form: offer to save as DRAFT if the admin started filling fields.
+    cancelRoundFormTitle: 'Save as draft?',
+    cancelRoundFormMessage: 'You have unsaved changes. Save this round as draft to finish configuring it later?',
+    cancelRoundFormSave: 'Save as draft',
+    cancelRoundFormDiscard: 'Discard',
+    roundSavedAsDraft: 'Round saved as draft',
+    unnamedRound: 'Unnamed round',
+    roundDraft: 'Draft',
     // CRUD-Rounds (2026-08-26): delete, edit, and the configured/not-configured
     // badge. The badge is purely client-side — it reads r.puzzles.length, no
     // API call. The two delete confirms differ when puzzles are attached so

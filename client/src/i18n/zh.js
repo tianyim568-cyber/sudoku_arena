@@ -167,6 +167,14 @@ export default {
     noRoundsInStage: '本阶段暂无轮次。',
     roundAdded: '轮次已添加',
     roundAddFailed: '添加轮次失败：{msg}',
+    // Cancel form: offer to save as DRAFT if the admin started filling fields.
+    cancelRoundFormTitle: '保存为草稿？',
+    cancelRoundFormMessage: '您有未保存的更改。是否将此轮次保存为草稿，稍后继续配置？',
+    cancelRoundFormSave: '保存为草稿',
+    cancelRoundFormDiscard: '放弃',
+    roundSavedAsDraft: '轮次已保存为草稿',
+    unnamedRound: '未命名轮次',
+    roundDraft: '草稿',
     // CRUD-Rounds (2026-08-26): 删除、编辑、配置状态徽章
     deleteRoundBtn: '删除',
     editRoundBtn: '编辑',

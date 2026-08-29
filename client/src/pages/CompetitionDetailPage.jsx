@@ -36,6 +36,10 @@ export default function CompetitionDetailPage() {
   const [stages, setStages] = useState([]);
   const [showAddStage, setShowAddStage] = useState(false);
   const [openStageId, setOpenStageId] = useState(null);
+  // Which stage currently shows the round creation form (null = no form).
+  // Separated from openStageId so the stage can be expanded (showing the
+  // rounds list) without the form cluttering the view.
+  const [openRoundFormStageId, setOpenRoundFormStageId] = useState(null);
   const [roundTypes, setRoundTypes] = useState({});
   const [roundTypesError, setRoundTypesError] = useState(null);
   const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, preparationSeconds: 10, pdf: null });
@@ -121,10 +125,15 @@ export default function CompetitionDetailPage() {
   }, [id, isAdmin, load, loadStages, loadParticipants]);
 
   // Opening a stage resets the form, so the type dropdown starts on a value
-  // that this stage actually accepts.
+  // that this stage actually accepts. Closing the stage also closes the form.
   const toggleStage = (stage) => {
-    if (openStageId === stage.id) return setOpenStageId(null);
+    if (openStageId === stage.id) {
+      setOpenStageId(null);
+      setOpenRoundFormStageId(null);
+      return;
+    }
     setOpenStageId(stage.id);
+    setOpenRoundFormStageId(null);
     setRoundForm({
       name: '',
       roundType: (roundTypes[stage.type] || [])[0] || '',
@@ -144,11 +153,47 @@ export default function CompetitionDetailPage() {
     });
     if (res.code === 200) {
       setRoundForm(f => ({ ...f, name: '', pdf: null }));
+      setOpenRoundFormStageId(null);
       loadStages();
       msg(t('competitionDetail.roundAdded'));
     } else {
       msg(t('competitionDetail.roundAddFailed', { msg: res.message || res.code }), 'error');
     }
+  };
+
+  // Cancel the round form: if the admin has unsaved changes, offer to save
+  // as DRAFT so they can finish later. Otherwise close immediately.
+  const handleCancelRoundForm = (stage) => {
+    const hasChanges = roundForm.name || roundForm.pdf;
+    if (!hasChanges) {
+      setOpenRoundFormStageId(null);
+      return;
+    }
+    setConfirm({
+      title: t('competitionDetail.cancelRoundFormTitle'),
+      message: t('competitionDetail.cancelRoundFormMessage'),
+      confirmLabel: t('competitionDetail.cancelRoundFormSave'),
+      cancelLabel: t('competitionDetail.cancelRoundFormDiscard'),
+      danger: false,
+      action: async () => {
+        // Save as DRAFT round
+        const res = await api.createStageRound(id, stage.id, {
+          name: roundForm.name || t('competitionDetail.unnamedRound'),
+          roundType: roundForm.roundType,
+          durationSeconds: roundForm.durationSeconds,
+          preparationSeconds: roundForm.preparationSeconds,
+          status: 'DRAFT',
+        });
+        if (res.code === 200) {
+          setRoundForm(f => ({ ...f, name: '', pdf: null }));
+          setOpenRoundFormStageId(null);
+          loadStages();
+          msg(t('competitionDetail.roundSavedAsDraft'));
+        } else {
+          msg(t('competitionDetail.roundAddFailed', { msg: res.message || res.code }), 'error');
+        }
+      },
+    });
   };
 
   // CRUD-Rounds (2026-08-26): delete a round. The server cascades
@@ -561,7 +606,7 @@ export default function CompetitionDetailPage() {
                       <div className="flex gap-2">
                         <button onClick={() => toggleStage(stage)}
                           className="px-3 py-1 border rounded text-xs sm:text-sm hover:bg-gray-50">
-                          {isOpen ? t('competitionDetail.closeStage') : t('competitionDetail.configureStage')}
+                          {isOpen ? t('competitionDetail.closeStage') : t('competitionDetail.addRound')}
                         </button>
                         {isAdmin && isEditable && (
                           <button onClick={() => handleRemoveStage(stage.id)}
@@ -574,9 +619,11 @@ export default function CompetitionDetailPage() {
 
                     {isOpen && (
                       <div className="mt-4 pt-4 border-t space-y-3">
-                        <h4 className="text-xs sm:text-sm font-medium text-gray-600">
-                          {t('competitionDetail.stageRoundsTitle')}
-                        </h4>
+                        {stage.rounds?.length > 0 && (
+                          <h4 className="text-xs sm:text-sm font-medium text-gray-600">
+                            {t('competitionDetail.stageRoundsTitle')}
+                          </h4>
+                        )}
 
                         {stage.rounds?.length ? (
                           <ol className="space-y-2">
@@ -674,6 +721,12 @@ export default function CompetitionDetailPage() {
                                           ? t('competitionDetail.roundConfigured')
                                           : t('competitionDetail.roundNotConfigured')}
                                       </span>
+                                      {/* DRAFT badge for rounds saved mid-config */}
+                                      {r.status === 'DRAFT' && (
+                                        <span className="px-1.5 py-0.5 rounded-full text-[0.65rem] font-medium bg-orange-100 text-orange-700">
+                                          {t('competitionDetail.roundDraft')}
+                                        </span>
+                                      )}
                                     </span>
                                     <div className="flex items-center gap-2 flex-wrap">
                                       <span className="text-xs text-gray-400">
@@ -723,7 +776,11 @@ export default function CompetitionDetailPage() {
                           <p className="text-gray-400 text-xs sm:text-sm">{t('competitionDetail.noRoundsInStage')}</p>
                         )}
 
-                        {isAdmin && isEditable && (
+                        {/* "Add Round" button inside the stage — clicking it
+                            reveals the creation form below. The form stays
+                            hidden until the admin explicitly asks for it,
+                            keeping the expanded stage clean. */}
+                        {isAdmin && isEditable && openRoundFormStageId !== stage.id && (
                           roundTypesError ? (
                             <p className="text-xs sm:text-sm text-red-600">
                               {t('competitionDetail.roundTypesUnavailable', { msg: roundTypesError })}
@@ -731,56 +788,70 @@ export default function CompetitionDetailPage() {
                           ) : allowedTypes.length === 0 ? (
                             <p className="text-xs sm:text-sm text-gray-400">{t('competitionDetail.noRoundTypeForStage')}</p>
                           ) : (
-                            <form onSubmit={(e) => handleCreateRound(e, stage)} className="bg-gray-50 rounded-lg p-3 space-y-2">
-                              <input type="text" placeholder={t('competitionDetail.roundName')} value={roundForm.name}
-                                onChange={e => setRoundForm({ ...roundForm, name: e.target.value })}
-                                className="w-full px-3 py-2 border rounded text-xs sm:text-sm" required />
+                            <button
+                              type="button"
+                              onClick={() => setOpenRoundFormStageId(stage.id)}
+                              className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500"
+                            >
+                              {t('competitionDetail.addRound')}
+                            </button>
+                          )
+                        )}
 
-                              {/* Only the types this stage category accepts. The
-                                  server enforces the same rule, so a mismatch is
-                                  refused even if the list were tampered with. */}
-                              <select value={roundForm.roundType} aria-label={t('competitionDetail.roundType')}
-                                onChange={e => setRoundForm({ ...roundForm, roundType: e.target.value })}
-                                className="w-full px-3 py-2 border rounded text-xs sm:text-sm">
-                                {allowedTypes.map(rt => (
-                                  <option key={rt} value={rt}>{t(`common.roundName.${rt}`)}</option>
-                                ))}
-                              </select>
+                        {isAdmin && isEditable && openRoundFormStageId === stage.id && (
+                          <form onSubmit={(e) => handleCreateRound(e, stage)} className="bg-gray-50 rounded-lg p-3 space-y-2 border border-indigo-200">
+                            <input type="text" placeholder={t('competitionDetail.roundName')} value={roundForm.name}
+                              onChange={e => setRoundForm({ ...roundForm, name: e.target.value })}
+                              className="w-full px-3 py-2 border rounded text-xs sm:text-sm" required />
 
-                              <input type="number" min="1" aria-label={t('competitionDetail.roundDuration')}
-                                placeholder={t('competitionDetail.roundDuration')} value={roundForm.durationSeconds}
-                                onChange={e => setRoundForm({ ...roundForm, durationSeconds: parseInt(e.target.value) || 600 })}
+                            {/* Only the types this stage category accepts. The
+                                server enforces the same rule, so a mismatch is
+                                refused even if the list were tampered with. */}
+                            <select value={roundForm.roundType} aria-label={t('competitionDetail.roundType')}
+                              onChange={e => setRoundForm({ ...roundForm, roundType: e.target.value })}
+                              className="w-full px-3 py-2 border rounded text-xs sm:text-sm">
+                              {allowedTypes.map(rt => (
+                                <option key={rt} value={rt}>{t(`common.roundName.${rt}`)}</option>
+                              ))}
+                            </select>
+
+                            <input type="number" min="1" aria-label={t('competitionDetail.roundDuration')}
+                              placeholder={t('competitionDetail.roundDuration')} value={roundForm.durationSeconds}
+                              onChange={e => setRoundForm({ ...roundForm, durationSeconds: parseInt(e.target.value) || 600 })}
+                              className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
+
+                            {/* Preparation time — how long players read the
+                                round's rules before the board opens. */}
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">
+                                {t('competitionDetail.roundPreparation')}
+                              </label>
+                              <input type="number" min="0" max="300"
+                                aria-label={t('competitionDetail.roundPreparation')}
+                                value={roundForm.preparationSeconds}
+                                onChange={e => setRoundForm({ ...roundForm, preparationSeconds: parseInt(e.target.value) || 0 })}
                                 className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
+                              <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
+                            </div>
 
-                              {/* Preparation time — how long players read the
-                                  round's rules before the board opens. The
-                                  column has always existed with a 10s default;
-                                  nothing let an admin change it, so every round
-                                  in the product used the same value whether or
-                                  not it suited. */}
-                              <div>
-                                <label className="block text-xs text-gray-500 mb-1">
-                                  {t('competitionDetail.roundPreparation')}
-                                </label>
-                                <input type="number" min="0" max="300"
-                                  aria-label={t('competitionDetail.roundPreparation')}
-                                  value={roundForm.preparationSeconds}
-                                  onChange={e => setRoundForm({ ...roundForm, preparationSeconds: parseInt(e.target.value) || 0 })}
-                                  className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
-                                <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
-                              </div>
+                            {/* The old disabled PDF field is gone: PDF import
+                                is a per-round operation now, shown as an
+                                "Import PDF" button next to each round after
+                                it exists (see RoundPdfImport). */}
 
-                              {/* The old disabled PDF field is gone: PDF import
-                                  is a per-round operation now, shown as an
-                                  "Import PDF" button next to each round after
-                                  it exists (see RoundPdfImport). Creating a
-                                  round no longer requires choosing a file. */}
-
-                              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm">
+                            <div className="flex gap-2 pt-1">
+                              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500">
                                 {t('competitionDetail.addRoundSubmit')}
                               </button>
-                            </form>
-                          )
+                              <button
+                                type="button"
+                                onClick={() => handleCancelRoundForm(stage)}
+                                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded text-xs sm:text-sm hover:bg-gray-50"
+                              >
+                                {t('common.cancel')}
+                              </button>
+                            </div>
+                          </form>
                         )}
                       </div>
                     )}
