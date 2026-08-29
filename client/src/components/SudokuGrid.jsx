@@ -11,6 +11,7 @@ export default function SudokuGrid({
   const { t } = useLanguage();
   const [grid, setGrid] = useState(() => (currentGrid || initialGrid || []).map(row => [...row]));
   const [selectedCell, setSelectedCell] = useState(null); // {row, col}
+  const [flashingCells, setFlashingCells] = useState(new Set()); // "row-col" keys briefly flash green
 
   // Sync grid when currentGrid prop changes (from socket updates)
   useEffect(() => {
@@ -41,6 +42,17 @@ export default function SudokuGrid({
     const newGrid = grid.map(r => [...r]);
     newGrid[row][col] = num;
     setGrid(newGrid);
+
+    // Trigger correct-flash animation
+    const cellKey = `${row}-${col}`;
+    setFlashingCells(prev => new Set(prev).add(cellKey));
+    setTimeout(() => {
+      setFlashingCells(prev => {
+        const next = new Set(prev);
+        next.delete(cellKey);
+        return next;
+      });
+    }, 500);
 
     // For Round 1 JOC puzzles (single cell), auto-submit on number input
     if (roundType === 'ROUND1_NINE_ONE') {
@@ -134,6 +146,8 @@ export default function SudokuGrid({
                   key={ci}
                   onClick={() => handleCellClick(ri, ci)}
                   className={`relative w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 flex items-center justify-center text-base sm:text-base md:text-lg font-medium border border-gray-600 transition-colors ${boxBorder} ${
+                    flashingCells.has(cellKey) ? 'animate-correct-flash' : ''
+                  } ${
                     readOnly ? 'cursor-default' : 'cursor-pointer'
                   } ${
                     isInitial ? 'bg-gray-800 text-white cursor-default' :
