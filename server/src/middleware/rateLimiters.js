@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 
 // Shared rate limiters, defined once and reused across routes (DRY).
 // Each limiter counts requests per client inside a time window and replies
@@ -29,8 +30,14 @@ const rateLimit = require('express-rate-limit');
 // request has one, otherwise fall back to the client IP. Never returns
 // undefined — an undefined key would collapse every anonymous request
 // into one bucket, which is worse than the IP fallback.
+// The IP fallback goes through the library's ipKeyGenerator helper, which
+// normalizes IPv6 addresses into /56 subnets. express-rate-limit v7+
+// validates custom keyGenerators at construction time and throws if they
+// read req.ip without using ipKeyGenerator (an IPv6 rotation bypass).
 function keyByUserOrIp(req) {
-  return (req.user && req.user.userId) || req.ip || 'anonymous';
+  if (req.user && req.user.userId) return req.user.userId;
+  if (req.ip) return ipKeyGenerator(req.ip);
+  return 'anonymous';
 }
 
 // Strict limiter for authentication attempts (brute-force protection).

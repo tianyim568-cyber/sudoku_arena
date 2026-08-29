@@ -82,4 +82,33 @@ describe('rateLimiters module', () => {
     expect(res.body.code).toBe(200);
     expect(res.body.data.passed).toBe(true);
   });
+
+  // ── IPv6 keyGenerator validation (express-rate-limit v7+) ────────
+  // The library throws at construction time if a custom keyGenerator
+  // reads req.ip without routing it through ipKeyGenerator. Requiring
+  // the module fresh proves construction succeeds, and driving it with
+  // a synthetic IPv6 request proves the key is a subnet-normalized
+  // string (not the raw IPv6 address).
+  test('expensiveLimiter construction passes IPv6 validation (no ValidationError)', () => {
+    expect(() => {
+      // Bust the require cache so the module (and its rateLimit() calls)
+      // re-execute — the v7+ validation runs at construction time.
+      jest.resetModules();
+      require('../middleware/rateLimiters');
+    }).not.toThrow();
+  });
+
+  test('keyByUserOrIp prefers userId, falls back to normalized IPv6', () => {
+    const { keyByUserOrIp } = require('../middleware/rateLimiters');
+    // Authenticated request: the user id wins over any IP.
+    expect(keyByUserOrIp({ user: { userId: 'user-123' }, ip: '1.2.3.4' })).toBe('user-123');
+    // Anonymous IPv4: returned as-is (no subnet work needed).
+    expect(keyByUserOrIp({ ip: '1.2.3.4' })).toBe('1.2.3.4');
+    // Anonymous IPv6: normalized to a /56 subnet prefix, not the raw address.
+    const ipv6 = '2001:0db8:85a3:0000:0000:8a2e:0370:7334';
+    expect(keyByUserOrIp({ ip: ipv6 })).not.toBe(ipv6);
+    expect(typeof keyByUserOrIp({ ip: ipv6 })).toBe('string');
+    // Nothing at all: stable anonymous bucket.
+    expect(keyByUserOrIp({})).toBe('anonymous');
+  });
 });

@@ -40,6 +40,8 @@ export default {
       INDIVIDUAL_SHAPED: 'Shaped',
       INDIVIDUAL_MIXED: 'Mixed',
     },
+    // BCP 47 locale tag used by Intl / toLocaleDateString throughout the app.
+    locale: 'en-US',
   },
 
   competition: {
@@ -65,7 +67,8 @@ export default {
     inProgress: 'In progress',
     upcoming: 'Upcoming',
     finished: 'Finished',
-    noCompetitions: 'No competitions yet',
+   noCompetitions: 'No competitions yet',
+    noFilteredCompetitions: 'No competitions match this filter',
     loadFailed: 'Could not load the overview.',
     loading: 'Loading overview...',
     nav: {
@@ -170,6 +173,14 @@ export default {
     noRoundsInStage: 'No round in this stage yet.',
     roundAdded: 'Round added',
     roundAddFailed: 'Could not add the round: {msg}',
+    // Cancel form: offer to save as DRAFT if the admin started filling fields.
+    cancelRoundFormTitle: 'Save as draft?',
+    cancelRoundFormMessage: 'You have unsaved changes. Save this round as draft to finish configuring it later?',
+    cancelRoundFormSave: 'Save as draft',
+    cancelRoundFormDiscard: 'Discard',
+    roundSavedAsDraft: 'Round saved as draft',
+    unnamedRound: 'Unnamed round',
+    roundDraft: 'Draft',
     // CRUD-Rounds (2026-08-26): delete, edit, and the configured/not-configured
     // badge. The badge is purely client-side — it reads r.puzzles.length, no
     // API call. The two delete confirms differ when puzzles are attached so
@@ -203,6 +214,13 @@ export default {
     judgeConsole: 'Judge console',
     enterGame: 'Enter game',
     startCompetition: 'Start competition',
+    pauseCompetition: 'Pause',
+    resumeCompetition: 'Resume',
+    endCompetition: 'End competition',
+    endConfirmTitle: 'End this competition?',
+    endConfirmBody: 'This will permanently stop the competition. Players will see the "finished" screen. This cannot be undone.',
+    controlSuccess: 'Action completed successfully.',
+    controlFailed: 'Action failed: {msg}',
     roundNumber: 'Round {n}',
     roundMeta: 'Type: {type} | Duration: {dur}s | Puzzles: {count}',
     importing: 'Importing...',
@@ -598,6 +616,7 @@ export default {
     someMissingHint: 'Publishing is blocked until every criterion above is met.',
     publish: 'Publish',
     published: 'Competition published.',
+    publishCannot: 'Cannot publish:',
     publishFailed: 'Could not publish.',
     // "On ne dépublie pas. Mais on peut annuler." Cancelling is a DESTRUCTIVE
     // action: the access link is destroyed (anyone who received the URL can
@@ -816,6 +835,42 @@ export default {
     colCreated: 'Created',
     colCompName: 'Competition',
     colStatus: 'Status',
+  },
+
+  // Teams dashboard — create and manage teams per competition. The backend
+  // is already complete (CRUD routes, team_members with no position column,
+  // tenant isolation via competition → organization_id). This page is the
+  // org admin's transversal view — pick a competition, then see/create
+  // teams and assign participants to them.
+  teams: {
+    title: 'Teams',
+    subtitle: 'Create teams and assign participants for each competition.',
+    loadFailed: 'Failed to load teams.',
+    selectCompetition: 'Select a competition',
+    selectCompetitionPlaceholder: '— Choose a competition —',
+    selectCompetitionFirst: 'Select a competition above to view and manage its teams.',
+    teamsList: 'Teams',
+    createTeam: 'Create team',
+    createTeamTitle: 'Create a new team',
+    teamNameLabel: 'Team name',
+    teamNamePlaceholder: 'e.g. Team Alpha',
+    create: 'Create',
+    createSuccess: 'Team created successfully.',
+    createFailed: 'Failed to create team.',
+    noTeams: 'No teams yet — create one to get started.',
+    noMembers: 'No members yet',
+    addMember: 'Add member',
+    addMemberTitle: 'Add a member',
+    selectParticipant: 'Select a participant',
+    selectParticipantPlaceholder: '— Choose a participant —',
+    add: 'Add',
+    addMemberSuccess: 'Member added successfully.',
+    addMemberFailed: 'Failed to add member.',
+    removeMember: 'Remove',
+    removeMemberConfirm: 'Remove this member from the team?',
+    removeMemberSuccess: 'Member removed successfully.',
+    removeMemberFailed: 'Failed to remove member.',
+    memberCount: '{n} member(s)',
   },
 
   // Judges dashboard — org admin creates and manages judge accounts. Goes

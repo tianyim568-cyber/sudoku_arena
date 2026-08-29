@@ -351,7 +351,7 @@ export default function DashboardPuzzleBankPage() {
                       {p.difficulty}
                     </span>
                   </td>
-                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{Array.isArray(p.initialGrid) ? p.initialGrid.flat().filter(v=>v===0).length : 0}</td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600 hidden sm:table-cell">{Array.isArray(p.initialGrid) ? p.initialGrid.flat().filter(v=>v===0).length : '-'}</td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm hidden md:table-cell">{p.puzzleType || '-'}</td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600">{p.points}</td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3 text-right">
@@ -387,7 +387,7 @@ export default function DashboardPuzzleBankPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-2">{t('puzzleBank.initialBoard')}</h3>
-                <SudokuPreview grid={preview.initialGrid} />
+                <SudokuPreview grid={preview.initialGrid || []} />
               </div>
               <div>
                 <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-2">{t('puzzleBank.answer')}</h3>

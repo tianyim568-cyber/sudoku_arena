@@ -36,6 +36,8 @@ export default {
       INDIVIDUAL_SHAPED: '异形',
       INDIVIDUAL_MIXED: '混合',
     },
+    // BCP 47 locale tag used by Intl / toLocaleDateString throughout the app.
+    locale: 'zh-CN',
   },
 
   competition: {
@@ -62,6 +64,7 @@ export default {
     upcoming: '未开始',
     finished: '已结束',
     noCompetitions: '暂无赛事',
+    noFilteredCompetitions: '没有符合条件的赛事',
     loadFailed: '无法加载概览。',
     loading: '加载中...',
     nav: {
@@ -164,6 +167,14 @@ export default {
     noRoundsInStage: '本阶段暂无轮次。',
     roundAdded: '轮次已添加',
     roundAddFailed: '添加轮次失败：{msg}',
+    // Cancel form: offer to save as DRAFT if the admin started filling fields.
+    cancelRoundFormTitle: '保存为草稿？',
+    cancelRoundFormMessage: '您有未保存的更改。是否将此轮次保存为草稿，稍后继续配置？',
+    cancelRoundFormSave: '保存为草稿',
+    cancelRoundFormDiscard: '放弃',
+    roundSavedAsDraft: '轮次已保存为草稿',
+    unnamedRound: '未命名轮次',
+    roundDraft: '草稿',
     // CRUD-Rounds (2026-08-26): 删除、编辑、配置状态徽章
     deleteRoundBtn: '删除',
     editRoundBtn: '编辑',
@@ -190,6 +201,13 @@ export default {
     judgeConsole: '裁判控制台',
     enterGame: '进入游戏',
     startCompetition: '开始赛事',
+    pauseCompetition: '暂停',
+    resumeCompetition: '继续',
+    endCompetition: '结束比赛',
+    endConfirmTitle: '结束此比赛？',
+    endConfirmBody: '这将永久停止比赛，选手将看到"已结束"界面，此操作不可撤销。',
+    controlSuccess: '操作已成功完成。',
+    controlFailed: '操作失败：{msg}',
     roundNumber: '第 {n} 轮',
     roundMeta: '类型：{type} | 时长：{dur}秒 | 题目：{count}道',
     importing: '导入中...',
@@ -578,6 +596,7 @@ export default {
     someMissingHint: '上述条件全部满足前无法发布。',
     publish: '发布',
     published: '赛事已发布。',
+    publishCannot: '无法发布：',
     publishFailed: '无法发布。',
     // 「On ne dépublie pas. Mais on peut annuler.」取消发布是破坏性操作：
     // 访问链接会被销毁（之前收到链接的选手、裁判、大屏都无法再进入），
@@ -779,6 +798,40 @@ export default {
     colCreated: '创建时间',
     colCompName: '赛事',
     colStatus: '状态',
+  },
+
+  // 队伍管理页 —— 按赛事创建和管理队伍。后端已完整（CRUD路由、team_members
+  // 无 position 列、通过 competition → organization_id 实现租户隔离）。
+  // 机构管理员在此横向查看：选一个赛事，然后查看/创建队伍、分配选手。
+  teams: {
+    title: '队伍',
+    subtitle: '为每个赛事创建队伍并分配选手。',
+    loadFailed: '无法加载队伍列表。',
+    selectCompetition: '选择赛事',
+    selectCompetitionPlaceholder: '— 请选择赛事 —',
+    selectCompetitionFirst: '请先在上方选择一个赛事，然后查看和管理队伍。',
+    teamsList: '队伍',
+    createTeam: '创建队伍',
+    createTeamTitle: '创建新队伍',
+    teamNameLabel: '队伍名称',
+    teamNamePlaceholder: '例如：阿尔法队',
+    create: '创建',
+    createSuccess: '队伍创建成功。',
+    createFailed: '创建队伍失败。',
+    noTeams: '暂无队伍 —— 请先创建一个。',
+    noMembers: '暂无成员',
+    addMember: '添加成员',
+    addMemberTitle: '添加成员',
+    selectParticipant: '选择选手',
+    selectParticipantPlaceholder: '— 请选择选手 —',
+    add: '添加',
+    addMemberSuccess: '成员添加成功。',
+    addMemberFailed: '添加成员失败。',
+    removeMember: '移除',
+    removeMemberConfirm: '确定从队伍中移除此成员？',
+    removeMemberSuccess: '成员移除成功。',
+    removeMemberFailed: '移除成员失败。',
+    memberCount: '{n} 名成员',
   },
 
   // 裁判管理页 —— 机构管理员在此创建和管理本机构的裁判账号。走 POST /users

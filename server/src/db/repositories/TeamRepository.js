@@ -208,6 +208,19 @@ class TeamRepository {
   }
 
   /**
+   * Remove a participant from a team.
+   * @param {string} teamId
+   * @param {string} participantId - Participant UUID.
+   */
+  async removeMember(teamId, participantId) {
+    await this.prisma.team_members.delete({
+      where: {
+        team_id_participant_id: { team_id: teamId, participant_id: participantId },
+      },
+    });
+  }
+
+  /**
    * Check if a participant is already in a team.
    * @param {string} teamId
    * @param {string} playerId - Participant UUID.

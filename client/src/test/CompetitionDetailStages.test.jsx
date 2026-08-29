@@ -151,7 +151,16 @@ describe('CompetitionDetailPage — rounds inside a stage', () => {
   const openFirstStage = async () => {
     renderPage();
     await waitFor(() => expect(api.getRoundTypes).toHaveBeenCalled());
-    fireEvent.click(screen.getAllByRole('button', { name: /configure|配置/i })[0]);
+    // The stage toggle button now says "Add a round" / "添加轮次" (addRound key)
+    // instead of "Configure" / "配置" (configureStage key).
+    fireEvent.click(screen.getAllByRole('button', { name: /add a round|添加轮次/i })[0]);
+  };
+
+  // Round creation moved from inline form to a modal (2026-08-29).
+  // After the stage is open, a separate "Add the round" / "添加轮次" button
+  // (addRoundSubmit key) appears inside the stage panel — that one opens the modal.
+  const openRoundModal = () => {
+    fireEvent.click(findButton(/add the round|添加轮次/i));
   };
 
   // The whole point of serving the mapping: an INDIVIDUAL stage must not offer
@@ -159,6 +168,7 @@ describe('CompetitionDetailPage — rounds inside a stage', () => {
   // should never propose it in the first place.
   it('offers only the round types of the stage being configured', async () => {
     await openFirstStage(); // stage-1 is INDIVIDUAL
+    openRoundModal();
 
     const select = await screen.findByRole('combobox');
     const values = [...select.options].map(o => o.value);
@@ -169,11 +179,17 @@ describe('CompetitionDetailPage — rounds inside a stage', () => {
   it('creates the round against the stage, not the competition', async () => {
     api.createStageRound.mockResolvedValue({ code: 200, data: { id: 'r-9' } });
     await openFirstStage();
+    openRoundModal();
 
-    fireEvent.change(await screen.findByPlaceholderText(/round name|轮次名称/i), {
-      target: { value: 'Solo 1' },
-    });
-    fireEvent.click(screen.getAllByRole('button', { name: /add the round|添加轮次/i })[0]);
+    // The judge-name input also has role "textbox", so findByRole('textbox')
+    // is ambiguous. Target the round-name placeholder instead.
+    const nameInput = await screen.findByPlaceholderText(/round name|轮次名称/i);
+    fireEvent.change(nameInput, { target: { value: 'Solo 1' } });
+
+    // Submit the modal form via its submit button inside the form.
+    const submitBtn = screen.getAllByRole('button', { name: /add the round|添加轮次/i })
+      .find(b => b.closest('form'));
+    fireEvent.click(submitBtn);
 
     await waitFor(() => expect(api.createStageRound).toHaveBeenCalled());
     const [competitionId, stageId, body] = api.createStageRound.mock.calls[0];
@@ -190,7 +206,7 @@ describe('CompetitionDetailPage — rounds inside a stage', () => {
   it('reports a failed round-type request instead of blaming the stage', async () => {
     renderPage({ roundTypesResponse: { code: 404, message: 'HTTP 404', data: null } });
     await waitFor(() => expect(api.getRoundTypes).toHaveBeenCalled());
-    fireEvent.click(screen.getAllByRole('button', { name: /configure|配置/i })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /add a round|添加轮次/i })[0]);
 
     expect(await screen.findByText(/HTTP 404/)).toBeInTheDocument();
     expect(screen.queryByText(/no round type is available|暂无可用的轮次类型/i)).toBeNull();
@@ -199,7 +215,7 @@ describe('CompetitionDetailPage — rounds inside a stage', () => {
   it('says so when a stage category has no round type yet', async () => {
     renderPage({ stages: [{ id: 'stage-pk', type: 'PK', order_number: 1, rounds: [] }] });
     await waitFor(() => expect(api.getRoundTypes).toHaveBeenCalled());
-    fireEvent.click(screen.getAllByRole('button', { name: /configure|配置/i })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /add a round|添加轮次/i })[0]);
 
     expect(await screen.findByText(/no round type is available|暂无可用的轮次类型/i)).toBeInTheDocument();
     expect(screen.queryByRole('combobox')).toBeNull();

@@ -131,7 +131,7 @@ export default function DashboardResultsPage() {
   if (!isAdmin) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-400">{t('results.notAllowed')}</p>
+        <p className="text-gray-600">{t('results.notAllowed')}</p>
       </div>
     );
   }
@@ -139,7 +139,7 @@ export default function DashboardResultsPage() {
   if (loadFailed && competitions.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-red-400">{loadFailed}</p>
+        <p className="text-red-600">{loadFailed}</p>
       </div>
     );
   }
@@ -147,7 +147,7 @@ export default function DashboardResultsPage() {
   if (competitions.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-400">{t('results.noCompetitions')}</p>
+        <p className="text-gray-600">{t('results.noCompetitions')}</p>
       </div>
     );
   }
@@ -155,15 +155,15 @@ export default function DashboardResultsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-white">{t('results.title')}</h2>
-        <p className="text-sm text-gray-400 mt-1">{t('results.subtitle')}</p>
+        <h2 className="text-xl font-bold text-gray-900">{t('results.title')}</h2>
+        <p className="text-sm text-gray-600 mt-1">{t('results.subtitle')}</p>
       </div>
 
       {/* Competition picker — a <select> on every screen size. A sidebar
           list would crowd the page on mobile, and the admin usually has
           fewer than a dozen competitions. */}
-      <div className="bg-gray-800 rounded-lg p-4">
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('results.selectCompetition')}
         </label>
         <select
@@ -176,7 +176,7 @@ export default function DashboardResultsPage() {
             // would stare at an empty table with no clue why.
             setSelectedCategoryId(null);
           }}
-          className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
+          className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
         >
           {competitions.map(c => (
             <option key={c.id} value={c.id}>
@@ -192,14 +192,14 @@ export default function DashboardResultsPage() {
           returned by the server in every case, filtered or not), so no
           separate fetch is needed. */}
       {snapshot && snapshot.categories && snapshot.categories.length > 0 && (
-        <div className="bg-gray-800 rounded-lg p-4">
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('results.filterByCategory')}
           </label>
           <select
             value={selectedCategoryId || ''}
             onChange={(e) => setSelectedCategoryId(e.target.value || null)}
-            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
+            className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           >
             <option value="">{t('results.allCategories')}</option>
             {snapshot.categories.map(cat => (
@@ -211,8 +211,8 @@ export default function DashboardResultsPage() {
 
       {/* Round tabs + final tab */}
       {snapshot && (
-        <div className="bg-gray-800 rounded-lg p-4">
-          <div className="flex flex-wrap gap-2 mb-4 border-b border-gray-700 pb-2">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+          <div className="flex flex-wrap gap-2 mb-4 border-b border-gray-200 pb-2">
             {flatRounds.map(r => (
               <button
                 key={r.id}
@@ -220,7 +220,7 @@ export default function DashboardResultsPage() {
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   activeRoundId === r.id
                     ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
                 {t('results.roundTab', { n: r.orderNumber })}
@@ -231,7 +231,7 @@ export default function DashboardResultsPage() {
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                 activeRoundId === '__final__'
                   ? 'bg-green-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               {t('results.finalTab')}
@@ -240,14 +240,14 @@ export default function DashboardResultsPage() {
 
           {/* Ranking table */}
           {activeRows.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">
+            <p className="text-gray-600 text-sm text-center py-8">
               {t('results.noRankings')}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                  <tr className="text-left text-gray-600 border-b border-gray-200">
                     <th className="py-2 px-3 w-16">{t('results.colRank')}</th>
                     <th className="py-2 px-3">{t('results.colName')}</th>
                     <th className="py-2 px-3 hidden sm:table-cell">{t('results.colSchool')}</th>
@@ -257,12 +257,12 @@ export default function DashboardResultsPage() {
                 </thead>
                 <tbody>
                   {activeRows.map((row, i) => (
-                    <tr key={i} className="border-b border-gray-800 hover:bg-gray-700/50">
-                      <td className="py-2 px-3 font-bold text-yellow-400">#{row.rank}</td>
-                      <td className="py-2 px-3 text-white">{row.label}</td>
-                      <td className="py-2 px-3 text-gray-400 hidden sm:table-cell">{row.school || '—'}</td>
-                      <td className="py-2 px-3 text-gray-400 hidden sm:table-cell">{row.category || '—'}</td>
-                      <td className="py-2 px-3 text-right text-white font-medium">{row.score}</td>
+                    <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-bold text-yellow-600">#{row.rank}</td>
+                      <td className="py-2 px-3 text-gray-900">{row.label}</td>
+                      <td className="py-2 px-3 text-gray-600 hidden sm:table-cell">{row.school || '—'}</td>
+                      <td className="py-2 px-3 text-gray-600 hidden sm:table-cell">{row.category || '—'}</td>
+                      <td className="py-2 px-3 text-right text-gray-900 font-medium">{row.score}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -142,7 +142,7 @@ export default function AccessLinkSection({ competitionId, canGenerate = false }
             <button
               onClick={handleCopy}
               disabled={busy}
-              className="px-3 py-1.5 bg-gray-700 text-white rounded text-xs sm:text-sm hover:bg-gray-600 disabled:opacity-50 whitespace-nowrap"
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-xs sm:text-sm hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap"
             >
               {copied ? t('accessLink.copied') : t('accessLink.copy')}
             </button>

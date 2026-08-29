@@ -104,20 +104,20 @@ export default function DashboardParticipantsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-white">{t('participants.title')}</h2>
-        <p className="text-sm text-gray-400 mt-1">{t('participants.subtitle')}</p>
+        <h2 className="text-xl font-bold text-gray-900">{t('participants.title')}</h2>
+        <p className="text-sm text-gray-500 mt-1">{t('participants.subtitle')}</p>
       </div>
 
       {/* Filters — three inputs on one row on desktop, stacked on mobile. */}
-      <div className="bg-gray-800 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             {t('participants.filterByCompetition')}
           </label>
           <select
             value={selectedCompetitionId || ''}
             onChange={(e) => setSelectedCompetitionId(e.target.value || null)}
-            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
+            className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           >
             <option value="">{t('participants.filterAllCompetitions')}</option>
             {competitions.map(c => (
@@ -128,13 +128,13 @@ export default function DashboardParticipantsPage() {
 
         {categoryOptions.length > 0 && (
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('participants.filterByCategory')}
             </label>
             <select
               value={selectedCategoryId || ''}
               onChange={(e) => setSelectedCategoryId(e.target.value || null)}
-              className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             >
               <option value="">{t('participants.filterAllCategories')}</option>
               {categoryOptions.map(c => (
@@ -145,7 +145,7 @@ export default function DashboardParticipantsPage() {
         )}
 
         <div>
-          <label htmlFor="participants-search" className="block text-sm font-medium text-gray-300 mb-1">
+          <label htmlFor="participants-search" className="block text-sm font-medium text-gray-700 mb-1">
             {t('participants.searchLabel')}
           </label>
           <input
@@ -154,30 +154,30 @@ export default function DashboardParticipantsPage() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t('participants.searchPlaceholder')}
-            className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-indigo-500"
+            className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
           />
         </div>
       </div>
 
       {/* Count + table */}
-      <div className="bg-gray-800 rounded-lg p-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         {loading ? (
-          <p className="text-gray-500 text-sm text-center py-8">{t('participants.loading')}</p>
+          <p className="text-gray-400 text-sm text-center py-8">{t('participants.loading')}</p>
         ) : loadError ? (
-          <p className="text-red-400 text-sm text-center py-8">{loadError}</p>
+          <p className="text-red-600 text-sm text-center py-8">{loadError}</p>
         ) : showEmptyOrg ? (
-          <p className="text-gray-500 text-sm text-center py-8">{t('participants.emptyOrg')}</p>
+          <p className="text-gray-400 text-sm text-center py-8">{t('participants.emptyOrg')}</p>
         ) : showEmptyFiltered ? (
-          <p className="text-gray-500 text-sm text-center py-8">{t('participants.emptyFiltered')}</p>
+          <p className="text-gray-400 text-sm text-center py-8">{t('participants.emptyFiltered')}</p>
         ) : (
           <>
-            <p className="text-xs text-gray-400 mb-3">
+            <p className="text-xs text-gray-500 mb-3">
               {t('participants.count', { n: rows.length })}
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
                     <th className="py-2 px-3">{t('participants.colName')}</th>
                     <th className="py-2 px-3 hidden sm:table-cell">{t('participants.colSchool')}</th>
                     <th className="py-2 px-3 hidden md:table-cell">{t('participants.colAge')}</th>
@@ -188,24 +188,24 @@ export default function DashboardParticipantsPage() {
                 </thead>
                 <tbody>
                   {rows.map(row => (
-                    <tr key={row.id} className="border-b border-gray-800 hover:bg-gray-700/50">
-                      <td className="py-2 px-3 text-white">{row.name}</td>
-                      <td className="py-2 px-3 text-gray-400 hidden sm:table-cell">{row.school || '—'}</td>
-                      <td className="py-2 px-3 text-gray-400 hidden md:table-cell">
+                    <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-2 px-3 text-gray-900">{row.name}</td>
+                      <td className="py-2 px-3 text-gray-500 hidden sm:table-cell">{row.school || '—'}</td>
+                      <td className="py-2 px-3 text-gray-500 hidden md:table-cell">
                         {row.age != null ? row.age : '—'}
                       </td>
-                      <td className="py-2 px-3 text-gray-400 hidden md:table-cell">
+                      <td className="py-2 px-3 text-gray-500 hidden md:table-cell">
                         {row.categoryName || '—'}
                       </td>
                       <td className="py-2 px-3">
                         <Link
                           to={`/competitions/${row.competitionId}`}
-                          className="text-indigo-400 hover:text-indigo-300 underline"
+                          className="text-indigo-600 hover:text-indigo-500 underline"
                         >
                           {row.competitionName}
                         </Link>
                       </td>
-                      <td className="py-2 px-3 text-gray-500 text-xs hidden lg:table-cell">
+                      <td className="py-2 px-3 text-gray-400 text-xs hidden lg:table-cell">
                         {row.createdAt ? new Date(row.createdAt).toLocaleDateString() : '—'}
                       </td>
                     </tr>

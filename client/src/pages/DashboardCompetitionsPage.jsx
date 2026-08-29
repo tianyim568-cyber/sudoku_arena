@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
+import Modal from '../components/Modal';
 
 // Dashboard "Competitions" page — lists competitions with create/delete.
 // Adapted from CompetitionListPage.jsx: the header is removed (DashboardLayout
@@ -108,16 +109,51 @@ export default function DashboardCompetitionsPage() {
       </div>
 
       {showCreate && (
-        <form onSubmit={handleCreate} className="bg-white rounded-xl shadow p-4 sm:p-6 mb-6 space-y-4">
-          <input type="text" placeholder={t('competitionList.namePlaceholder')} value={name} onChange={e => setName(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm sm:text-base" required />
-          <textarea placeholder={t('competitionList.descPlaceholder')} value={description} onChange={e => setDescription(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-sm sm:text-base" rows={2} />
-          <div className="flex gap-2">
-            <button type="submit" className="px-4 sm:px-6 py-2 bg-indigo-600 text-white rounded-lg text-xs sm:text-sm">{t('competitionList.create')}</button>
-            <button type="button" onClick={() => setShowCreate(false)} className="px-4 sm:px-6 py-2 bg-gray-200 text-gray-700 rounded-lg text-xs sm:text-sm">{t('common.cancel')}</button>
-          </div>
-        </form>
+        <Modal onClose={() => setShowCreate(false)} title={t('competitionList.newCompetition')}>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <label htmlFor="comp-name" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('competitionList.namePlaceholder')}
+              </label>
+              <input
+                id="comp-name"
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+                required
+                autoFocus
+              />
+            </div>
+            <div>
+              <label htmlFor="comp-desc" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('competitionList.descPlaceholder')}
+              </label>
+              <textarea
+                id="comp-desc"
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-500 transition-colors"
+              >
+                {t('competitionList.create')}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
 
       {competitions.length === 0 ? (

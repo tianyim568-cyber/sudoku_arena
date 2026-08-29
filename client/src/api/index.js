@@ -145,6 +145,7 @@ export const api = {
   listTeams: (competitionId) => request('GET', `/competitions/${competitionId}/teams`),
   createTeam: (competitionId, name) => request('POST', `/competitions/${competitionId}/teams`, { name }),
   addTeamMember: (teamId, playerId, position) => request('POST', '/teams/' + teamId + '/members', { playerId, position }),
+  removeTeamMember: (teamId, participantId) => request('DELETE', `/teams/${teamId}/members/${participantId}`),
 
   // Judges
   assignJudge: (competitionId, judgeId) => request('POST', `/competitions/${competitionId}/judges`, { judgeId }),

@@ -77,6 +77,24 @@ export default function PublishPanel({ competitionId, status, canStart, refreshK
     setTimeout(() => setMessage(null), 5000);
   };
 
+  // Build a translated publish-refusal message from the missing criterion
+  // codes the server sends in res.data.missing (e.g. ['NO_JUDGE', 'ROUND_EMPTY']).
+  // Each code maps to an existing i18n key under publishPanel.missing*.
+  // The server's res.message is a Chinese-only concatenated string that
+  // cannot be matched by translateServerMessage — building it here solves
+  // the translation gap documented in ISSUE-037.
+  const MISSING_CODE_TO_KEY = {
+    NO_JUDGE: 'missingJudge',
+    NO_PARTICIPANT: 'missingParticipant',
+    NO_STAGE: 'missingStage',
+    STAGE_EMPTY: 'missingStageRounds',
+    ROUND_EMPTY: 'missingRoundPuzzles',
+  };
+  const buildPublishMessage = (missing) => {
+    const items = missing.map(code => t(`publishPanel.${MISSING_CODE_TO_KEY[code] || code}`));
+    return `${t('publishPanel.publishCannot')} ${items.join('; ')}`;
+  };
+
   const handlePublish = async () => {
     setBusy(true);
     const res = await api.publishCompetition(competitionId);
@@ -88,14 +106,14 @@ export default function PublishPanel({ competitionId, status, canStart, refreshK
       if (onStatusChange) onStatusChange();
       showMsg(t('publishPanel.published'), 'success');
     } else {
-      // The server refused. Show the readable message — it lists every
-      // missing criterion, not just the first. The panel below still shows
-      // the per-criterion checklist so the admin has the full punch list.
-      showMsg(res.message || t('publishPanel.publishFailed'), 'error');
-      // If the server sent back the missing codes, refresh the snapshot so
-      // the checklist matches the message.
-      if (res.data?.missing) {
+      // The server refused. If we got the structured missing list (code 40010),
+      // build a fully translated message client-side. Otherwise fall back to
+      // the generic "publish failed" key.
+      if (res.code === 40010 && res.data?.missing?.length) {
+        showMsg(buildPublishMessage(res.data.missing), 'error');
         setSnapshot((prev) => prev ? { ...prev, missing: res.data.missing, publishable: false } : prev);
+      } else {
+        showMsg(t('publishPanel.publishFailed'), 'error');
       }
     }
   };
