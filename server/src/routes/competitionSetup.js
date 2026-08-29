@@ -294,6 +294,29 @@ function createCompetitionSetupRouter(repos, prisma) {
     res.json({ code: 200, message: 'success', data: { teamId: req.params.teamId, playerId, position } });
   });
 
+  // Remove team member — :teamId is a team, :participantId is a participant.
+  // Same ownership chain as add member.
+  router.delete('/teams/:teamId/members/:participantId', authMiddleware, tenantGuard(), roleMiddleware(...ADMIN_ROLES), async (req, res) => {
+    const { teamId, participantId } = req.params;
+    const team = await repos.teams.findById(teamId);
+    if (!team) return res.json({ code: 40400, message: '队伍不存在', data: null });
+
+    // SECURITY: Verify team's competition belongs to user's organization
+    const competition = await prisma.competitions.findFirst({
+      where: { id: team.competition_id, organization_id: req.user.organizationId },
+    });
+    if (!competition) {
+      return res.json({ code: 40301, message: '无权访问此队伍', data: null });
+    }
+
+    if (!(await repos.teams.memberExists(teamId, participantId))) {
+      return res.json({ code: 40400, message: '选手不在该队伍中', data: null });
+    }
+
+    await repos.teams.removeMember(teamId, participantId);
+    res.json({ code: 200, message: 'success', data: null });
+  });
+
   // Assign judge — :id is a competition.
   router.post('/competitions/:id/judges', authMiddleware, tenantGuard('competitions'), roleMiddleware(...ADMIN_ROLES), validateBody(assignJudgeSchema), async (req, res) => {
     const { judgeId } = req.body;

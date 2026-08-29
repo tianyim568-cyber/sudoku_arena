@@ -143,8 +143,10 @@ export const api = {
 
   // Teams
   listTeams: (competitionId) => request('GET', `/competitions/${competitionId}/teams`),
+  getCompetitionCategories: (competitionId) => request('GET', `/competitions/${competitionId}/categories`),
   createTeam: (competitionId, name) => request('POST', `/competitions/${competitionId}/teams`, { name }),
   addTeamMember: (teamId, playerId, position) => request('POST', '/teams/' + teamId + '/members', { playerId, position }),
+  removeTeamMember: (teamId, participantId) => request('DELETE', `/teams/${teamId}/members/${participantId}`),
 
   // Judges
   assignJudge: (competitionId, judgeId) => request('POST', `/competitions/${competitionId}/judges`, { judgeId }),
@@ -185,7 +187,11 @@ export const api = {
   // undefined and JSON.stringify drops it.
   generatePuzzles: (roundType, teamsCount, count) => request('POST', '/puzzle-bank/generate', { roundType, teamsCount, count }),
   generatePuzzlesBulk: (teamsCount) => request('POST', '/puzzle-bank/generate-bulk', { teamsCount }),
-  importPuzzlesToRound: (roundId, teamsCount) => request('POST', '/puzzle-bank/import-to-round', { roundId, teamsCount }),
+  listPuzzlesByType: (roundType, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request('GET', `/puzzle-bank/by-type/${roundType}${qs ? `?${qs}` : ''}`);
+  },
+  importPuzzlesToRound: (roundId, teamsCount, puzzleIds) => request('POST', '/puzzle-bank/import-to-round', { roundId, teamsCount, puzzleIds }),
   deletePuzzleFromBank: (id) => request('DELETE', `/puzzle-bank/${id}`),
   clearPuzzleBank: () => request('DELETE', '/puzzle-bank'),
 
@@ -225,6 +231,27 @@ export const api = {
     if (filters.search) params.set('search', filters.search);
     const qs = params.toString();
     return request('GET', `/participants${qs ? '?' + qs : ''}`);
+  },
+
+  // Global teams listing across every competition of the caller's
+  // organization. Read-only. Mirrors listAllParticipants — the server
+  // enforces the tenant filter, the client cannot bypass it.
+  listAllTeams: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.competitionId) params.set('competitionId', filters.competitionId);
+    if (filters.search) params.set('search', filters.search);
+    const qs = params.toString();
+    return request('GET', `/teams${qs ? '?' + qs : ''}`);
+  },
+
+  // Global search across participants, teams, competitions.
+  // Returns grouped results (max 10 per type). Used by dashboard search bar.
+  search: (q) => {
+    if (!q || q.trim().length < 2) {
+      return Promise.resolve({ code: 200, data: { participants: [], teams: [], competitions: [] } });
+    }
+    const params = new URLSearchParams({ q: q.trim() });
+    return request('GET', `/search?${params}`);
   },
 
   // Export participants with credentials.
@@ -296,6 +323,28 @@ export const api = {
   // Super Admin — platform-wide overview (orgs, competitions, users).
   // Read-only; the server enforces SUPER_ADMIN role.
   getAdminOverview: () => request('GET', '/admin/overview'),
+
+  // Super Admin — organization details with users and competitions.
+  getAdminOrganization: (orgId) => request('GET', `/admin/organizations/${orgId}`),
+
+  // Super Admin — list all users with optional filters (role, orgId, search).
+  listAdminUsers: (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.role) query.append('role', params.role);
+    if (params.orgId) query.append('orgId', params.orgId);
+    if (params.q) query.append('q', params.q);
+    const qs = query.toString();
+    return request('GET', `/admin/users${qs ? '?' + qs : ''}`);
+  },
+
+  // Super Admin — toggle organization status (ACTIVE ↔ DISABLED)
+  updateAdminOrganization: (orgId, data) => request('PATCH', `/admin/organizations/${orgId}`, data),
+
+  // Super Admin — update user role or status
+  updateAdminUser: (userId, data) => request('PATCH', `/admin/users/${userId}`, data),
+
+  // Super Admin — reset user password, returns the new plain password
+  resetAdminUserPassword: (userId) => request('POST', `/admin/users/${userId}/reset-password`),
 
   // Display token management (ORG_ADMIN)
   generateDisplayToken: (competitionId) => request('POST', `/competitions/${competitionId}/display-token`),

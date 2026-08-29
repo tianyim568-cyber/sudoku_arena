@@ -133,7 +133,7 @@ export default function DisplayTokenSection({ competitionId }) {
             <button
               onClick={handleCopy}
               disabled={busy}
-              className="px-3 py-1.5 bg-gray-700 text-white rounded text-xs sm:text-sm hover:bg-gray-600 disabled:opacity-50 whitespace-nowrap"
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-xs sm:text-sm hover:bg-gray-200 disabled:opacity-50 whitespace-nowrap"
             >
               {copied ? t('displayToken.copied') : t('displayToken.copy')}
             </button>

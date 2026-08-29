@@ -3,7 +3,7 @@
  *
  * NOTE: The legacy `puzzles` table was dropped in migration 018. This
  * repository now backs the new `puzzles` table (UUID PK, type, initial_grid
- * JSONB, solution_grid JSONB, difficulty, score, category_id) plus the
+ * JSONB, solution_grid JSONB, difficulty, score, category_id, grid_hash) plus the
  * `round_puzzles` junction (UUID PK, round_id, puzzle_id, order_number, score,
  * category_id) for puzzle-to-round assignment.
  *
@@ -21,6 +21,17 @@
  * Public method names are kept identical so route handlers keep working.
  * Methods that took `roundId` traverse the round_puzzles junction.
  */
+
+const crypto = require('crypto');
+
+/**
+ * Compute a SHA-256 hash of the initial grid for deduplication.
+ * Normalizes the grid to a consistent JSON string before hashing.
+ */
+function computeGridHash(grid) {
+  const normalized = JSON.stringify(grid);
+  return crypto.createHash('sha256').update(normalized).digest('hex');
+}
 
 class PuzzleRepository {
   constructor(prisma) {
@@ -103,6 +114,10 @@ class PuzzleRepository {
    * The puzzle is stamped with the owning organization_id so listing
    * by tenant works at the DB level.
    *
+   * Phase 2 deduplication: computes grid_hash and checks if a puzzle
+   * with the same hash already exists in this organization. If yes,
+   * returns the existing puzzle instead of creating a duplicate.
+   *
    * NOTE: The new schema has no `order_in_round`, `letter` or `team_id`
    * columns on puzzles — those concepts live in round_puzzles or are
    * gone entirely. The legacy caller still passes them; we accept them
@@ -124,6 +139,22 @@ class PuzzleRepository {
     const parsedInitial = typeof initialGrid === 'string' ? JSON.parse(initialGrid) : initialGrid;
     const parsedSolution = typeof solution === 'string' ? JSON.parse(solution) : solution;
 
+    // Phase 2: compute hash and check for duplicates within this org
+    const gridHash = computeGridHash(parsedInitial);
+
+    if (organizationId) {
+      const existing = await this.prisma.puzzles.findFirst({
+        where: {
+          organization_id: organizationId,
+          grid_hash: gridHash,
+        },
+      });
+      if (existing) {
+        // Return existing puzzle instead of creating a duplicate
+        return { ...existing, isDuplicate: true };
+      }
+    }
+
     return this.prisma.puzzles.create({
       data: {
         type: puzzleType || 'STANDARD',
@@ -134,6 +165,7 @@ class PuzzleRepository {
         organization_id: organizationId || null,
         category_id: categoryId || null,
         round_type: roundType || null,
+        grid_hash: gridHash,
       },
     });
   }

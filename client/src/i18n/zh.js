@@ -5,6 +5,7 @@ export default {
   common: {
     done: '完成',
     back: '返回',
+    close: '关闭',
     loading: '加载中...',
     cancel: '取消',
     dismiss: '关闭',
@@ -36,6 +37,8 @@ export default {
       INDIVIDUAL_SHAPED: '异形',
       INDIVIDUAL_MIXED: '混合',
     },
+    // BCP 47 locale tag used by Intl / toLocaleDateString throughout the app.
+    locale: 'zh-CN',
   },
 
   competition: {
@@ -62,6 +65,7 @@ export default {
     upcoming: '未开始',
     finished: '已结束',
     noCompetitions: '暂无赛事',
+    noFilteredCompetitions: '没有符合条件的赛事',
     loadFailed: '无法加载概览。',
     loading: '加载中...',
     nav: {
@@ -90,6 +94,13 @@ export default {
     judge: '裁判',
     player1: '选手1',
     linkToRegister: '还没有账号？立即注册',
+    search: {
+      placeholder: '搜索队伍、选手、赛事...',
+      participants: '选手',
+      teams: '队伍',
+      competitions: '赛事',
+      noResults: '未找到结果',
+    },
   },
 
   register: {
@@ -164,6 +175,14 @@ export default {
     noRoundsInStage: '本阶段暂无轮次。',
     roundAdded: '轮次已添加',
     roundAddFailed: '添加轮次失败：{msg}',
+    // Cancel form: offer to save as DRAFT if the admin started filling fields.
+    cancelRoundFormTitle: '保存为草稿？',
+    cancelRoundFormMessage: '您有未保存的更改。是否将此轮次保存为草稿，稍后继续配置？',
+    cancelRoundFormSave: '保存为草稿',
+    cancelRoundFormDiscard: '放弃',
+    roundSavedAsDraft: '轮次已保存为草稿',
+    unnamedRound: '未命名轮次',
+    roundDraft: '草稿',
     // CRUD-Rounds (2026-08-26): 删除、编辑、配置状态徽章
     deleteRoundBtn: '删除',
     editRoundBtn: '编辑',
@@ -190,6 +209,13 @@ export default {
     judgeConsole: '裁判控制台',
     enterGame: '进入游戏',
     startCompetition: '开始赛事',
+    pauseCompetition: '暂停',
+    resumeCompetition: '继续',
+    endCompetition: '结束比赛',
+    endConfirmTitle: '结束此比赛？',
+    endConfirmBody: '这将永久停止比赛，选手将看到"已结束"界面，此操作不可撤销。',
+    controlSuccess: '操作已成功完成。',
+    controlFailed: '操作失败：{msg}',
     roundNumber: '第 {n} 轮',
     roundMeta: '类型：{type} | 时长：{dur}秒 | 题目：{count}道',
     importing: '导入中...',
@@ -359,8 +385,48 @@ export default {
     confirming: '导入中...',
     imported: '已向此轮次导入 {n} 道题目。',
     importedWithStripped: '已向此轮次导入 {n} 道题目（其中 {stripped} 道的外部类别 ID 已被清除）。',
+    importedWithDuplicates: '已向此轮次导入 {n} 道题目（其中 {dupes} 道已存在于题库中，已关联）。',
+    importedWithDuplicatesAndStripped: '已导入 {n} 道题目（{dupes} 道从题库关联，{stripped} 道类别 ID 已清除）。',
     partialSuccess: '题目已入库，但导入到轮次失败 — 请通过"从题库导入"重试。',
     importFailed: '导入失败',
+  },
+
+  roundBankImport: {
+    openBtn: '+ 从题库导入',
+    title: '为轮次 "{name}" 从题库导入',
+    close: '关闭',
+    loading: '加载题目中...',
+    empty: '题库中没有此轮次类型的题目。',
+    loadMore: '加载更多（{current}/{total}）',
+    filterDifficulty: '按难度筛选',
+    allDifficulties: '全部难度',
+    clearFilter: '清除',
+    selectAll: '全选',
+    selectNone: '清除选择',
+    selectedCount: '已选择 {n} 道',
+    colId: '编号',
+    colDifficulty: '难度',
+    colScore: '分数',
+    colEmptyCells: '空格数',
+    colPreview: '预览',
+    importBtn: '导入到此轮次',
+    importing: '导入中...',
+    cancel: '取消',
+    imported: '已向此轮次导入 {n} 道题目。',
+    importFailed: '导入失败',
+    loadFailed: '从题库加载题目失败',
+    previewBtn: '预览',
+  },
+
+  puzzlePreview: {
+    title: '题目预览',
+    difficulty: '难度',
+    score: '分值',
+    emptyCells: '空格数',
+    showSolution: '显示答案',
+    hideSolution: '隐藏答案',
+    initialGrid: '初始棋盘',
+    solution: '答案',
   },
 
   judge: {
@@ -584,6 +650,7 @@ export default {
     someMissingHint: '上述条件全部满足前无法发布。',
     publish: '发布',
     published: '赛事已发布。',
+    publishCannot: '无法发布：',
     publishFailed: '无法发布。',
     // 「On ne dépublie pas. Mais on peut annuler.」取消发布是破坏性操作：
     // 访问链接会被销毁（之前收到链接的选手、裁判、大屏都无法再进入），
@@ -640,6 +707,14 @@ export default {
     loadListFailed: '无法加载赛事列表。',
     unknownPlayer: '未知选手',
     stageLabel: '阶段 {n}',
+    compareMode: '对比模式',
+    exitCompare: '退出对比',
+    selectToCompare: '选择要对比的比赛',
+    selectAtLeastTwo: '选择 2-3 个比赛进行对比',
+    exportCsv: '导出 CSV',
+    print: '打印',
+    topScores: '最高分',
+    loading: '加载中...',
   },
 
   displayMode: {
@@ -785,6 +860,96 @@ export default {
     colCreated: '创建时间',
     colCompName: '赛事',
     colStatus: '状态',
+
+    // Onglets
+    tabOverview: '概览',
+    tabOrganizations: '组织',
+    tabUsers: '用户',
+
+    // Liste et détail des organisations
+    orgListTitle: '所有组织',
+    orgDetailTitle: '组织详情',
+    orgName: '组织名称',
+    orgStatus: '状态',
+    orgCreated: '创建时间',
+    orgUsers: '该组织的用户',
+    orgCompetitions: '该组织的赛事',
+    noOrgUsers: '该组织暂无用户。',
+    noOrgCompetitions: '该组织暂无赛事。',
+    backToOrganizations: '返回组织列表',
+    orgLoadFailed: '无法加载组织详情。',
+
+    // Liste des utilisateurs
+    usersListTitle: '所有用户',
+    filterByRole: '按角色筛选',
+    filterByOrg: '按组织筛选',
+    filterByUsername: '搜索用户名...',
+    allRoles: '所有角色',
+    allOrgs: '所有组织',
+    colUsername: '用户名',
+    colRole: '角色',
+    colOrg: '组织',
+    colUserStatus: '状态',
+    noUsers: '未找到用户。',
+    usersLoadFailed: '无法加载用户列表。',
+
+    // Actions de gestion
+    actionEnable: '启用',
+    actionDisable: '禁用',
+    actionResetPassword: '重置密码',
+    actionChangeRole: '更改角色',
+    confirmDisableOrg: '确定要禁用此组织吗？所有用户将失去访问权限。',
+    confirmEnableOrg: '确定要启用此组织吗？',
+    confirmResetPassword: '要为 {username} 生成新密码吗？旧密码将立即失效。',
+    newPassword: '新密码',
+    copyPassword: '复制',
+    passwordCopied: '密码已复制到剪贴板。',
+    passwordResetFailed: '重置密码失败。',
+    statusUpdateFailed: '更新状态失败。',
+    roleUpdateFailed: '更新角色失败。',
+    roleLabel: '角色',
+    selectRole: '选择角色',
+    saveRole: '保存',
+    cancel: '取消',
+    confirm: '确认',
+    close: '关闭',
+    colActions: '操作',
+    confirmDisableUser: '确定要禁用用户',
+    confirmEnableUser: '确定要启用用户',
+  },
+
+  // 队伍管理页 —— 按赛事创建和管理队伍。后端已完整（CRUD路由、team_members
+  // 无 position 列、通过 competition → organization_id 实现租户隔离）。
+  // 机构管理员在此横向查看：选一个赛事，然后查看/创建队伍、分配选手。
+  teams: {
+    title: '队伍',
+    subtitle: '为每个赛事创建队伍并分配选手。',
+    loadFailed: '无法加载队伍列表。',
+    selectCompetition: '选择赛事',
+    selectCompetitionPlaceholder: '— 请选择赛事 —',
+    selectCompetitionFirst: '请先在上方选择一个赛事，然后查看和管理队伍。',
+    teamsList: '队伍',
+    createTeam: '创建队伍',
+    createTeamTitle: '创建新队伍',
+    teamNameLabel: '队伍名称',
+    teamNamePlaceholder: '例如：阿尔法队',
+    create: '创建',
+    createSuccess: '队伍创建成功。',
+    createFailed: '创建队伍失败。',
+    noTeams: '暂无队伍 —— 请先创建一个。',
+    noMembers: '暂无成员',
+    addMember: '添加成员',
+    addMemberTitle: '添加成员',
+    selectParticipant: '选择选手',
+    selectParticipantPlaceholder: '— 请选择选手 —',
+    add: '添加',
+    addMemberSuccess: '成员添加成功。',
+    addMemberFailed: '添加成员失败。',
+    removeMember: '移除',
+    removeMemberConfirm: '确定从队伍中移除此成员？',
+    removeMemberSuccess: '成员移除成功。',
+    removeMemberFailed: '移除成员失败。',
+    memberCount: '{n} 名成员',
   },
 
   // 裁判管理页 —— 机构管理员在此创建和管理本机构的裁判账号。走 POST /users
@@ -831,6 +996,26 @@ export default {
     loadFailed: '无法加载用户列表。',
   },
 
+  // 队伍总览页 —— 只读的跨赛事视图（与选手总览页同级）。管理员在此查看
+  // 本机构所有赛事中的队伍。创建 / 删除 / 成员管理仍在赛事详情页操作。
+  dashboardTeams: {
+    title: '队伍总览',
+    subtitle: '查看所有赛事中的队伍。仅供查看 —— 创建与管理请前往对应赛事详情页。',
+    filterByCompetition: '赛事',
+    filterAllCompetitions: '全部赛事',
+    searchLabel: '搜索',
+    searchPlaceholder: '按队伍名称搜索…',
+    count: '共 {n} 支队伍',
+    colName: '队伍名称',
+    colCompetition: '赛事',
+    colMembers: '成员数',
+    colCreated: '创建时间',
+    emptyOrg: '暂无队伍。请前往某个赛事的详情页创建。',
+    emptyFiltered: '没有符合筛选条件的队伍。',
+    loading: '加载中…',
+    loadFailed: '无法加载队伍列表。',
+  },
+
   // 选手总览页 —— 只读的跨赛事视图（F32）。每个赛事详情页里保留的
   // 导入 / 删除 / 导出凭证仍然是唯一的写入路径，本页不做任何修改操作。
   // 服务端在 WHERE 子句中强制机构隔离，客户端无法绕过。
@@ -854,6 +1039,7 @@ export default {
     emptyFiltered: '没有符合筛选条件的选手。',
     loading: '加载中…',
     loadFailed: '无法加载选手列表。',
+    exportCsv: '导出 CSV',
   },
 
   // 错误页面（404 / 403 / 500）与 ErrorBoundary 兜底界面。boundary 开头的

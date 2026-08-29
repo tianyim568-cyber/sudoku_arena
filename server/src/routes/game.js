@@ -302,7 +302,7 @@ function createGameRouter(repos, orchestrator) {
         puzzleId: p.id,
         puzzleType: p.puzzle_type,
         orderInRound: p.order_in_round,
-        initialGrid: JSON.parse(p.initial_grid),
+        initialGrid: JSON.parse(p.initial_grid || '[]'),
         currentGrid: p.current_grid ? JSON.parse(p.current_grid) : null,
         points: p.points,
         letter: p.letter,
@@ -371,7 +371,7 @@ function createGameRouter(repos, orchestrator) {
           puzzleId: p.id,
           puzzleType: p.puzzle_type,
           orderInRound: p.order_in_round,
-          initialGrid: JSON.parse(p.initial_grid),
+          initialGrid: JSON.parse(p.initial_grid || '[]'),
           points: p.points,
           difficulty: p.difficulty || 'MEDIUM',
           isCompleted: solvedIds.has(p.id)
@@ -387,7 +387,7 @@ function createGameRouter(repos, orchestrator) {
               puzzleId: ap.id,
               puzzleType: ap.puzzle_type,
               orderInRound: ap.order_in_round,
-              initialGrid: JSON.parse(ap.initial_grid),
+              initialGrid: JSON.parse(ap.initial_grid || '[]'),
               currentGrid,
               points: ap.points,
               difficulty: ap.difficulty || 'MEDIUM'

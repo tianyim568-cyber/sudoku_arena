@@ -470,7 +470,7 @@ export default function PlayerGamePage() {
 
       <div className="max-w-7xl mx-auto p-3 sm:p-6">
         {message && (
-          <div className={`mb-4 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm text-center ${
+          <div key={message.text} className={`animate-slide-in mb-4 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm text-center ${
             message.type === 'success' ? 'bg-green-900/50 text-green-300' :
             message.type === 'warning' ? 'bg-yellow-900/50 text-yellow-300' :
             message.type === 'error' ? 'bg-red-900/50 text-red-300' :
