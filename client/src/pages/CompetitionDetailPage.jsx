@@ -217,6 +217,36 @@ export default function CompetitionDetailPage() {
   // server enforces the same rule (GameOrchestrator.configureStages refuses
   // RUNNING and FINISHED); this only decides whether the controls are shown.
   const isEditable = competition?.status === 'DRAFT' || competition?.status === 'PUBLISHED';
+  const isRunning = competition?.status === 'RUNNING';
+  const isPaused = competition?.status === 'PAUSED';
+
+  // Competition lifecycle controls for ORG_ADMIN (mirrors judge console actions).
+  // Pause: RUNNING → PAUSED. Resume: PAUSED → RUNNING. End: → FINISHED.
+  // End uses the ConfirmDialog because it is irreversible.
+  const handlePause = async () => {
+    const res = await api.pauseCompetition(id);
+    if (res.code === 200) { msg(t('competitionDetail.controlSuccess')); load(); bumpPublishRefresh(); }
+    else msg(t('competitionDetail.controlFailed', { msg: res.message }), 'error');
+  };
+  const handleResume = async () => {
+    const res = await api.resumeCompetition(id);
+    if (res.code === 200) { msg(t('competitionDetail.controlSuccess')); load(); bumpPublishRefresh(); }
+    else msg(t('competitionDetail.controlFailed', { msg: res.message }), 'error');
+  };
+  const handleEndCompetition = () => {
+    setConfirm({
+      title: t('competitionDetail.endConfirmTitle'),
+      message: t('competitionDetail.endConfirmBody'),
+      confirmLabel: t('competitionDetail.endCompetition'),
+      cancelLabel: t('common.cancel'),
+      danger: true,
+      action: async () => {
+        const res = await api.endCompetition(id);
+        if (res.code === 200) { msg(t('competitionDetail.controlSuccess')); load(); bumpPublishRefresh(); }
+        else msg(t('competitionDetail.controlFailed', { msg: res.message }), 'error');
+      },
+    });
+  };
 
   const STAGE_TYPES = [
     { value: 'INDIVIDUAL', labelKey: 'competitionDetail.stageTypeIndividual', available: true },
@@ -424,6 +454,42 @@ export default function CompetitionDetailPage() {
             refreshKey={publishRefreshKey}
             onStatusChange={load}
           />
+        )}
+
+        {/* Competition lifecycle controls — visible when the competition is
+            actively running (RUNNING or PAUSED). The ORG_ADMIN can pause,
+            resume, or end the competition. End uses a confirmation dialog
+            because it is irreversible. Cancel (→ DRAFT) stays in PublishPanel. */}
+        {isAdmin && (isRunning || isPaused) && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">
+              {t('competitionDetail.competitionControl')}
+            </h3>
+            <div className="flex flex-wrap gap-3">
+              {isRunning && (
+                <button
+                  onClick={handlePause}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
+                >
+                  {t('competitionDetail.pauseCompetition')}
+                </button>
+              )}
+              {isPaused && (
+                <button
+                  onClick={handleResume}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                >
+                  {t('competitionDetail.resumeCompetition')}
+                </button>
+              )}
+              <button
+                onClick={handleEndCompetition}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                {t('competitionDetail.endCompetition')}
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Stages Section — a competition is a sequence of stages, each of
