@@ -49,7 +49,7 @@ vi.mock('../api', () => ({
   setToken: vi.fn(),
 }));
 
-function renderControls({ competitionId = 'c1', currentMode = 'DEFAULT', onModeChanged = vi.fn(), isAdmin = true } = {}) {
+function renderControls({ competitionId = 'c1', currentMode = 'DEFAULT', onModeChanged = vi.fn() } = {}) {
   return render(
     <MemoryRouter>
       <LanguageProvider>
@@ -57,7 +57,6 @@ function renderControls({ competitionId = 'c1', currentMode = 'DEFAULT', onModeC
           competitionId={competitionId}
           currentMode={currentMode}
           onModeChanged={onModeChanged}
-          isAdmin={isAdmin}
         />
       </LanguageProvider>
     </MemoryRouter>
@@ -224,32 +223,6 @@ describe('DisplayModeControls — a WS event from another admin triggers a refre
     // Give the event a tick to be processed — it should NOT call.
     await new Promise((r) => setTimeout(r, 0));
     expect(onModeChanged).not.toHaveBeenCalled();
-  });
-});
-
-describe('DisplayModeControls — non-admin sees the explanation, not the buttons', () => {
-  // The prompt: "Regarde comment le panneau de surveillance a résolu ça pour
-  // la projection (bouton masqué pour un non-admin, mention expliquant
-  // pourquoi) et fais pareil." A plain judge gets a 403 on the display-mode
-  // routes; we hide the buttons and explain why, rather than showing a
-  // button that will fail.
-  it('does NOT render the mode buttons for a non-admin', () => {
-    renderControls({ currentMode: 'DEFAULT', isAdmin: false });
-    expect(screen.queryByRole('button', { name: /default view|默认视图/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /live ranking|实时排行榜/i })).toBeNull();
-  });
-
-  it('shows the explanation note for a non-admin', () => {
-    renderControls({ currentMode: 'DEFAULT', isAdmin: false });
-    expect(screen.getByText(/reserved for org admins|仅限机构管理员/i)).toBeInTheDocument();
-  });
-
-  it('still shows the current mode to a non-admin (they need to know what the room sees)', () => {
-    renderControls({ currentMode: 'LIVE_RANKING', isAdmin: false });
-    // The status line is visible to everyone — a judge who cannot switch
-    // still needs to know what the room is watching.
-    expect(screen.getByText(/currently showing:|当前显示：/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/live ranking|实时排行榜/i).length).toBeGreaterThan(0);
   });
 });
 
