@@ -6,6 +6,7 @@ import LanguageSwitcher from '../components/LanguageSwitcher';
 import { api } from '../api';
 import ParticipantImport from '../components/ParticipantImport';
 import AccessLinkSection from '../components/AccessLinkSection';
+import DisplayTokenSection from '../components/DisplayTokenSection';
 import PublishPanel from '../components/PublishPanel';
 import RoundPdfImport from '../components/RoundPdfImport';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -940,6 +941,16 @@ export default function CompetitionDetailPage() {
                this only keeps the button honest. */
             canGenerate={!!competition && competition.status !== 'DRAFT'}
           />
+        )}
+
+        {/* Big-screen display link — same gate as the access link (admin-only,
+            post-publish). The admin generates the URL here, copies it, opens
+            it on the big-screen device in the room. The judge then controls
+            what the screen shows from JudgeControlPage (display mode,
+            broadcast). Token generation is a configuration action (ORG_ADMIN);
+            mode switching is a floor operation (JUDGE or ORG_ADMIN). */}
+        {isAdmin && (
+          <DisplayTokenSection competitionId={id} />
         )}
 
         {/* Louise UX 2026-08-26: styled replacement for window.confirm().

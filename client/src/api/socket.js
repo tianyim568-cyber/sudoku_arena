@@ -13,9 +13,10 @@ export function connectSocket() {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000,
+    timeout: 15000,
   });
 
   socket.on('connect', () => {
@@ -120,9 +121,10 @@ export function connectDisplaySocket(displayToken) {
     auth: { displayToken },
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 2000,
+    reconnectionDelayMax: 10000,
+    timeout: 15000,
   });
 
   displaySocket.on('connect', () => {

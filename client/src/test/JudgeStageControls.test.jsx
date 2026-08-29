@@ -54,9 +54,8 @@ vi.mock('../components/DisplayTokenSection', () => ({
 // DisplayModeControls is covered by its own test file. We stub it here so the
 // stage-control tests don't need to mock the display-mode API and socket —
 // those are a different concern. The stub still renders a marker so the
-// admin-gate test below can see whether the parent mounted it and passed
-// the right props (including isAdmin, now that the gate lives inside the
-// component rather than at the parent).
+// tests below can verify the parent mounts it and passes the right props
+// (currentMode). The isAdmin gate was removed — all roles can switch modes.
 vi.mock('../components/DisplayModeControls', async () => {
   // vi.mock factories are hoisted before imports, so we grab React via
   // importActual at factory time — this runs as ESM and returns the real
@@ -68,7 +67,6 @@ vi.mock('../components/DisplayModeControls', async () => {
     default: (props) => React.createElement('div', {
       'data-testid': 'display-mode-controls',
       'data-current-mode': props.currentMode,
-      'data-is-admin': props.isAdmin ? 'true' : 'false',
     }),
   };
 });
@@ -184,34 +182,28 @@ describe('JudgeControlPage — stage controls', () => {
   });
 });
 
-// The display-mode controls are admin-only for the BUTTONS, but the section
-// itself (current mode + explanation) is visible to everyone — same pattern
-// as the projection block in JudgeMonitoringPanel, so a judge who looks for
-// the controls sees why they are absent rather than an empty gap. The parent
-// always mounts the component; the gate lives inside it. These tests verify
-// the parent passes the right props (including isAdmin), not the component's
-// internals (those are covered by DisplayModeControls.test.jsx). This is the
-// "a non-admin does not see the buttons" test the prompt asks for.
+// The display-mode controls are visible to all roles (JUDGE, ORG_ADMIN,
+// SUPER_ADMIN) since the server's PUT /display/mode route accepts all three.
+// The parent always mounts the component and passes currentMode. These tests
+// verify the parent wires up the props correctly, not the component's
+// internals (those are covered by DisplayModeControls.test.jsx).
 describe('JudgeControlPage — display-mode controls visibility', () => {
-  it('mounts the section for a plain judge and tells the component isAdmin=false', async () => {
+  it('mounts the section for a plain judge and passes the current mode', async () => {
     // Default auth is a plain judge (isAdmin: false).
-    renderPage();
-    const block = await screen.findByTestId('display-mode-controls');
-    expect(block).toBeInTheDocument();
-    // The parent passes isAdmin through — the component uses this to hide
-    // the buttons and show the explanation instead.
-    expect(block).toHaveAttribute('data-is-admin', 'false');
-  });
-
-  it('mounts the section for an admin, passes isAdmin=true and the current mode', async () => {
-    authState.user = { id: 'admin1', role: 'ORG_ADMIN' };
-    authState.isAdmin = true;
     renderPage({ displayMode: 'LIVE_RANKING' });
     const block = await screen.findByTestId('display-mode-controls');
     expect(block).toBeInTheDocument();
-    expect(block).toHaveAttribute('data-is-admin', 'true');
     // The parent reads competition.display_mode and passes it down — the
     // component must receive the server's value, not an assumed default.
     expect(block).toHaveAttribute('data-current-mode', 'LIVE_RANKING');
+  });
+
+  it('mounts the section for an admin with the current mode', async () => {
+    authState.user = { id: 'admin1', role: 'ORG_ADMIN' };
+    authState.isAdmin = true;
+    renderPage({ displayMode: 'DEFAULT' });
+    const block = await screen.findByTestId('display-mode-controls');
+    expect(block).toBeInTheDocument();
+    expect(block).toHaveAttribute('data-current-mode', 'DEFAULT');
   });
 });

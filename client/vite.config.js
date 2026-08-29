@@ -25,6 +25,15 @@ export default defineConfig({
         target: 'http://localhost:3001',
         ws: true,
         changeOrigin: true,
+        // Suppress ECONNABORTED/ECONNRESET noise from the proxy when the
+        // browser closes a tab or the socket reconnects. The real error is
+        // harmless — the client reconnects on its own.
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (['ECONNABORTED', 'ECONNRESET', 'EPIPE'].includes(err.code)) return;
+            console.error('[ws proxy]', err.message);
+          });
+        },
       }
     }
   }

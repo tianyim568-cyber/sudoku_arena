@@ -28,12 +28,14 @@
  * screen side already handles DISPLAY_MODE_CHANGED by dropping the broadcast
  * player locally, so the room sees the switch immediately.
  *
- * Visibility: the parent passes `isAdmin` (ORG_ADMIN or SUPER_ADMIN),
- * which matches the server's roleMiddleware on PUT /display/mode. A plain
- * judge sees the section with an explanatory note instead of the buttons —
- * same pattern as JudgeMonitoringPanel's projection block, so a judge who
- * looks for the controls understands why they are absent rather than
- * guessing the feature does not exist.
+ * Visibility: every authenticated role on the judge-control page (JUDGE,
+ * ORG_ADMIN, SUPER_ADMIN) can switch the display mode. This is a floor
+ * operation — the judge running the room decides what the screen shows,
+ * not just the organization admin. The server's PUT /display/mode route
+ * accepts JUDGE, ORG_ADMIN and SUPER_ADMIN, so the client always renders
+ * the buttons (the tenantGuard still ensures the caller belongs to the
+ * competition's organization). Token generation/revoke stays admin-only —
+ * see DisplayTokenSection.
  *
  * Error handling: if the switch fails (403, network, anything), we show the
  * message and do NOT update the highlighted button. The judge must see that
@@ -59,7 +61,7 @@ const MODE_FINAL_RANKING = 'FINAL_RANKING';
 // call stopBroadcast before switching away.
 const MODE_PLAYER_BROADCAST = 'PLAYER_BROADCAST';
 
-export default function DisplayModeControls({ competitionId, currentMode, onModeChanged, isAdmin }) {
+export default function DisplayModeControls({ competitionId, currentMode, onModeChanged }) {
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -155,47 +157,37 @@ export default function DisplayModeControls({ competitionId, currentMode, onMode
         </span>
       </div>
 
-      {isAdmin ? (
-        <>
-          <div className="flex flex-wrap gap-2 sm:gap-3">
-            {modes.map((m) => {
-              const isActive = currentMode === m.value;
-              return (
-                <button
-                  key={m.value}
-                  onClick={() => handleSwitch(m.value)}
-                  disabled={busy}
-                  title={m.hint}
-                  className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors border disabled:opacity-50 ${
-                    isActive
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
+      <div className="flex flex-wrap gap-2 sm:gap-3">
+        {modes.map((m) => {
+          const isActive = currentMode === m.value;
+          return (
+            <button
+              key={m.value}
+              onClick={() => handleSwitch(m.value)}
+              disabled={busy}
+              title={m.hint}
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors border disabled:opacity-50 ${
+                isActive
+                  ? 'bg-indigo-600 text-white border-indigo-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
 
-          {/* When a player is being projected, surface what will happen if
-              the judge clicks a mode here — the projection stops. This is
-              the coherence decision made explicit for the judge. */}
-          {currentMode === MODE_PLAYER_BROADCAST && (
-            <p className="mt-3 text-xs sm:text-sm text-amber-700">
-              {t('displayMode.projectedHint')}
-            </p>
-          )}
-
-          {error && <p className="mt-3 text-red-600 text-xs sm:text-sm">{error}</p>}
-        </>
-      ) : (
-        // Non-admin: explain why the buttons are absent, same as the
-        // projection block in JudgeMonitoringPanel. A judge who looks for
-        // the controls should understand the restriction rather than guess
-        // the feature does not exist.
-        <p className="text-xs text-gray-400">{t('displayMode.notAllowed')}</p>
+      {/* When a player is being projected, surface what will happen if
+          the judge clicks a mode here — the projection stops. This is
+          the coherence decision made explicit for the judge. */}
+      {currentMode === MODE_PLAYER_BROADCAST && (
+        <p className="mt-3 text-xs sm:text-sm text-amber-700">
+          {t('displayMode.projectedHint')}
+        </p>
       )}
+
+      {error && <p className="mt-3 text-red-600 text-xs sm:text-sm">{error}</p>}
     </section>
   );
 }
