@@ -18,6 +18,7 @@ import DashboardResultsPage from './pages/DashboardResultsPage';
 import DashboardJudgesPage from './pages/DashboardJudgesPage';
 import DashboardParticipantsPage from './pages/DashboardParticipantsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import DashboardTeamsPage from './pages/DashboardTeamsPage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import ErrorPage from './pages/ErrorPage';
 
@@ -101,7 +102,7 @@ function AppRoutes() {
             heading always matches the sidebar label. */}
         <Route path="participants" element={<DashboardParticipantsPage />} />
         <Route path="judges" element={<DashboardJudgesPage />} />
-        <Route path="teams" element={<ComingSoonPage titleKey="teams" />} />
+        <Route path="teams" element={<DashboardTeamsPage />} />
         <Route path="results" element={<DashboardResultsPage />} />
         {/* Safety net: an unknown /dashboard/* path would otherwise match no
             child and render a completely blank page. */}

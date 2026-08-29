@@ -829,6 +829,42 @@ export default {
     colStatus: 'Status',
   },
 
+  // Teams dashboard — create and manage teams per competition. The backend
+  // is already complete (CRUD routes, team_members with no position column,
+  // tenant isolation via competition → organization_id). This page is the
+  // org admin's transversal view — pick a competition, then see/create
+  // teams and assign participants to them.
+  teams: {
+    title: 'Teams',
+    subtitle: 'Create teams and assign participants for each competition.',
+    loadFailed: 'Failed to load teams.',
+    selectCompetition: 'Select a competition',
+    selectCompetitionPlaceholder: '— Choose a competition —',
+    selectCompetitionFirst: 'Select a competition above to view and manage its teams.',
+    teamsList: 'Teams',
+    createTeam: 'Create team',
+    createTeamTitle: 'Create a new team',
+    teamNameLabel: 'Team name',
+    teamNamePlaceholder: 'e.g. Team Alpha',
+    create: 'Create',
+    createSuccess: 'Team created successfully.',
+    createFailed: 'Failed to create team.',
+    noTeams: 'No teams yet — create one to get started.',
+    noMembers: 'No members yet',
+    addMember: 'Add member',
+    addMemberTitle: 'Add a member',
+    selectParticipant: 'Select a participant',
+    selectParticipantPlaceholder: '— Choose a participant —',
+    add: 'Add',
+    addMemberSuccess: 'Member added successfully.',
+    addMemberFailed: 'Failed to add member.',
+    removeMember: 'Remove',
+    removeMemberConfirm: 'Remove this member from the team?',
+    removeMemberSuccess: 'Member removed successfully.',
+    removeMemberFailed: 'Failed to remove member.',
+    memberCount: '{n} member(s)',
+  },
+
   // Judges dashboard — org admin creates and manages judge accounts. Goes
   // through POST /users with role: 'JUDGE' rather than the /competitions/
   // :id/judges route (which assigns), sidestepping the ISSUE-027 verb+path

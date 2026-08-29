@@ -792,6 +792,40 @@ export default {
     colStatus: '状态',
   },
 
+  // 队伍管理页 —— 按赛事创建和管理队伍。后端已完整（CRUD路由、team_members
+  // 无 position 列、通过 competition → organization_id 实现租户隔离）。
+  // 机构管理员在此横向查看：选一个赛事，然后查看/创建队伍、分配选手。
+  teams: {
+    title: '队伍',
+    subtitle: '为每个赛事创建队伍并分配选手。',
+    loadFailed: '无法加载队伍列表。',
+    selectCompetition: '选择赛事',
+    selectCompetitionPlaceholder: '— 请选择赛事 —',
+    selectCompetitionFirst: '请先在上方选择一个赛事，然后查看和管理队伍。',
+    teamsList: '队伍',
+    createTeam: '创建队伍',
+    createTeamTitle: '创建新队伍',
+    teamNameLabel: '队伍名称',
+    teamNamePlaceholder: '例如：阿尔法队',
+    create: '创建',
+    createSuccess: '队伍创建成功。',
+    createFailed: '创建队伍失败。',
+    noTeams: '暂无队伍 —— 请先创建一个。',
+    noMembers: '暂无成员',
+    addMember: '添加成员',
+    addMemberTitle: '添加成员',
+    selectParticipant: '选择选手',
+    selectParticipantPlaceholder: '— 请选择选手 —',
+    add: '添加',
+    addMemberSuccess: '成员添加成功。',
+    addMemberFailed: '添加成员失败。',
+    removeMember: '移除',
+    removeMemberConfirm: '确定从队伍中移除此成员？',
+    removeMemberSuccess: '成员移除成功。',
+    removeMemberFailed: '移除成员失败。',
+    memberCount: '{n} 名成员',
+  },
+
   // 裁判管理页 —— 机构管理员在此创建和管理本机构的裁判账号。走 POST /users
   // 并传 role: 'JUDGE'，绕开 /competitions/:id/judges（分配）与创建同占一个
   // 动词+路径的 ISSUE-027 冲突，等路由正式拆分后再迁移。
