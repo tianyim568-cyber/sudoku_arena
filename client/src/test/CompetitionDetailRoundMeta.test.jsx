@@ -121,15 +121,15 @@ describe('CompetitionDetailPage — round list shows readable round type (BUG-03
   // i18n parity test.
   //
   // Stage rounds are only rendered when the stage is open (toggleStage).
-  // The test must click "配置" (Configure) to expand the stage before
-  // looking for the round label — otherwise the round list is hidden.
+  // The test must click the stage toggle to expand it before looking for
+  // the round label — otherwise the round list is hidden.
   it('renders the translated label for INDIVIDUAL_STANDARD', async () => {
     renderPage();
     await waitFor(() => expect(api.listStages).toHaveBeenCalled());
-    // Open the INDIVIDUAL stage so its rounds render. "配置" appears once
-    // per stage; we click the first one (INDIVIDUAL is first in
-    // STAGES_WITH_ALL_ROUND_TYPES).
-    const configureButtons = screen.getAllByRole('button', { name: /^配置$|^Configure$/i });
+    // Open the INDIVIDUAL stage so its rounds render. The toggle button
+    // now says "+ 添加轮次" / "+ Add a round"; we click the first one
+    // (INDIVIDUAL is first in STAGES_WITH_ALL_ROUND_TYPES).
+    const configureButtons = screen.getAllByRole('button', { name: /添加轮次|Add a round/i });
     fireEvent.click(configureButtons[0]);
     // ZH label = "标准数独". It appears both in the round-type <option>
     // dropdown (always rendered when the stage is open) and in the round
@@ -145,10 +145,9 @@ describe('CompetitionDetailPage — round list shows readable round type (BUG-03
   it('renders the translated label for ROUND1_NINE_ONE', async () => {
     renderPage();
     await waitFor(() => expect(api.listStages).toHaveBeenCalled());
-    // Open the TEAM stage. "配置" appears once per stage; getAllByRole
-    // returns both, we click the second one (TEAM is rendered after
-    // INDIVIDUAL in STAGES_WITH_ALL_ROUND_TYPES).
-    const configureButtons = screen.getAllByRole('button', { name: /^配置$|^Configure$/i });
+    // Open the TEAM stage. The stage toggle says "添加轮次" / "Add a round".
+    // We click the second one (TEAM is rendered after INDIVIDUAL).
+    const configureButtons = screen.getAllByRole('button', { name: /添加轮次|Add a round/i });
     fireEvent.click(configureButtons[1]);
     // ZH label = "第一轮：九宫一填". Same option-vs-span reasoning as
     // above.
