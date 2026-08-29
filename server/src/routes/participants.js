@@ -137,6 +137,44 @@ function createParticipantRouter(repos) {
     }
   );
 
+  // GET /api/teams — global list across every competition of the caller's
+  // organization. Read-only; team CRUD (create, add/remove members) remains
+  // on the per-competition routes in competitionSetup.js.
+  //
+  // SECURITY (tenant isolation): same pattern as GET /participants above.
+  // The WHERE clause filters by competitions.organization_id — every row
+  // returned must belong to the caller's org. SUPER_ADMIN sees every org.
+  //
+  // Query params (all optional):
+  //   competitionId — restrict to one competition
+  //   search        — case-insensitive substring on team name
+  router.get(
+    '/teams',
+    authMiddleware,
+    roleMiddleware(...ADMIN_ROLES),
+    async (req, res) => {
+      try {
+        const { competitionId, search } = req.query;
+        const filters = {};
+        if (competitionId && typeof competitionId === 'string') {
+          filters.competitionId = competitionId;
+        }
+        if (search && typeof search === 'string' && search.trim()) {
+          filters.search = search.trim();
+        }
+
+        // SUPER_ADMIN sees every org; ORG_ADMIN sees only their own.
+        const orgId = req.user.role === 'SUPER_ADMIN' ? null : req.user.organizationId;
+        const rows = await repos.teams.findByOrganization(orgId, filters);
+
+        res.json({ code: 200, message: 'success', data: rows });
+      } catch (err) {
+        logger.error('List global teams failed', { error: err.message });
+        res.json({ code: 50000, message: '查询队伍失败', data: null });
+      }
+    }
+  );
+
   // POST /api/competitions/:id/participants/upload
   // Upload Excel, parse & validate, return preview data
   router.post(

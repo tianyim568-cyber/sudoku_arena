@@ -925,6 +925,27 @@ export default {
     loadFailed: 'Could not load the users list.',
   },
 
+  // Teams dashboard — global read-only view across every competition of the
+  // organization. Create / delete / member management remain inside each
+  // competition's detail page. Mirrors the participants dashboard pattern.
+  dashboardTeams: {
+    title: 'Teams',
+    subtitle: 'All teams across your organization\'s competitions. Read-only — create and manage teams inside each competition\'s detail page.',
+    filterByCompetition: 'Competition',
+    filterAllCompetitions: 'All competitions',
+    searchLabel: 'Search',
+    searchPlaceholder: 'Search by team name…',
+    count: '{n} teams',
+    colName: 'Team name',
+    colCompetition: 'Competition',
+    colMembers: 'Members',
+    colCreated: 'Created',
+    emptyOrg: 'No teams yet. Create them from a competition\'s detail page.',
+    emptyFiltered: 'No teams match these filters.',
+    loading: 'Loading teams…',
+    loadFailed: 'Could not load the teams list.',
+  },
+
   // Participants dashboard — global read-only view (F32). Complements the
   // per-competition import/delete/export that already lives inside
   // CompetitionDetailPage — this page never mutates. The server enforces
