@@ -378,6 +378,8 @@ export default {
     confirming: '导入中...',
     imported: '已向此轮次导入 {n} 道题目。',
     importedWithStripped: '已向此轮次导入 {n} 道题目（其中 {stripped} 道的外部类别 ID 已被清除）。',
+    importedWithDuplicates: '已向此轮次导入 {n} 道题目（其中 {dupes} 道已存在于题库中，已关联）。',
+    importedWithDuplicatesAndStripped: '已导入 {n} 道题目（{dupes} 道从题库关联，{stripped} 道类别 ID 已清除）。',
     partialSuccess: '题目已入库，但导入到轮次失败 — 请通过"从题库导入"重试。',
     importFailed: '导入失败',
   },

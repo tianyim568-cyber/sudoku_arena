@@ -131,10 +131,12 @@ export default function CompetitionDetailPage() {
     if (openStageId === stage.id) {
       setOpenStageId(null);
       setOpenRoundFormStageId(null);
+      setEditingRoundId(null);
       return;
     }
     setOpenStageId(stage.id);
     setOpenRoundFormStageId(null);
+    setEditingRoundId(null);
     setRoundForm({
       name: '',
       roundType: (roundTypes[stage.type] || [])[0] || '',
@@ -153,9 +155,20 @@ export default function CompetitionDetailPage() {
       preparationSeconds: roundForm.preparationSeconds,
     });
     if (res.code === 200) {
+      const newRoundId = res.data?.id;
       setRoundForm(f => ({ ...f, name: '', pdf: null }));
       setOpenRoundFormStageId(null);
       loadStages();
+      // Switch to edit mode for the new round so import buttons appear
+      // immediately — admin can add puzzles without re-opening the form.
+      if (newRoundId) {
+        setEditingRoundId(newRoundId);
+        setEditForm({
+          name: roundForm.name,
+          durationSeconds: roundForm.durationSeconds,
+          preparationSeconds: roundForm.preparationSeconds,
+        });
+      }
       msg(t('competitionDetail.roundAdded'));
     } else {
       msg(t('competitionDetail.roundAddFailed', { msg: res.message || res.code }), 'error');

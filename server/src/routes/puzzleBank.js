@@ -377,10 +377,9 @@ function createPuzzleBankRouter(repos) {
             initialGrid: safeQuestion.initialGrid,
             solution: safeQuestion.solutionGrid,
           });
+          newPuzzleIds.push(row.id);
           if (row.isDuplicate) {
             skippedDuplicates++;
-          } else {
-            newPuzzleIds.push(row.id);
           }
         } catch (err) {
           logger.error('[puzzle-bank] createStandalone failed', {

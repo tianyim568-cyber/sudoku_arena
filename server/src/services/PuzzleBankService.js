@@ -45,10 +45,9 @@ class PuzzleBankService {
   /**
    * Find puzzles by round type — dedicated endpoint for the UI picker.
    *
-   * Returns a lightweight payload (no solution_grid) with emptyCellCount
-   * so the admin can compare difficulty at a glance. Only puzzles that
-   * are NOT yet assigned to any round are returned, to prevent importing
-   * the same puzzle twice.
+   * Returns puzzle data including solution_grid so the admin can preview
+   * puzzles with the interactive modal before importing them. Includes
+   * emptyCellCount for at-a-glance difficulty comparison.
    */
   async findByType({ roundType, difficulty, limit, offset, organizationId }) {
     const result = await this.repos.puzzles.findByOrganization({
@@ -63,6 +62,7 @@ class PuzzleBankService {
         score: p.score,
         type: p.type,
         initialGrid: grid,
+        solution: p.solution_grid,
         emptyCellCount: Array.isArray(grid)
           ? grid.flat().filter(v => v === 0).length
           : 0,
@@ -229,9 +229,11 @@ class PuzzleBankService {
         const row = await this.repos.puzzles.createStandalone(p);
         if (row.isDuplicate) {
           skipped++;
-        } else {
-          created.push(row);
         }
+        // Include duplicates in created[] so they can still be attached
+        // to a round — dedup prevents re-inserting into the DB, but the
+        // puzzle is reusable across rounds.
+        created.push(row);
       } catch (e) {
         logger.error('PuzzleBankService.generatePuzzles: createStandalone failed', {
           organizationId, roundType, error: e.message,
@@ -244,7 +246,7 @@ class PuzzleBankService {
     const totalInBank = await this.repos.puzzles.countByOrganization(organizationId);
 
     return {
-      generated: created.length,
+      generated: created.length - skipped,
       skipped,
       totalInBank,
       newPuzzleIds: created.map(p => p.id),

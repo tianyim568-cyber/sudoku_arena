@@ -391,6 +391,8 @@ export default {
     confirming: 'Importing…',
     imported: 'Imported {n} puzzles into this round.',
     importedWithStripped: 'Imported {n} puzzles ({stripped} had a foreign category id cleared).',
+    importedWithDuplicates: 'Imported {n} puzzles into this round ({dupes} already existed in the bank and were linked).',
+    importedWithDuplicatesAndStripped: 'Imported {n} puzzles ({dupes} linked from bank, {stripped} had category id cleared).',
     partialSuccess: 'Puzzles were saved in the bank but the round import failed — retry from "Import from bank".',
     importFailed: 'Import failed',
   },
