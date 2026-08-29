@@ -4,9 +4,9 @@
  * Endpoints:
  *   POST /competitions/:id/display-token — Generate display token (ORG_ADMIN)
  *   DELETE /competitions/:id/display-token — Revoke display token (ORG_ADMIN)
- *   PUT /competitions/:id/display/mode — Set display mode (ORG_ADMIN)
- *   PUT /competitions/:id/display/broadcast/:playerId — Broadcast player (ORG_ADMIN)
- *   DELETE /competitions/:id/display/broadcast — Stop broadcast (ORG_ADMIN)
+ *   PUT /competitions/:id/display/mode — Set display mode (JUDGE, ORG_ADMIN)
+ *   PUT /competitions/:id/display/broadcast/:playerId — Broadcast player (JUDGE)
+ *   DELETE /competitions/:id/display/broadcast — Stop broadcast (JUDGE)
  *   GET /display/:token/ranking — Public ranking snapshot (no auth)
  *   GET /display/:token/mode — Get current display mode (no auth)
  *
@@ -91,7 +91,7 @@ function createDisplayRouter(displayManager) {
   /**
    * PUT /competitions/:id/display/mode — Set display mode.
    *
-   * Auth: Bearer token (org-scoped) + ORG_ADMIN role
+   * Auth: Bearer token (org-scoped) + JUDGE or ORG_ADMIN role
    * Tenant: competition must belong to caller's organization
    *
    * Request body:
@@ -105,7 +105,7 @@ function createDisplayRouter(displayManager) {
   router.put(
     '/competitions/:id/display/mode',
     authMiddleware,
-    roleMiddleware('ORG_ADMIN', 'SUPER_ADMIN'),
+    roleMiddleware('JUDGE', 'ORG_ADMIN', 'SUPER_ADMIN'),
     tenantGuard('competitions'),
     validateBody(updateDisplayModeSchema),
     async (req, res) => {

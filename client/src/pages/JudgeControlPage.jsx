@@ -383,18 +383,15 @@ export default function JudgeControlPage() {
           )}
         </section>
 
-        {/* Big-screen mode — admin-only buttons (ORG_ADMIN / SUPER_ADMIN,
-            same as the server's PUT /display/mode route). A plain judge
-            still sees the section (current mode + an explanatory note) so
-            they know what the room is watching — same pattern as the
-            projection block in JudgeMonitoringPanel. The gate lives inside
-            the component, not here, so the judge sees the explanation
-            instead of an empty gap. */}
+        {/* Big-screen mode — JUDGE, ORG_ADMIN, and SUPER_ADMIN can all
+            switch the display mode (floor operation). The server's PUT
+            /display/mode route accepts all three roles, so the component
+            always renders the buttons. Token generation stays admin-only
+            (see DisplayTokenSection above). */}
         <DisplayModeControls
           competitionId={competitionId}
           currentMode={competition.display_mode || 'DEFAULT'}
           onModeChanged={load}
-          isAdmin={isAdmin}
         />
 
         {/* Display token — the server gates generate/revoke on

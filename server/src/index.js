@@ -89,7 +89,11 @@ async function main() {
   const server = http.createServer(app);
 
   const io = new Server(server, {
-    cors: { origin: config.CORS_ORIGINS, methods: ['GET', 'POST'] }
+    cors: { origin: config.CORS_ORIGINS, methods: ['GET', 'POST'] },
+    // 30s ping interval + 30s timeout: generous enough to survive Vite proxy
+    // idle gaps and network hiccups without triggering unnecessary reconnects.
+    pingInterval: 30000,
+    pingTimeout: 30000,
   });
 
   // Security headers on every response (clickjacking, MIME-sniffing, etc.).
