@@ -47,6 +47,8 @@ export default function PlayerGamePage() {
 
   // Per-puzzle grid state for individual rounds (puzzleId → grid[][])
   const puzzleGrids = useRef(new Map());
+  // Track manually submitted puzzles to prevent double submission
+  const submittedPuzzles = useRef(new Set());
 
   // Socket events (puzzles/timer merged into local state)
   const {
@@ -223,6 +225,7 @@ export default function PlayerGamePage() {
         setActivePuzzle(null);
         setTeamScore(0);
         puzzleGrids.current.clear();
+        submittedPuzzles.current.clear();
         showMessage(t('game.roundStarted', { n: latest.payload.roundNumber, name: latest.payload.roundName }), 'info');
         break;
       case 'ROUND_FINISHED':
@@ -242,15 +245,28 @@ export default function PlayerGamePage() {
       case 'COMPETITION_FINISHED':
         setCurrentRound(null);
         break;
-      case 'ANSWER_RESULT':
+      case 'ANSWER_RESULT': {
+        const puzzleId = latest.payload.puzzleId;
+        // Mark puzzle as submitted when server confirms (prevents double-submit after auto-submit)
+        if (puzzleId) {
+          submittedPuzzles.current.add(puzzleId);
+        }
+
+        // Individual rounds: auto-save + completion-based scoring — no feedback to player
+        if (isIndividual) break;
+
+        // Team rounds: show feedback as before
         if (latest.payload.alreadySolved) {
           showMessage(t('game.alreadySolvedByTeam'), 'warning');
         } else if (latest.payload.isCorrect) {
           showMessage(t('game.correct', { pts: latest.payload.pointsEarned }), 'success');
+        } else if (latest.payload.message === 'saved') {
+          // Auto-save acknowledgment — don't show message
         } else {
           showMessage(translateServerMessage(latest.payload.message, lang) || t('game.wrongAnswer'), 'error');
         }
         break;
+      }
       case 'CELL_FILL_ACK':
         showMessage(t('game.filled'), 'warning');
         break;
@@ -339,10 +355,20 @@ export default function PlayerGamePage() {
 
   const handleFullGridSubmit = useCallback((grid) => {
     if (!activePuzzle || !currentRound) return;
+
+    // Prevent double submission
+    if (submittedPuzzles.current.has(activePuzzle.puzzleId)) {
+      showMessage(t('game.puzzleAlreadySubmitted'), 'warning');
+      return;
+    }
+
     if (activePuzzle.isCompleted) {
       showMessage(t('game.puzzleCompleted'), 'warning');
       return;
     }
+
+    // Mark as submitted before sending
+    submittedPuzzles.current.add(activePuzzle.puzzleId);
     submitAnswer(competitionId, currentRound.roundId, activePuzzle.puzzleId, 'FULL_GRID', { grid });
   }, [activePuzzle, currentRound, competitionId, showMessage, t]);
 

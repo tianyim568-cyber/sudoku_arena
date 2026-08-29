@@ -92,8 +92,13 @@ describe('ParticipantRepository.bulkImport — team creation', () => {
     // Two memberships — one per participant.
     expect(prisma.team_members.create).toHaveBeenCalledTimes(2);
 
-    // The counts returned reflect what happened.
-    expect(result).toEqual({ imported: 2, teamsCreated: 1, membersLinked: 2 });
+    // The counts returned reflect what happened. The credentials array
+    // holds generated login info for each imported row (added by the
+    // credential-generation feature — see ParticipantRepository JSDoc).
+    expect(result).toMatchObject({ imported: 2, teamsCreated: 1, membersLinked: 2 });
+    expect(result.credentials).toHaveLength(2);
+    expect(result.credentials[0]).toMatchObject({ name: 'Alice', school: 'School A' });
+    expect(result.credentials[1]).toMatchObject({ name: 'Bob', school: 'School B' });
   });
 
   test('a row without a team name creates NO team and NO member', async () => {
@@ -106,7 +111,9 @@ describe('ParticipantRepository.bulkImport — team creation', () => {
 
     expect(prisma.teams.create).not.toHaveBeenCalled();
     expect(prisma.team_members.create).not.toHaveBeenCalled();
-    expect(result).toEqual({ imported: 1, teamsCreated: 0, membersLinked: 0 });
+    expect(result).toMatchObject({ imported: 1, teamsCreated: 0, membersLinked: 0 });
+    expect(result.credentials).toHaveLength(1);
+    expect(result.credentials[0]).toMatchObject({ name: 'Solo', school: 'School A' });
   });
 
   test('a row with a whitespace-only team name is treated as no team', async () => {

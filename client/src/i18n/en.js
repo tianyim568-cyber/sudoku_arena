@@ -414,6 +414,11 @@ export default {
     roundMeta: '{type} | {dur}s | Puzzles: {count}',
     startRound: 'Start round',
     endRound: 'End round',
+    endStage: 'End stage',
+    stopRound: 'Stop round',
+    expandRounds: 'Show rounds',
+    collapseRounds: 'Hide rounds',
+    noRoundsInStage: 'No rounds configured for this stage.',
     roomStatus: 'Room status',
     currentRound: 'Current round:',
     remaining: 'Remaining: {time}',
@@ -438,6 +443,7 @@ export default {
     allSolvedBonus: 'All solved! Completion bonus: +{bonus} pts',
     puzzleLocked: 'This puzzle is locked!',
     puzzleCompleted: 'This puzzle is already completed!',
+    puzzleAlreadySubmitted: 'This puzzle has already been submitted.',
   },
 
   round1: {

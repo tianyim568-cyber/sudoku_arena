@@ -150,7 +150,7 @@ function mockRoundOwnedBy(orgId, { roundId = ROUND_A_ID, roundType = 'INDIVIDUAL
     if (where.id !== roundId) return null;
     return {
       id: roundId,
-      round_type: roundType,
+      type: roundType,
       competition_stages: {
         competitions: { organization_id: orgId },
       },
