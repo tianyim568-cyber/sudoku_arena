@@ -216,11 +216,11 @@ function createPuzzleBankRouter(repos) {
             difficulty: q.difficulty,
             score: q.score,
             categoryId: q.categoryId,
-            initialGrid: q.initialGrid,
+            initialGrid: q.initialGrid || [],
             // Don't send the solution in the preview response — the admin
             // sees it via getPuzzlePreview after import. This keeps the
             // preview payload small for large PDFs.
-            emptyCellCount: q.initialGrid.flat().filter(v => v === 0).length,
+            emptyCellCount: Array.isArray(q.initialGrid) ? q.initialGrid.flat().filter(v => v === 0).length : 0,
           })),
         },
       });
