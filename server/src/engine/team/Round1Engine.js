@@ -56,7 +56,7 @@ class Round1Engine extends RoundEngine {
         const isFinal = idx === 9 || p.puzzle_type === 'FINAL';
         return {
           puzzleId: p.id, puzzleType: p.puzzle_type, orderInRound: idx + 1,
-          initialGrid: typeof p.initial_grid === 'string' ? JSON.parse(p.initial_grid) : p.initial_grid,
+          initialGrid: typeof p.initial_grid === 'string' ? JSON.parse(p.initial_grid || '[]') : p.initial_grid,
           points: p.points || 10,
           letter: p.letter, isFinal, isLocked: isFinal
         };

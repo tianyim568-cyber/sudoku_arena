@@ -99,12 +99,26 @@ export default function RoundPdfImport({ round, onImported, onSuccess }) {
     const res = await api.confirmPdfPuzzles(round.id);
     setConfirming(false);
     if (res.code === 200) {
-      const summary = res.data.strippedCategoryIds > 0
-        ? t('roundPdfImport.importedWithStripped', {
-            n: res.data.importedToRound,
-            stripped: res.data.strippedCategoryIds,
-          })
-        : t('roundPdfImport.imported', { n: res.data.importedToRound });
+      let summary;
+      if (res.data.skippedDuplicates > 0 && res.data.strippedCategoryIds > 0) {
+        summary = t('roundPdfImport.importedWithDuplicatesAndStripped', {
+          n: res.data.importedToRound,
+          dupes: res.data.skippedDuplicates,
+          stripped: res.data.strippedCategoryIds,
+        });
+      } else if (res.data.skippedDuplicates > 0) {
+        summary = t('roundPdfImport.importedWithDuplicates', {
+          n: res.data.importedToRound,
+          dupes: res.data.skippedDuplicates,
+        });
+      } else if (res.data.strippedCategoryIds > 0) {
+        summary = t('roundPdfImport.importedWithStripped', {
+          n: res.data.importedToRound,
+          stripped: res.data.strippedCategoryIds,
+        });
+      } else {
+        summary = t('roundPdfImport.imported', { n: res.data.importedToRound });
+      }
       // Louise UX 2026-08-26: replaced alert() with an optional onSuccess
       // callback. The parent page already owns a msg() helper that shows
       // a styled toast — we delegate to it so the native browser dialog

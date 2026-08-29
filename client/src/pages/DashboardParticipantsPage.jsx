@@ -101,11 +101,46 @@ export default function DashboardParticipantsPage() {
   const showEmptyOrg = !loading && !loadError && rows.length === 0 && !anyFilterActive && !hasAnyRow.current;
   const showEmptyFiltered = !loading && !loadError && rows.length === 0 && (anyFilterActive || hasAnyRow.current);
 
+  // Export filtered rows as CSV — no backend call needed, the data is
+  // already loaded. Uses a Blob + download link to trigger the browser's
+  // save dialog. Columns match the visible table.
+  const handleExport = () => {
+    if (rows.length === 0) return;
+    const headers = ['name', 'school', 'age', 'category', 'competition'];
+    const csvRows = [headers.join(',')];
+    for (const r of rows) {
+      const esc = (v) => {
+        const s = v == null ? '' : String(v);
+        return s.includes(',') || s.includes('"') || s.includes('\n')
+          ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      csvRows.push([
+        esc(r.name), esc(r.school), esc(r.age), esc(r.categoryName), esc(r.competitionName),
+      ].join(','));
+    }
+    const blob = new Blob(['﻿' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `participants-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold text-gray-900">{t('participants.title')}</h2>
-        <p className="text-sm text-gray-500 mt-1">{t('participants.subtitle')}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">{t('participants.title')}</h2>
+          <p className="text-sm text-gray-500 mt-1">{t('participants.subtitle')}</p>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={rows.length === 0}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-white text-sm font-medium transition-colors"
+        >
+          {t('participants.exportCsv')}
+        </button>
       </div>
 
       {/* Filters — three inputs on one row on desktop, stacked on mobile. */}

@@ -8,6 +8,7 @@ import ParticipantImport from '../components/ParticipantImport';
 import AccessLinkSection from '../components/AccessLinkSection';
 import PublishPanel from '../components/PublishPanel';
 import RoundPdfImport from '../components/RoundPdfImport';
+import RoundBankImport from '../components/RoundBankImport';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 export default function CompetitionDetailPage() {
@@ -43,6 +44,9 @@ export default function CompetitionDetailPage() {
   const [roundTypes, setRoundTypes] = useState({});
   const [roundTypesError, setRoundTypesError] = useState(null);
   const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, preparationSeconds: 10, pdf: null });
+  // Draft round created when admin opens the "Add round" form — allows import
+  // buttons to work immediately without waiting for form submission.
+  const [draftRound, setDraftRound] = useState(null);
   // CRUD-Rounds (2026-08-26): inline edit mode for a single round. Null when
   // no round is being edited; a round id when the edit form replaces the
   // read-only row. editForm holds the live values of the form.
@@ -130,10 +134,16 @@ export default function CompetitionDetailPage() {
     if (openStageId === stage.id) {
       setOpenStageId(null);
       setOpenRoundFormStageId(null);
+      setEditingRoundId(null);
+      setCreatedDraftRound(null);
+      setDraftRound(null);
       return;
     }
     setOpenStageId(stage.id);
     setOpenRoundFormStageId(null);
+    setEditingRoundId(null);
+    setCreatedDraftRound(null);
+    setDraftRound(null);
     setRoundForm({
       name: '',
       roundType: (roundTypes[stage.type] || [])[0] || '',
@@ -143,16 +153,47 @@ export default function CompetitionDetailPage() {
     });
   };
 
-  const handleCreateRound = async (e, stage) => {
-    e.preventDefault();
+  // Open the "add round" form and create a DRAFT round immediately so the
+  // import buttons (PDF + bank) are visible and functional from the start.
+  // Admin can edit fields + import puzzles in one flow.
+  const handleOpenAddRoundForm = async (stage) => {
+    const defaultType = (roundTypes[stage.type] || [])[0] || '';
     const res = await api.createStageRound(id, stage.id, {
+      name: 'New Round',
+      roundType: defaultType,
+      durationSeconds: 600,
+      preparationSeconds: 10,
+      status: 'DRAFT',
+    });
+    if (res.code === 200) {
+      setDraftRound(res.data);
+      setRoundForm({
+        name: res.data.name,
+        roundType: res.data.roundType || defaultType,
+        durationSeconds: res.data.durationSeconds || 600,
+        preparationSeconds: res.data.preparationSeconds || 10,
+        pdf: null,
+      });
+      setOpenRoundFormStageId(stage.id);
+      loadStages();
+    } else {
+      msg(t('competitionDetail.roundAddFailed', { msg: res.message || res.code }), 'error');
+    }
+  };
+
+  // Update the DRAFT round with the current form values. Called when admin
+  // clicks "Save" in the creation form — saves fields + closes the form.
+  const handleSaveDraftRound = async (e, stage) => {
+    e.preventDefault();
+    if (!draftRound) return;
+    const res = await api.updateStageRound(id, stage.id, draftRound.id, {
       name: roundForm.name,
       roundType: roundForm.roundType,
       durationSeconds: roundForm.durationSeconds,
       preparationSeconds: roundForm.preparationSeconds,
     });
     if (res.code === 200) {
-      setRoundForm(f => ({ ...f, name: '', pdf: null }));
+      setDraftRound(null);
       setOpenRoundFormStageId(null);
       loadStages();
       msg(t('competitionDetail.roundAdded'));
@@ -679,11 +720,18 @@ export default function CompetitionDetailPage() {
                                         refuses to overwrite a round that
                                         already has puzzles (40030). */}
                                     {isAdmin && isEditable && (r.puzzles?.length || 0) === 0 && (
-                                      <RoundPdfImport
-                                        round={r}
-                                        onImported={loadStages}
-                                        onSuccess={(summary) => msg(summary)}
-                                      />
+                                      <div className="flex flex-wrap gap-2">
+                                        <RoundPdfImport
+                                          round={r}
+                                          onImported={loadStages}
+                                          onSuccess={(summary) => msg(summary)}
+                                        />
+                                        <RoundBankImport
+                                          round={r}
+                                          onImported={loadStages}
+                                          onSuccess={(summary) => msg(summary)}
+                                        />
+                                      </div>
                                     )}
                                     <div className="flex gap-2">
                                       <button
@@ -790,7 +838,7 @@ export default function CompetitionDetailPage() {
                           ) : (
                             <button
                               type="button"
-                              onClick={() => setOpenRoundFormStageId(stage.id)}
+                              onClick={() => handleOpenAddRoundForm(stage)}
                               className="px-3 py-1.5 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500"
                             >
                               {t('competitionDetail.addRound')}
@@ -799,7 +847,7 @@ export default function CompetitionDetailPage() {
                         )}
 
                         {isAdmin && isEditable && openRoundFormStageId === stage.id && (
-                          <form onSubmit={(e) => handleCreateRound(e, stage)} className="bg-gray-50 rounded-lg p-3 space-y-2 border border-indigo-200">
+                          <div className="bg-gray-50 rounded-lg p-3 space-y-2 border border-indigo-200">
                             <input type="text" placeholder={t('competitionDetail.roundName')} value={roundForm.name}
                               onChange={e => setRoundForm({ ...roundForm, name: e.target.value })}
                               className="w-full px-3 py-2 border rounded text-xs sm:text-sm" required />
@@ -834,13 +882,26 @@ export default function CompetitionDetailPage() {
                               <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
                             </div>
 
-                            {/* The old disabled PDF field is gone: PDF import
-                                is a per-round operation now, shown as an
-                                "Import PDF" button next to each round after
-                                it exists (see RoundPdfImport). */}
+                            {/* Import buttons — visible immediately since draftRound
+                                already exists. Admin can import puzzles without
+                                waiting for form submission. */}
+                            {draftRound && (
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <RoundPdfImport
+                                  round={draftRound}
+                                  onImported={() => loadStages()}
+                                  onSuccess={(summary) => msg(summary)}
+                                />
+                                <RoundBankImport
+                                  round={draftRound}
+                                  onImported={() => loadStages()}
+                                  onSuccess={(summary) => msg(summary)}
+                                />
+                              </div>
+                            )}
 
                             <div className="flex gap-2 pt-1">
-                              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500">
+                              <button type="button" onClick={(e) => handleSaveDraftRound(e, stage)} className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm hover:bg-indigo-500">
                                 {t('competitionDetail.addRoundSubmit')}
                               </button>
                               <button
@@ -851,7 +912,7 @@ export default function CompetitionDetailPage() {
                                 {t('common.cancel')}
                               </button>
                             </div>
-                          </form>
+                          </div>
                         )}
                       </div>
                     )}
