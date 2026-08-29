@@ -42,6 +42,36 @@ class PuzzleBankService {
     return { total: result.total, puzzles: safe, meta: {} };
   }
 
+  /**
+   * Find puzzles by round type — dedicated endpoint for the UI picker.
+   *
+   * Returns a lightweight payload (no solution_grid) with emptyCellCount
+   * so the admin can compare difficulty at a glance. Only puzzles that
+   * are NOT yet assigned to any round are returned, to prevent importing
+   * the same puzzle twice.
+   */
+  async findByType({ roundType, difficulty, limit, offset, organizationId }) {
+    const result = await this.repos.puzzles.findByOrganization({
+      organizationId, roundType, difficulty, limit, offset,
+    });
+
+    const puzzles = result.puzzles.map(p => {
+      const grid = p.initial_grid;
+      return {
+        id: p.id,
+        difficulty: p.difficulty,
+        score: p.score,
+        type: p.type,
+        initialGrid: grid,
+        emptyCellCount: Array.isArray(grid)
+          ? grid.flat().filter(v => v === 0).length
+          : 0,
+      };
+    });
+
+    return { total: result.total, puzzles };
+  }
+
   async getPuzzleDetail(id, organizationId) {
     const puzzle = await this.repos.puzzles.findByIdAndOrg(id, organizationId);
     if (!puzzle) return null;

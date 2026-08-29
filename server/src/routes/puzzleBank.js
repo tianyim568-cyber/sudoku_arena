@@ -69,6 +69,25 @@ function createPuzzleBankRouter(repos) {
     return entry;
   }
 
+  // List puzzles in bank by round type (dedicated endpoint for UI picker)
+  router.get('/puzzle-bank/by-type/:roundType', authMiddleware, async (req, res) => {
+    const { roundType } = req.params;
+    const { difficulty, limit, offset } = req.query;
+    try {
+      const data = await puzzleBankService.findByType({
+        roundType,
+        difficulty,
+        limit,
+        offset,
+        organizationId: req.user.organizationId,
+      });
+      res.json({ code: 200, message: 'success', data });
+    } catch (err) {
+      logger.error('[puzzle-bank] findByType failed', { error: err.message });
+      res.json({ code: 50000, message: '获取题库失败', data: null });
+    }
+  });
+
   // List puzzles in bank (with filters)
   router.get('/puzzle-bank', authMiddleware, async (req, res) => {
     const { roundType, difficulty, puzzleType, limit, offset } = req.query;
