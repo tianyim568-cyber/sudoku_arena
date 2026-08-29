@@ -16,30 +16,13 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api } from '../api';
+import PuzzlePreviewModal from './PuzzlePreviewModal';
 
 const DIFFICULTY_COLOR = {
   EASY: 'bg-green-100 text-green-700',
   MEDIUM: 'bg-yellow-100 text-yellow-700',
   HARD: 'bg-red-100 text-red-700',
 };
-
-// Tiny 9×9 grid preview — reads a 2-D array of digits (0 = empty).
-// Non-interactive; solely for the admin to spot obvious garbage.
-function MiniGrid({ grid }) {
-  if (!grid || grid.length !== 9) return null;
-  return (
-    <div className="grid grid-cols-9 gap-px bg-gray-300 p-px w-24">
-      {grid.flat().map((v, i) => (
-        <div
-          key={i}
-          className="bg-white text-[0.55rem] leading-none w-full aspect-square flex items-center justify-center"
-        >
-          {v === 0 ? '' : v}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export default function RoundBankImport({ round, onImported, onSuccess }) {
   const { t } = useLanguage();
@@ -52,6 +35,7 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [difficultyFilter, setDifficultyFilter] = useState('');
+  const [previewPuzzle, setPreviewPuzzle] = useState(null);
 
   const PAGE_SIZE = 50;
   const roundType = round.type;
@@ -266,7 +250,21 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
                     </td>
                     <td className="px-2 py-1 text-gray-600">{p.score}</td>
                     <td className="px-2 py-1 text-gray-600">{p.emptyCellCount}</td>
-                    <td className="px-2 py-1"><MiniGrid grid={p.initialGrid} /></td>
+                    <td className="px-2 py-1">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewPuzzle({
+                          initialGrid: p.initialGrid || p.initial_grid,
+                          solution: p.solution || p.solutionGrid || p.solution_grid,
+                          difficulty: p.difficulty,
+                          score: p.score,
+                          emptyCellCount: p.emptyCellCount || p.empty_cell_count,
+                        })}
+                        className="text-indigo-600 hover:text-indigo-800 text-xs font-medium"
+                      >
+                        {t('roundBankImport.previewBtn')}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -311,6 +309,13 @@ export default function RoundBankImport({ round, onImported, onSuccess }) {
         <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
           {error}
         </div>
+      )}
+
+      {previewPuzzle && (
+        <PuzzlePreviewModal
+          puzzle={previewPuzzle}
+          onClose={() => setPreviewPuzzle(null)}
+        />
       )}
     </div>
   );

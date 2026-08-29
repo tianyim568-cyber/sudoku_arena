@@ -5,6 +5,7 @@ export default {
   common: {
     done: '完成',
     back: '返回',
+    close: '关闭',
     loading: '加载中...',
     cancel: '取消',
     dismiss: '关闭',
@@ -405,6 +406,18 @@ export default {
     imported: '已向此轮次导入 {n} 道题目。',
     importFailed: '导入失败',
     loadFailed: '从题库加载题目失败',
+    previewBtn: '预览',
+  },
+
+  puzzlePreview: {
+    title: '题目预览',
+    difficulty: '难度',
+    score: '分值',
+    emptyCells: '空格数',
+    showSolution: '显示答案',
+    hideSolution: '隐藏答案',
+    initialGrid: '初始棋盘',
+    solution: '答案',
   },
 
   judge: {

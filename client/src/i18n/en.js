@@ -4,6 +4,7 @@ export default {
   common: {
     done: 'Done',
     back: 'Back',
+    close: 'Close',
     loading: 'Loading...',
     cancel: 'Cancel',
     dismiss: 'Dismiss',
@@ -418,6 +419,18 @@ export default {
     imported: 'Imported {n} puzzles into this round.',
     importFailed: 'Import failed',
     loadFailed: 'Failed to load puzzles from bank',
+    previewBtn: 'Preview',
+  },
+
+  puzzlePreview: {
+    title: 'Puzzle Preview',
+    difficulty: 'Difficulty',
+    score: 'Score',
+    emptyCells: 'Empty cells',
+    showSolution: 'Show solution',
+    hideSolution: 'Hide solution',
+    initialGrid: 'Initial grid',
+    solution: 'Solution',
   },
 
   judge: {

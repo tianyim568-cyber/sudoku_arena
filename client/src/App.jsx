@@ -19,7 +19,6 @@ import DashboardJudgesPage from './pages/DashboardJudgesPage';
 import DashboardParticipantsPage from './pages/DashboardParticipantsPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import DashboardTeamsPage from './pages/DashboardTeamsPage';
-import ComingSoonPage from './pages/ComingSoonPage';
 import ErrorPage from './pages/ErrorPage';
 
 function PrivateRoute({ children }) {
