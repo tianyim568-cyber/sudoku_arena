@@ -9,6 +9,7 @@ import AccessLinkSection from '../components/AccessLinkSection';
 import PublishPanel from '../components/PublishPanel';
 import RoundPdfImport from '../components/RoundPdfImport';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Modal from '../components/Modal';
 
 export default function CompetitionDetailPage() {
   const { id } = useParams();
@@ -39,6 +40,12 @@ export default function CompetitionDetailPage() {
   const [roundTypes, setRoundTypes] = useState({});
   const [roundTypesError, setRoundTypesError] = useState(null);
   const [roundForm, setRoundForm] = useState({ name: '', roundType: '', durationSeconds: 600, preparationSeconds: 10, pdf: null });
+  // showRoundModal — opens a modal popup for creating a round instead of
+  // the previous inline form. The stage is captured in activeStageForModal
+  // so the modal stays self-contained and the inline form slot becomes a
+  // single "Add round" button.
+  const [showRoundModal, setShowRoundModal] = useState(false);
+  const [activeStageForModal, setActiveStageForModal] = useState(null);
   // CRUD-Rounds (2026-08-26): inline edit mode for a single round. Null when
   // no round is being edited; a round id when the edit form replaces the
   // read-only row. editForm holds the live values of the form.
@@ -134,9 +141,21 @@ export default function CompetitionDetailPage() {
     });
   };
 
-  const handleCreateRound = async (e, stage) => {
+  const openRoundModal = (stage) => {
+    setRoundForm({
+      name: '',
+      roundType: (roundTypes[stage.type] || [])[0] || '',
+      durationSeconds: 600,
+      preparationSeconds: 10,
+      pdf: null,
+    });
+    setActiveStageForModal(stage);
+    setShowRoundModal(true);
+  };
+
+  const handleCreateRound = async (e) => {
     e.preventDefault();
-    const res = await api.createStageRound(id, stage.id, {
+    const res = await api.createStageRound(id, activeStageForModal.id, {
       name: roundForm.name,
       roundType: roundForm.roundType,
       durationSeconds: roundForm.durationSeconds,
@@ -144,6 +163,7 @@ export default function CompetitionDetailPage() {
     });
     if (res.code === 200) {
       setRoundForm(f => ({ ...f, name: '', pdf: null }));
+      setShowRoundModal(false);
       loadStages();
       msg(t('competitionDetail.roundAdded'));
     } else {
@@ -731,55 +751,13 @@ export default function CompetitionDetailPage() {
                           ) : allowedTypes.length === 0 ? (
                             <p className="text-xs sm:text-sm text-gray-400">{t('competitionDetail.noRoundTypeForStage')}</p>
                           ) : (
-                            <form onSubmit={(e) => handleCreateRound(e, stage)} className="bg-gray-50 rounded-lg p-3 space-y-2">
-                              <input type="text" placeholder={t('competitionDetail.roundName')} value={roundForm.name}
-                                onChange={e => setRoundForm({ ...roundForm, name: e.target.value })}
-                                className="w-full px-3 py-2 border rounded text-xs sm:text-sm" required />
-
-                              {/* Only the types this stage category accepts. The
-                                  server enforces the same rule, so a mismatch is
-                                  refused even if the list were tampered with. */}
-                              <select value={roundForm.roundType} aria-label={t('competitionDetail.roundType')}
-                                onChange={e => setRoundForm({ ...roundForm, roundType: e.target.value })}
-                                className="w-full px-3 py-2 border rounded text-xs sm:text-sm">
-                                {allowedTypes.map(rt => (
-                                  <option key={rt} value={rt}>{t(`common.roundName.${rt}`)}</option>
-                                ))}
-                              </select>
-
-                              <input type="number" min="1" aria-label={t('competitionDetail.roundDuration')}
-                                placeholder={t('competitionDetail.roundDuration')} value={roundForm.durationSeconds}
-                                onChange={e => setRoundForm({ ...roundForm, durationSeconds: parseInt(e.target.value) || 600 })}
-                                className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
-
-                              {/* Preparation time — how long players read the
-                                  round's rules before the board opens. The
-                                  column has always existed with a 10s default;
-                                  nothing let an admin change it, so every round
-                                  in the product used the same value whether or
-                                  not it suited. */}
-                              <div>
-                                <label className="block text-xs text-gray-500 mb-1">
-                                  {t('competitionDetail.roundPreparation')}
-                                </label>
-                                <input type="number" min="0" max="300"
-                                  aria-label={t('competitionDetail.roundPreparation')}
-                                  value={roundForm.preparationSeconds}
-                                  onChange={e => setRoundForm({ ...roundForm, preparationSeconds: parseInt(e.target.value) || 0 })}
-                                  className="w-full px-3 py-2 border rounded text-xs sm:text-sm" />
-                                <p className="text-xs text-gray-400 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
-                              </div>
-
-                              {/* The old disabled PDF field is gone: PDF import
-                                  is a per-round operation now, shown as an
-                                  "Import PDF" button next to each round after
-                                  it exists (see RoundPdfImport). Creating a
-                                  round no longer requires choosing a file. */}
-
-                              <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded text-xs sm:text-sm">
-                                {t('competitionDetail.addRoundSubmit')}
-                              </button>
-                            </form>
+                            <button
+                              type="button"
+                              onClick={() => openRoundModal(stage)}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs sm:text-sm font-medium transition-colors"
+                            >
+                              {t('competitionDetail.addRoundSubmit')}
+                            </button>
                           )
                         )}
                       </div>
@@ -1033,6 +1011,89 @@ export default function CompetitionDetailPage() {
           }}
         />
       </main>
+
+      {/* Round creation modal — same form that used to live inline inside
+          each stage block. Moving it here avoids layout shifts (the stage
+          list does not jump when the form appears/disappears) and gives
+          the admin a focused dialog with backdrop dismiss. */}
+      {showRoundModal && activeStageForModal && (
+        <Modal onClose={() => setShowRoundModal(false)} title={t('competitionDetail.addRoundSubmit')}>
+          <form onSubmit={handleCreateRound} className="space-y-4">
+            <div>
+              <label htmlFor="round-name" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('competitionDetail.roundName')}
+              </label>
+              <input
+                id="round-name"
+                type="text"
+                value={roundForm.name}
+                onChange={e => setRoundForm({ ...roundForm, name: e.target.value })}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+                required
+                autoFocus
+              />
+            </div>
+            <div>
+              <label htmlFor="round-type" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('competitionDetail.roundType')}
+              </label>
+              <select
+                id="round-type"
+                value={roundForm.roundType}
+                onChange={e => setRoundForm({ ...roundForm, roundType: e.target.value })}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              >
+                {(roundTypes[activeStageForModal.type] || []).map(rt => (
+                  <option key={rt} value={rt}>{t(`common.roundName.${rt}`)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="round-duration" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('competitionDetail.roundDuration')}
+              </label>
+              <input
+                id="round-duration"
+                type="number"
+                min="1"
+                value={roundForm.durationSeconds}
+                onChange={e => setRoundForm({ ...roundForm, durationSeconds: parseInt(e.target.value) || 600 })}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="round-prep" className="block text-sm font-medium text-gray-700 mb-1">
+                {t('competitionDetail.roundPreparation')}
+              </label>
+              <input
+                id="round-prep"
+                type="number"
+                min="0"
+                max="300"
+                value={roundForm.preparationSeconds}
+                onChange={e => setRoundForm({ ...roundForm, preparationSeconds: parseInt(e.target.value) || 0 })}
+                className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              />
+              <p className="text-xs text-gray-500 mt-1">{t('competitionDetail.roundPreparationHint')}</p>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowRoundModal(false)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-500 transition-colors"
+              >
+                {t('competitionDetail.addRoundSubmit')}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }
